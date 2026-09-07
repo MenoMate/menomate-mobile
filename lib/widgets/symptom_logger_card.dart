@@ -12,11 +12,11 @@ class SymptomLoggerCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
               blurRadius: 15,
               offset: const Offset(0, 8),
             ),
@@ -34,7 +34,7 @@ class SymptomLoggerCard extends StatelessWidget {
               child: const Icon(Icons.favorite, color: Color(0xFFA855F7), size: 28),
             ),
             const SizedBox(width: 16),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -43,7 +43,7 @@ class SymptomLoggerCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   SizedBox(height: 4),
@@ -51,13 +51,13 @@ class SymptomLoggerCard extends StatelessWidget {
                     'Track symptoms, mood, and more',
                     style: TextStyle(
                       fontSize: 14,
-                      color: Colors.black54,
+                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.black26),
+            Icon(Icons.arrow_forward_ios, size: 16, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)),
           ],
         ),
       ),

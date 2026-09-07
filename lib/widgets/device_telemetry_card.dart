@@ -85,7 +85,7 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.black26,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -115,7 +115,7 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
             child: ElevatedButton(
               onPressed: _isScanning ? null : _handleConnect,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
+                backgroundColor: Theme.of(context).colorScheme.surface,
                 foregroundColor: Colors.blueGrey.shade900,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(

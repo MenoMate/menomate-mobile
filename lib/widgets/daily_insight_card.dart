@@ -52,7 +52,7 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
         elevation: 2,
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
@@ -62,12 +62,12 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
                 children: [
                   Icon(Icons.lightbulb_outline, color: Colors.orange.shade400),
                   const SizedBox(width: 8),
-                  const Text(
+                  Text(
                     'Daily Insight',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ],
@@ -76,7 +76,7 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
               insightAsync.when(
                 data: (text) => Text(
                   text ?? 'Listen to your body today and take it easy.',
-                  style: const TextStyle(fontSize: 14, color: Colors.black87, height: 1.4),
+                  style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurface, height: 1.4),
                 ),
                 loading: () => const Center(
                   child: Padding(
@@ -84,9 +84,9 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ),
-                error: (_, __) => const Text(
+                error: (_, __) => Text(
                   'Could not fetch your daily insight. Please try again later.',
-                  style: TextStyle(fontSize: 14, color: Colors.black54),
+                  style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                 ),
               ),
             ],

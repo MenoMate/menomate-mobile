@@ -33,11 +33,11 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     final currentCycleAsync = ref.watch(currentCycleProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('History & Insights', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        title: Text('History & Insights', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
       ),
       body: CustomScrollView(
         slivers: [
@@ -48,16 +48,16 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   summaryAsync.when(
-                    data: (summary) => summary != null ? _buildStatsCard(summary) : const SizedBox(),
+                    data: (summary) => summary != null ? _buildStatsCard(summary, context) : const SizedBox(),
                     loading: () => const Center(child: CircularProgressIndicator()),
                     error: (err, _) => Text('Error: $err'),
                   ),
                   const SizedBox(height: 32),
-                  const Text('Cycle Calendar', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('Cycle Calendar', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
                   const SizedBox(height: 12),
-                  _buildCalendar(cyclesAsync, currentCycleAsync),
+                  _buildCalendar(cyclesAsync, currentCycleAsync, context),
                   const SizedBox(height: 32),
-                  const Text('Past Cycles', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('Past Cycles', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.onSurface)),
                   const SizedBox(height: 12),
                 ],
               ),
@@ -87,10 +87,10 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     );
   }
 
-  Widget _buildCalendar(AsyncValue<List<CycleResponse>> cyclesAsync, AsyncValue<CurrentCycleResponse?> currentCycleAsync) {
+  Widget _buildCalendar(AsyncValue<List<CycleResponse>> cyclesAsync, AsyncValue<CurrentCycleResponse?> currentCycleAsync, BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
@@ -186,16 +186,16 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
       decoration: decoration,
       child: Text(
         '${day.day}',
-        style: TextStyle(color: textColor ?? Colors.black87),
+        style: TextStyle(color: textColor ?? Theme.of(context).colorScheme.onSurface),
       ),
     );
   }
 
-  Widget _buildStatsCard(HistorySummaryResponse summary) {
+  Widget _buildStatsCard(HistorySummaryResponse summary, BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(

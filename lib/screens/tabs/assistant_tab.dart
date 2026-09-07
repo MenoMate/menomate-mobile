@@ -47,11 +47,11 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Care Assistant', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        title: Text('MenoMate Assistant', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
       ),
       body: Column(
         children: [
@@ -84,7 +84,7 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: isUser ? Colors.pinkAccent : Colors.white,
+          color: isUser ? Colors.pinkAccent : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16).copyWith(
             bottomRight: isUser ? const Radius.circular(0) : const Radius.circular(16),
             bottomLeft: isUser ? const Radius.circular(16) : const Radius.circular(0),
@@ -98,7 +98,7 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
           children: [
             Text(
               text,
-              style: TextStyle(color: isUser ? Colors.white : Colors.black87),
+              style: TextStyle(color: isUser ? Colors.white : Theme.of(context).colorScheme.onSurface),
             ),
             if (actions != null && actions.isNotEmpty) ...[
               const SizedBox(height: 8),
@@ -122,7 +122,7 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
   Widget _buildQuickActionButtons() {
     return Container(
       padding: const EdgeInsets.all(16),
-      color: Colors.white,
+      color: Theme.of(context).colorScheme.surface,
       child: Wrap(
         spacing: 8,
         runSpacing: 8,

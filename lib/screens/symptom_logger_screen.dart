@@ -113,17 +113,17 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
+          icon: Icon(Icons.arrow_back, color: Theme.of(context).colorScheme.onSurface),
           onPressed: () => context.pop(),
         ),
-        title: const Text(
+        title: Text(
           'Daily Wellness Log',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
@@ -131,17 +131,17 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'How are you feeling today?',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 24),
             
-            _buildSectionTitle('Mood'),
+            _buildSectionTitle('Mood', context),
             const SizedBox(height: 12),
             _buildBubbleGrid<String>(
               items: _moodOptions,
@@ -153,7 +153,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
             
             const SizedBox(height: 32),
             
-            _buildSectionTitle('Flow'),
+            _buildSectionTitle('Flow', context),
             const SizedBox(height: 12),
             _buildBubbleGrid<String>(
               items: _flowOptions,
@@ -165,7 +165,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
 
             const SizedBox(height: 32),
             
-            _buildSectionTitle('Pain Severity (0-10)'),
+            _buildSectionTitle('Pain Severity (0-10)', context),
             const SizedBox(height: 12),
             _buildBubbleGrid<int>(
               items: _painOptions,
@@ -178,7 +178,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
 
             const SizedBox(height: 32),
             
-            _buildSectionTitle('Notes'),
+            _buildSectionTitle('Notes', context),
             const SizedBox(height: 12),
             TextField(
               controller: _notesController,
@@ -186,7 +186,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
               decoration: InputDecoration(
                 hintText: 'Any other symptoms or thoughts?',
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: Theme.of(context).colorScheme.surface,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide(color: Colors.grey.shade300),
@@ -222,13 +222,13 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, BuildContext context) {
     return Text(
       title,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 18,
         fontWeight: FontWeight.w600,
-        color: Colors.black87,
+        color: Theme.of(context).colorScheme.onSurface,
       ),
     );
   }
@@ -259,7 +259,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
-              color: isSelected ? activeColor : Colors.white,
+              color: isSelected ? activeColor : Theme.of(context).colorScheme.surface,
               shape: BoxShape.circle,
               border: Border.all(
                 color: isSelected ? activeColor : Colors.grey.shade300,
@@ -280,7 +280,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
                 labelBuilder(item),
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.black87,
+                  color: isSelected ? Colors.white : Theme.of(context).colorScheme.onSurface,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   fontSize: crossAxisCount > 4 ? 14 : 12,
                 ),

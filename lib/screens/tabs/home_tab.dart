@@ -8,6 +8,7 @@ import '../../widgets/device_telemetry_card.dart';
 import '../../widgets/period_tracker_button.dart';
 import '../../widgets/interactive_cycle_ring.dart';
 import '../../widgets/daily_insight_card.dart';
+import '../../widgets/pulsing_therapy_fab.dart';
 
 class HomeTab extends ConsumerWidget {
   const HomeTab({super.key});
@@ -18,20 +19,20 @@ class HomeTab extends ConsumerWidget {
     final cycleAsync = ref.watch(currentCycleProvider);
     
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: profileAsync.when(
           data: (profile) => Text(
             'Hello, ${profile?.name ?? "User"}',
-            style: const TextStyle(
-              color: Colors.black87,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.bold,
             ),
           ),
-          loading: () => const Text('Loading...', style: TextStyle(color: Colors.black87)),
-          error: (_, __) => const Text('MenoMate', style: TextStyle(color: Colors.black87)),
+          loading: () => Text('Loading...', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
+          error: (_, __) => Text('MenoMate', style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
         ),
       ),
       body: SingleChildScrollView(
@@ -63,12 +64,12 @@ class HomeTab extends ConsumerWidget {
               error: (err, _) => Center(child: Text('Error loading cycle data: $err')),
             ),
             const SizedBox(height: 32),
-            const Text(
+            Text(
               'Your Activity',
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 16),
@@ -78,6 +79,7 @@ class HomeTab extends ConsumerWidget {
           ],
         ),
       ),
+      floatingActionButton: const PulsingTherapyFab(),
     );
   }
 }

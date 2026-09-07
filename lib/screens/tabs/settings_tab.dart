@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/api_service.dart';
 import '../../models/device.dart';
+import '../../providers/theme_provider.dart';
 
 class SettingsTab extends ConsumerStatefulWidget {
   const SettingsTab({super.key});
@@ -51,11 +52,11 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text('Settings', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
+        title: Text('Settings', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
       ),
       body: ListView(
         padding: const EdgeInsets.all(24),
@@ -95,6 +96,19 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
             ),
           ),
           const SizedBox(height: 32),
+          const Divider(),
+          Consumer(
+            builder: (context, ref, child) {
+              final themeMode = ref.watch(themeModeProvider);
+              return SwitchListTile(
+                title: const Text('Dark Mode'),
+                value: themeMode == ThemeMode.dark,
+                onChanged: (isDark) {
+                  ref.read(themeModeProvider.notifier).toggleTheme(isDark);
+                },
+              );
+            },
+          ),
           const Divider(),
           ListTile(
             title: const Text('Log Out', style: TextStyle(color: Colors.red)),

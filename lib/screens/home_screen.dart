@@ -37,7 +37,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           });
         },
         type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         selectedItemColor: Colors.pinkAccent,
         unselectedItemColor: Colors.blueGrey,
         items: const [

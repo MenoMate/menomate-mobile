@@ -53,4 +53,22 @@ class BleService {
     if (kIsWeb) return;
     FlutterBluePlus.stopScan();
   }
+
+  Future<void> sendTherapyCommand({
+    required double targetTemperature,
+    required String vibrationMode,
+    required int vibrationIntensity,
+  }) async {
+    print('BLE COMMAND: Set Temp to $targetTemperature C');
+    print('BLE COMMAND: Set Vibration Mode to $vibrationMode');
+    print('BLE COMMAND: Set Vibration Intensity to $vibrationIntensity');
+    
+    if (kIsWeb) {
+      print('Mocking BLE command on Web');
+      return;
+    }
+
+    // In the future, this will serialize the command and write to the ESP32 characteristic
+    print('Sending BLE command payload...');
+  }
 }

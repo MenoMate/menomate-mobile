@@ -19,8 +19,10 @@ class CyclePhaseCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFFE4E1), Color(0xFFFFC0CB)],
+        gradient: LinearGradient(
+          colors: Theme.of(context).brightness == Brightness.dark
+              ? [const Color(0xFF4A0024), const Color(0xFF31001B)]
+              : [const Color(0xFFFFE4E1), const Color(0xFFFFC0CB)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -39,12 +41,12 @@ class CyclePhaseCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Current Phase',
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Colors.black54,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
               if (isLoading)
@@ -67,21 +69,21 @@ class CyclePhaseCard extends StatelessWidget {
             )
           else ...[
             Text(
-              cycleData?.phase ?? 'Calculating...',
-              style: const TextStyle(
+              cycleData?.phase.toUpperCase() ?? 'NO DATA',
+              style: TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: Theme.of(context).colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              cycleData?.currentCycleDay != null
-                  ? 'Day ${cycleData!.currentCycleDay} of your cycle'
+              cycleData?.hasData == true 
+                  ? 'Day ${cycleData!.currentCycleDay} of Cycle'
                   : (cycleData?.hasData == false ? 'Log a period to begin' : 'Waiting for data...'),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
-                color: Colors.black54,
+                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
                 fontWeight: FontWeight.w500,
               ),
             ),

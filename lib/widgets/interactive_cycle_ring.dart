@@ -54,10 +54,10 @@ class InteractiveCycleRing extends StatelessWidget {
               children: [
                 Text(
                   'Day $currentDay',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
                 const SizedBox(height: 8),
