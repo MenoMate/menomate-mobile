@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/cycle_provider.dart';
-import '../../widgets/cycle_phase_card.dart';
 import '../../widgets/symptom_logger_card.dart';
 import '../../widgets/device_telemetry_card.dart';
 import '../../widgets/period_tracker_button.dart';
