@@ -106,6 +106,17 @@ class ApiService {
   }
 
   // --- Cycles API ---
+  Future<List<CycleResponse>> getCycles() async {
+    try {
+      final response = await _dio.get('/api/v1/cycles');
+      final List data = response.data;
+      return data.map((json) => CycleResponse.fromJson(json)).toList();
+    } catch (e) {
+      print('Error fetching cycles: $e');
+      return [];
+    }
+  }
+
   Future<void> startPeriod(DateTime date) async {
     try {
       await _dio.post('/api/v1/cycles', data: {

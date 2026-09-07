@@ -53,3 +53,35 @@ class CurrentCycleResponse {
     );
   }
 }
+
+class CycleResponse {
+  final int id;
+  final String userId;
+  final DateTime periodStart;
+  final DateTime? periodEnd;
+  final int? periodLengthDays;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  CycleResponse({
+    required this.id,
+    required this.userId,
+    required this.periodStart,
+    this.periodEnd,
+    this.periodLengthDays,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory CycleResponse.fromJson(Map<String, dynamic> json) {
+    return CycleResponse(
+      id: json['id'] as int,
+      userId: json['user_id'] as String,
+      periodStart: DateTime.parse(json['period_start']),
+      periodEnd: json['period_end'] != null ? DateTime.parse(json['period_end']) : null,
+      periodLengthDays: json['period_length_days'] as int?,
+      createdAt: DateTime.parse(json['created_at']),
+      updatedAt: DateTime.parse(json['updated_at']),
+    );
+  }
+}

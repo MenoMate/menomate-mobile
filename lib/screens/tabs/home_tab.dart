@@ -6,6 +6,8 @@ import '../../widgets/cycle_phase_card.dart';
 import '../../widgets/symptom_logger_card.dart';
 import '../../widgets/device_telemetry_card.dart';
 import '../../widgets/period_tracker_button.dart';
+import '../../widgets/interactive_cycle_ring.dart';
+import '../../widgets/daily_insight_card.dart';
 
 class HomeTab extends ConsumerWidget {
   const HomeTab({super.key});
@@ -40,16 +42,25 @@ class HomeTab extends ConsumerWidget {
             cycleAsync.when(
               data: (cycleData) => Column(
                 children: [
-                  CyclePhaseCard(cycleData: cycleData),
-                  const SizedBox(height: 16),
+                  if (cycleData != null)
+                    InteractiveCycleRing(
+                      phase: cycleData.phase,
+                      currentDay: cycleData.currentCycleDay ?? 1,
+                      cycleLength: cycleData.averageCycleLength ?? cycleData.predictedCycleLength ?? 28,
+                    ),
+                  if (cycleData != null)
+                    const DailyInsightCard(),
+                  if (cycleData == null)
+                    const Text('No cycle data available'),
+                  const SizedBox(height: 24),
                   PeriodTrackerButton(
                     isBleeding: cycleData?.isBleeding ?? false,
                     latestPeriodStart: cycleData?.latestPeriodStart,
                   ),
                 ],
               ),
-              loading: () => const CyclePhaseCard(cycleData: null, isLoading: true),
-              error: (err, _) => CyclePhaseCard(cycleData: null, error: err.toString()),
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, _) => Center(child: Text('Error loading cycle data: $err')),
             ),
             const SizedBox(height: 32),
             const Text(

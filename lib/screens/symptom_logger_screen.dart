@@ -20,11 +20,18 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
   
   int _pain = 0;
   String? _mood;
+  String? _flow;
   
-  // Hardcode supported mood strings as per MoodEnum in backend
+  // Backend Enums
   final List<String> _moodOptions = [
     'happy', 'calm', 'neutral', 'sad', 'irritable', 'anxious', 'tired'
   ];
+  
+  final List<String> _flowOptions = [
+    'light', 'medium', 'heavy', 'spotting'
+  ];
+
+  final List<int> _painOptions = List.generate(11, (index) => index);
 
   late String _todayDateString;
 
@@ -43,6 +50,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
       setState(() {
         _pain = log.pain;
         _mood = log.mood;
+        _flow = log.flow;
         _notesController.text = log.notes ?? '';
       });
     }
@@ -65,8 +73,9 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
       logDate: _todayDateString,
       pain: _pain,
       mood: _mood,
+      flow: _flow,
       notes: _notesController.text.isNotEmpty ? _notesController.text : null,
-      symptoms: [], // Empty for now, can be expanded to include specific child symptoms
+      symptoms: [], 
     );
 
     final result = await apiService.upsertDailyLog(payload);
@@ -131,34 +140,44 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
               ),
             ),
             const SizedBox(height: 24),
+            
             _buildSectionTitle('Mood'),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: _moodOptions.map((mood) {
-                return _buildChip(
-                  mood[0].toUpperCase() + mood.substring(1),
-                  _mood == mood,
-                  () => setState(() => _mood = mood),
-                );
-              }).toList(),
+            _buildBubbleGrid<String>(
+              items: _moodOptions,
+              selectedValue: _mood,
+              onSelected: (val) => setState(() => _mood = val),
+              labelBuilder: (val) => val[0].toUpperCase() + val.substring(1),
+              activeColor: Colors.blueAccent,
             ),
+            
             const SizedBox(height: 32),
-            _buildSectionTitle('Pain Severity'),
-            const SizedBox(height: 8),
-            Slider(
-              value: _pain.toDouble(),
-              min: 0,
-              max: 10,
-              divisions: 10,
-              activeColor: const Color(0xFFA855F7),
-              label: '$_pain/10',
-              onChanged: (val) {
-                setState(() => _pain = val.toInt());
-              },
+            
+            _buildSectionTitle('Flow'),
+            const SizedBox(height: 12),
+            _buildBubbleGrid<String>(
+              items: _flowOptions,
+              selectedValue: _flow,
+              onSelected: (val) => setState(() => _flow = val),
+              labelBuilder: (val) => val[0].toUpperCase() + val.substring(1),
+              activeColor: Colors.redAccent,
             ),
+
             const SizedBox(height: 32),
+            
+            _buildSectionTitle('Pain Severity (0-10)'),
+            const SizedBox(height: 12),
+            _buildBubbleGrid<int>(
+              items: _painOptions,
+              selectedValue: _pain,
+              onSelected: (val) => setState(() => _pain = val),
+              labelBuilder: (val) => val.toString(),
+              activeColor: Colors.orangeAccent,
+              crossAxisCount: 6,
+            ),
+
+            const SizedBox(height: 32),
+            
             _buildSectionTitle('Notes'),
             const SizedBox(height: 12),
             TextField(
@@ -179,6 +198,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
               ),
             ),
             const SizedBox(height: 40),
+            
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -213,26 +233,62 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     );
   }
 
-  Widget _buildChip(String label, bool isSelected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFA855F7) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? const Color(0xFFA855F7) : Colors.grey.shade300,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected ? Colors.white : Colors.black87,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
+  Widget _buildBubbleGrid<T>({
+    required List<T> items,
+    required T? selectedValue,
+    required Function(T) onSelected,
+    required String Function(T) labelBuilder,
+    required Color activeColor,
+    int crossAxisCount = 4,
+  }) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
       ),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        final isSelected = item == selectedValue;
+        
+        return GestureDetector(
+          onTap: () => onSelected(item),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            decoration: BoxDecoration(
+              color: isSelected ? activeColor : Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isSelected ? activeColor : Colors.grey.shade300,
+                width: 2,
+              ),
+              boxShadow: isSelected 
+                ? [
+                    BoxShadow(
+                      color: activeColor.withAlpha(70),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    )
+                  ]
+                : [],
+            ),
+            child: Center(
+              child: Text(
+                labelBuilder(item),
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.black87,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontSize: crossAxisCount > 4 ? 14 : 12,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

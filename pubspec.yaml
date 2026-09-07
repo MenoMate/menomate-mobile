@@ -41,6 +41,7 @@ dependencies:
   flutter_blue_plus: ^2.3.12
   intl: ^0.20.3
   permission_handler: ^13.0.2
+  table_calendar: ^3.2.1
 
 dev_dependencies:
   flutter_test:
