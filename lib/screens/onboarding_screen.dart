@@ -61,16 +61,36 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         usualPeriodDays: int.tryParse(_periodDaysController.text),
       );
 
-      await ref.read(apiServiceProvider).completeOnboarding(request);
+      final updatedProfile = await ref.read(apiServiceProvider).completeOnboarding(request);
       
-      // Invalidate the profile provider so it fetches the newly updated profile
-      // This will automatically trigger a router redirect to /home
-      ref.invalidate(profileProvider);
-
+      if (updatedProfile != null) {
+        ref.read(profileProvider.notifier).setProfile(updatedProfile);
+      } else {
+        await ref.read(profileProvider.notifier).reload();
+      }
     } on DioException catch (e) {
       if (mounted) {
+        final serverMessage = e.response?.data is Map && e.response?.data['detail'] != null
+            ? e.response?.data['detail'].toString()
+            : null;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error connecting to backend: ${e.message}')),
+          SnackBar(
+            content: Text(
+              serverMessage != null
+                  ? 'Error: $serverMessage'
+                  : 'Unable to connect to MenoMate. Please check your connection and try again.',
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('An unexpected error occurred. Please try again.'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     } finally {

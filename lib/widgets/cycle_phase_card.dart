@@ -29,7 +29,7 @@ class CyclePhaseCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.pink.withOpacity(0.2),
+            color: Colors.pink.withValues(alpha: 0.2),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),

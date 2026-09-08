@@ -7,9 +7,11 @@ final supabaseClientProvider = Provider<SupabaseClient>((ref) {
 });
 
 /// A StreamProvider that listens to Supabase auth state changes and yields the current User (or null).
-final authStateProvider = StreamProvider<User?>((ref) {
+final authStateProvider = StreamProvider<User?>((ref) async* {
   final supabase = ref.watch(supabaseClientProvider);
-  return supabase.auth.onAuthStateChange.map((event) => event.session?.user);
+  // Yield the already-restored session user immediately so initial routing has the session without delay
+  yield supabase.auth.currentSession?.user;
+  yield* supabase.auth.onAuthStateChange.map((event) => event.session?.user);
 });
 
 /// A provider that synchronously provides the current authenticated user (if any).

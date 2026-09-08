@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../providers/auth_provider.dart';
-import '../../services/api_service.dart';
+
 import '../../models/device.dart';
+import '../../models/profile.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/cycle_provider.dart';
+import '../../providers/profile_provider.dart';
 import '../../providers/theme_provider.dart';
+import '../../services/api_service.dart';
 
 class SettingsTab extends ConsumerStatefulWidget {
   const SettingsTab({super.key});
@@ -13,21 +17,105 @@ class SettingsTab extends ConsumerStatefulWidget {
 }
 
 class _SettingsTabState extends ConsumerState<SettingsTab> {
-  final TextEditingController _macController = TextEditingController();
-  bool _isLoading = false;
+  final _nameController = TextEditingController();
+  final _cycleLengthController = TextEditingController();
+  final _periodLengthController = TextEditingController();
+  final _macController = TextEditingController();
 
-  void _registerDevice() async {
+  String _selectedUnits = 'metric';
+  bool _isInitialized = false;
+  bool _isSaving = false;
+  bool _isRegisteringDevice = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _cycleLengthController.dispose();
+    _periodLengthController.dispose();
+    _macController.dispose();
+    super.dispose();
+  }
+
+  void _initFields(Profile? profile) {
+    if (profile == null || _isInitialized) return;
+    _nameController.text = profile.name ?? '';
+    _cycleLengthController.text = profile.usualCycleDays?.toString() ?? '28';
+    _periodLengthController.text = profile.usualPeriodDays?.toString() ?? '5';
+    _selectedUnits = (profile.units?.toLowerCase() == 'imperial') ? 'imperial' : 'metric';
+    _isInitialized = true;
+  }
+
+  Future<void> _saveProfile() async {
+    final name = _nameController.text.trim();
+    final cycleStr = _cycleLengthController.text.trim();
+    final periodStr = _periodLengthController.text.trim();
+
+    final cycleDays = int.tryParse(cycleStr);
+    final periodDays = int.tryParse(periodStr);
+
+    if (cycleDays != null && (cycleDays < 20 || cycleDays > 45)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Usual cycle length must be between 20 and 45 days.')),
+      );
+      return;
+    }
+
+    if (periodDays != null && (periodDays < 1 || periodDays > 12)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Usual period length must be between 1 and 12 days.')),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final api = ref.read(apiServiceProvider);
+      final currentThemeMode = ref.read(themeModeProvider);
+      final themeStr = currentThemeMode == ThemeMode.dark ? 'dark' : 'light';
+
+      final payload = <String, dynamic>{
+        'name': name.isNotEmpty ? name : null,
+        'usual_cycle_days': cycleDays,
+        'usual_period_days': periodDays,
+        'theme': themeStr,
+        'units': _selectedUnits,
+      };
+
+      await api.updateProfile(payload);
+      refreshAllAppData(ref);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile preferences saved successfully.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving preferences: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _registerDevice() async {
     final mac = _macController.text.trim();
-    if (mac.isEmpty) return;
+    if (mac.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a device identifier or MAC address.')),
+      );
+      return;
+    }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isRegisteringDevice = true);
 
     try {
       final api = ref.read(apiServiceProvider);
       await api.registerDevice(DeviceCreate(deviceIdentifier: mac, name: 'MenoMate Wearable'));
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Device registered successfully!')),
@@ -41,83 +129,327 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() => _isRegisteringDevice = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final profileAsync = ref.watch(profileProvider);
+    final themeMode = ref.watch(themeModeProvider);
+
+    profileAsync.whenData((profile) {
+      if (!_isInitialized) {
+        _initFields(profile);
+      }
+    });
+
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text('Settings', style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold)),
+        title: Text(
+          'Settings',
+          style: TextStyle(
+            color: colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const Text('Wearable Device', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 16),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.grey.shade200),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Manually Register Device MAC Address'),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _macController,
-                    decoration: const InputDecoration(
-                      hintText: 'e.g. 00:1A:2B:3C:4D:5E',
-                      border: OutlineInputBorder(),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            children: [
+              // --- 1. Profile Section ---
+              _buildSectionHeader('Profile', colorScheme),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: colorScheme.outline),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TextField(
+                      controller: _nameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Your Name',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _registerDevice,
-                      child: _isLoading ? const CircularProgressIndicator() : const Text('Register Device'),
-                    ),
-                  )
-                ],
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 20),
+
+              // --- 2. Cycle & Period Preferences ---
+              _buildSectionHeader('Cycle & Period Baseline', colorScheme),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: colorScheme.outline),
+                ),
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: _cycleLengthController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Usual Cycle Length (days)',
+                        hintText: 'e.g. 28',
+                        prefixIcon: Icon(Icons.repeat_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _periodLengthController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Usual Period Length (days)',
+                        hintText: 'e.g. 5',
+                        prefixIcon: Icon(Icons.water_drop_outlined),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // --- 3. Appearance ---
+              _buildSectionHeader('Appearance', colorScheme),
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: colorScheme.outline),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          if (themeMode != ThemeMode.light) {
+                            ref.read(themeModeProvider.notifier).toggleTheme(false);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: themeMode == ThemeMode.light
+                                ? colorScheme.primary.withValues(alpha: 0.15)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.light_mode_outlined,
+                                size: 18,
+                                color: themeMode == ThemeMode.light
+                                    ? colorScheme.primary
+                                    : colorScheme.secondary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Light',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: themeMode == ThemeMode.light ? FontWeight.bold : FontWeight.normal,
+                                  color: themeMode == ThemeMode.light
+                                      ? colorScheme.primary
+                                      : colorScheme.secondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () {
+                          if (themeMode != ThemeMode.dark) {
+                            ref.read(themeModeProvider.notifier).toggleTheme(true);
+                          }
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: themeMode == ThemeMode.dark
+                                ? colorScheme.primary.withValues(alpha: 0.15)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.dark_mode_outlined,
+                                size: 18,
+                                color: themeMode == ThemeMode.dark
+                                    ? colorScheme.primary
+                                    : colorScheme.secondary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Dark',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: themeMode == ThemeMode.dark ? FontWeight.bold : FontWeight.normal,
+                                  color: themeMode == ThemeMode.dark
+                                      ? colorScheme.primary
+                                      : colorScheme.secondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // --- 4. Units Preference ---
+              _buildSectionHeader('Units', colorScheme),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: colorScheme.outline),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Measurement Units', style: TextStyle(fontWeight: FontWeight.w500)),
+                    DropdownButton<String>(
+                      value: _selectedUnits,
+                      underline: const SizedBox.shrink(),
+                      items: const [
+                        DropdownMenuItem(value: 'metric', child: Text('Metric (°C)')),
+                        DropdownMenuItem(value: 'imperial', child: Text('Imperial (°F)')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) setState(() => _selectedUnits = val);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Save Preferences Button
+              SizedBox(
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: _isSaving ? null : _saveProfile,
+                  child: _isSaving
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Save Profile Preferences'),
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // --- 5. Wearable Device Section ---
+              _buildSectionHeader('MenoMate Wearable', colorScheme),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: colorScheme.outline),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Pair Wearable Hardware',
+                      style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Enter your MenoMate device identifier or BLE MAC address to register your hardware link.',
+                      style: TextStyle(fontSize: 12, color: colorScheme.secondary, height: 1.3),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _macController,
+                      decoration: const InputDecoration(
+                        hintText: 'e.g. 00:1A:2B:3C:4D:5E',
+                        prefixIcon: Icon(Icons.bluetooth),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: _isRegisteringDevice ? null : _registerDevice,
+                        child: _isRegisteringDevice
+                            ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Text('Register Device'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 28),
+
+              // --- 6. Account & Sign Out ---
+              _buildSectionHeader('Account', colorScheme),
+              Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: colorScheme.outline),
+                ),
+                child: ListTile(
+                  leading: const Icon(Icons.logout, color: Colors.redAccent),
+                  title: const Text('Sign Out', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.redAccent),
+                  onTap: () async {
+                    await ref.read(supabaseClientProvider).auth.signOut();
+                  },
+                ),
+              ),
+              const SizedBox(height: 36),
+            ],
           ),
-          const SizedBox(height: 32),
-          const Divider(),
-          Consumer(
-            builder: (context, ref, child) {
-              final themeMode = ref.watch(themeModeProvider);
-              return SwitchListTile(
-                title: const Text('Dark Mode'),
-                value: themeMode == ThemeMode.dark,
-                onChanged: (isDark) {
-                  ref.read(themeModeProvider.notifier).toggleTheme(isDark);
-                },
-              );
-            },
-          ),
-          const Divider(),
-          ListTile(
-            title: const Text('Log Out', style: TextStyle(color: Colors.red)),
-            trailing: const Icon(Icons.logout, color: Colors.red),
-            onTap: () async {
-              await ref.read(supabaseClientProvider).auth.signOut();
-            },
-          ),
-        ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, ColorScheme colorScheme) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          color: colorScheme.secondary,
+          letterSpacing: 0.5,
+        ),
       ),
     );
   }

@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../widgets/theme_atmosphere.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/assistant_tab.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/settings_tab.dart';
 
-class HomeScreen extends ConsumerStatefulWidget {
-  const HomeScreen({super.key});
-
+class HomeTabIndexNotifier extends Notifier<int> {
   @override
-  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+  int build() => 0;
+
+  void setIndex(int index) => state = index;
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
-  int _currentIndex = 0;
+final homeTabIndexProvider = NotifierProvider<HomeTabIndexNotifier, int>(HomeTabIndexNotifier.new);
+
+class HomeScreen extends ConsumerWidget {
+  const HomeScreen({super.key});
 
   final List<Widget> _tabs = const [
     HomeTab(),
@@ -23,23 +26,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentIndex = ref.watch(homeTabIndexProvider);
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _tabs,
+      body: ThemeAtmosphereBackground(
+        child: IndexedStack(
+          index: currentIndex,
+          children: _tabs,
+        ),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
+        currentIndex: currentIndex,
         onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          ref.read(homeTabIndexProvider.notifier).setIndex(index);
         },
         type: BottomNavigationBarType.fixed,
-        backgroundColor: Theme.of(context).colorScheme.surface,
-        selectedItemColor: Colors.pinkAccent,
-        unselectedItemColor: Colors.blueGrey,
+        backgroundColor: colorScheme.surface,
+        selectedItemColor: colorScheme.primary,
+        unselectedItemColor: colorScheme.secondary,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined),
@@ -47,14 +54,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.chat_bubble_outline),
-            activeIcon: Icon(Icons.chat_bubble),
-            label: 'Assistant',
+            icon: Icon(Icons.spa_outlined),
+            activeIcon: Icon(Icons.spa),
+            label: 'Care',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.history_outlined),
-            activeIcon: Icon(Icons.history),
-            label: 'History',
+            icon: Icon(Icons.calendar_month_outlined),
+            activeIcon: Icon(Icons.calendar_month),
+            label: 'Calendar',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),
@@ -66,4 +73,3 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 }
-

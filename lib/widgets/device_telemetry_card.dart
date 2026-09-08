@@ -28,9 +28,11 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
     
     await bleService.startScan();
     
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Scanning for MenoMate Wearable...')),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Scanning for MenoMate Wearable...')),
+      );
+    }
     
     // Reset scan state after 15s timeout
     Future.delayed(const Duration(seconds: 15), () {
@@ -56,7 +58,7 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
         borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: Colors.blueGrey.withOpacity(0.3),
+            color: Colors.blueGrey.withValues(alpha: 0.3),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),

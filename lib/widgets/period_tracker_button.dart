@@ -1,16 +1,15 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/api_service.dart';
 import '../providers/cycle_provider.dart';
 
 class PeriodTrackerButton extends ConsumerStatefulWidget {
-  final bool isBleeding;
-  final DateTime? latestPeriodStart;
-  
+  final bool isOngoing;
+
   const PeriodTrackerButton({
-    super.key, 
-    required this.isBleeding,
-    this.latestPeriodStart,
+    super.key,
+    required this.isOngoing,
   });
 
   @override
@@ -20,29 +19,49 @@ class PeriodTrackerButton extends ConsumerStatefulWidget {
 class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
   bool _isLoading = false;
 
-  void _togglePeriod() async {
+  Future<void> _togglePeriod() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
       final apiService = ref.read(apiServiceProvider);
-      if (widget.isBleeding) {
-        // We can't end period without cycle_id easily if we don't have it here. 
-        // Let's assume we need to fetch cycle_id or we'll just show a snackbar for now.
-        // Actually, the API needs cycle_id to end it. 
-        // For simplicity, let's just show a snackbar if we don't have cycle ID.
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ending period feature coming soon.')),
-        );
+
+      if (widget.isOngoing) {
+        await apiService.endOngoingPeriod(DateTime.now());
       } else {
         await apiService.startPeriod(DateTime.now());
-        ref.invalidate(currentCycleProvider);
       }
-    } catch (e) {
+
+      refreshAllAppData(ref);
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(
+            content: Text(
+              widget.isOngoing
+                  ? 'Period marked as ended today.'
+                  : 'Period marked as started today.',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error updating period: $e');
+      if (mounted) {
+        String friendlyMessage = "Couldn't update your period. Please try again.";
+        if (e is DioException) {
+          final data = e.response?.data;
+          if (data is Map && data['detail'] != null) {
+            friendlyMessage = data['detail'].toString();
+          }
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(friendlyMessage),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     } finally {
@@ -60,12 +79,20 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
       width: double.infinity,
       child: ElevatedButton.icon(
         onPressed: _isLoading ? null : _togglePeriod,
-        icon: _isLoading 
-            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-            : Icon(widget.isBleeding ? Icons.stop_circle : Icons.water_drop),
-        label: Text(widget.isBleeding ? 'Log Period Ended Today' : 'Log Period Started Today'),
+        icon: _isLoading
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : Icon(widget.isOngoing ? Icons.stop_circle_rounded : Icons.water_drop_rounded),
+        label: Text(
+          widget.isOngoing ? 'Log Period Ended Today' : 'Log Period Started Today',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: widget.isBleeding ? Colors.redAccent.shade100 : Colors.redAccent,
+          backgroundColor:
+              widget.isOngoing ? Colors.redAccent.shade100 : Colors.redAccent,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(

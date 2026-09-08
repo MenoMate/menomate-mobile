@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../models/daily_log.dart';
+import '../providers/cycle_provider.dart';
 import '../services/api_service.dart';
 
 class SymptomLoggerScreen extends ConsumerStatefulWidget {
@@ -86,6 +87,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
       });
       
       if (result != null) {
+        refreshAllAppData(ref);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Wellness log saved!')),
         );

@@ -21,6 +21,7 @@ class CareInteractionResponse {
   final bool isAiGenerated;
   final List<String> suggestedActions;
   final String disclaimer;
+  final String? therapyProfile;
 
   CareInteractionResponse({
     required this.intent,
@@ -28,18 +29,22 @@ class CareInteractionResponse {
     required this.isAiGenerated,
     required this.suggestedActions,
     required this.disclaimer,
+    this.therapyProfile,
   });
+
+  String get response => responseText;
 
   factory CareInteractionResponse.fromJson(Map<String, dynamic> json) {
     return CareInteractionResponse(
       intent: json['intent'] as String,
-      responseText: json['response_text'] as String,
+      responseText: (json['response_text'] ?? json['response']) as String? ?? '',
       isAiGenerated: json['is_ai_generated'] as bool? ?? false,
       suggestedActions: (json['suggested_actions'] as List<dynamic>?)
               ?.map((e) => e as String)
               .toList() ??
           [],
       disclaimer: json['disclaimer'] as String? ?? '',
+      therapyProfile: json['therapy_profile'] as String?,
     );
   }
 }

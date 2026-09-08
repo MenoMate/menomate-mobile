@@ -1,0 +1,43 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MenoMate (Web Server - Recommended)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "-d",
+        "web-server",
+        "--web-port",
+        "8080"
+      ]
+    },
+    {
+      "name": "MenoMate (Chrome)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "-d",
+        "chrome"
+      ]
+    },
+    {
+      "name": "MenoMate (Edge)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "-d",
+        "edge"
+      ]
+    },
+    {
+      "name": "MenoMate (Windows Desktop)",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "-d",
+        "windows"
+      ]
+    }
+  ]
+}

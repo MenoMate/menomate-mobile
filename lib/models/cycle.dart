@@ -3,6 +3,8 @@ class CurrentCycleResponse {
   final int? currentCycleDay;
   final String phase;
   final bool isBleeding;
+  final bool isOngoing;
+  final int? activeCycleId;
   final DateTime? latestPeriodStart;
   final DateTime? latestPeriodEnd;
   final int? predictedCycleLength;
@@ -18,6 +20,8 @@ class CurrentCycleResponse {
     this.currentCycleDay,
     required this.phase,
     required this.isBleeding,
+    this.isOngoing = false,
+    this.activeCycleId,
     this.latestPeriodStart,
     this.latestPeriodEnd,
     this.predictedCycleLength,
@@ -30,17 +34,23 @@ class CurrentCycleResponse {
   });
 
   factory CurrentCycleResponse.fromJson(Map<String, dynamic> json) {
+    final start = json['latest_period_start'] != null 
+        ? DateTime.parse(json['latest_period_start']) 
+        : null;
+    final end = json['latest_period_end'] != null 
+        ? DateTime.parse(json['latest_period_end']) 
+        : null;
+    final bool ongoing = json['is_ongoing'] as bool? ?? (start != null && end == null);
+
     return CurrentCycleResponse(
       hasData: json['has_data'] as bool? ?? false,
       currentCycleDay: json['current_cycle_day'] as int?,
       phase: json['phase'] as String? ?? 'Unknown',
       isBleeding: json['is_bleeding'] as bool? ?? false,
-      latestPeriodStart: json['latest_period_start'] != null 
-          ? DateTime.parse(json['latest_period_start']) 
-          : null,
-      latestPeriodEnd: json['latest_period_end'] != null 
-          ? DateTime.parse(json['latest_period_end']) 
-          : null,
+      isOngoing: ongoing,
+      activeCycleId: json['active_cycle_id'] as int?,
+      latestPeriodStart: start,
+      latestPeriodEnd: end,
       predictedCycleLength: json['predicted_cycle_length'] as int?,
       predictedNextPeriod: json['predicted_next_period'] != null 
           ? DateTime.parse(json['predicted_next_period']) 

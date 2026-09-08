@@ -8,18 +8,31 @@ final dailyInsightProvider = FutureProvider.autoDispose<String?>((ref) async {
   final apiService = ref.watch(apiServiceProvider);
   final cycleData = await ref.watch(currentCycleProvider.future);
   
-  final cycleDay = cycleData?.currentCycleDay ?? 1;
-  final phase = cycleData?.phase ?? 'unknown';
+  final phase = cycleData?.phase.toLowerCase() ?? 'menstrual';
 
-  final prompt = 'Give me a strict two-sentence wellness tip based on the current cycle day $cycleDay (phase: $phase). Do not include any pleasantries or chat history.';
+  final prompt = 'Provide ONE concise, supportive wellness tip (nutrition, hydration, gentle movement, or rest) specifically suited for the $phase phase of the menstrual cycle. Do NOT repeat the cycle day number, do NOT name the cycle phase, and do NOT mention any next period dates. Maximum 2 sentences.';
 
-  final request = CareInteractionRequest(
-    intent: 'general_inquiry',
-    userMessage: prompt,
-  );
-  final response = await apiService.postCareInteraction(request);
-
-  return response?.responseText;
+  try {
+    final request = CareInteractionRequest(
+      intent: 'cycle_insight',
+      userMessage: prompt,
+    );
+    final response = await apiService.postCareInteraction(request);
+    return response?.responseText;
+  } catch (_) {
+    switch (phase) {
+      case 'menstrual':
+        return 'Focus on warm fluids, magnesium-rich foods, and extra rest today.';
+      case 'follicular':
+        return 'Naturally rising energy makes this a great time for fresh nutrients and active movement.';
+      case 'ovulation':
+        return 'Support peak vitality with steady hydration and balanced meals.';
+      case 'luteal':
+        return 'Prioritize grounding evening routines and restorative rest as your body unwinds.';
+      default:
+        return 'Listen to your body today, stay hydrated, and take moments to rest.';
+    }
+  }
 });
 
 class DailyInsightCard extends ConsumerStatefulWidget {
@@ -84,7 +97,7 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
                     child: CircularProgressIndicator(strokeWidth: 2),
                   ),
                 ),
-                error: (_, __) => Text(
+                error: (_, _) => Text(
                   'Could not fetch your daily insight. Please try again later.',
                   style: TextStyle(fontSize: 14, color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7)),
                 ),

@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api_client.dart';
 import '../models/profile.dart';
@@ -9,6 +10,7 @@ import '../models/care.dart';
 import '../models/summary.dart';
 import '../models/device.dart';
 import '../models/therapy.dart';
+
 final apiServiceProvider = Provider<ApiService>((ref) {
   final dio = ref.watch(dioProvider);
   return ApiService(dio);
@@ -22,10 +24,40 @@ class ApiService {
   Future<Profile?> getProfile() async {
     try {
       final response = await _dio.get('/api/v1/profile');
+      if (response.data == null) return null;
+      return Profile.fromJson(response.data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return null;
+      }
+      debugPrint('DioException fetching profile: $e');
+      rethrow;
+    } catch (e) {
+      debugPrint('Error fetching profile: $e');
+      rethrow;
+    }
+  }
+
+  Future<Profile?> updateProfile(Map<String, dynamic> payload) async {
+    try {
+      final response = await _dio.patch('/api/v1/profile', data: payload);
       return Profile.fromJson(response.data);
     } catch (e) {
-      print('Error fetching profile: $e');
+      debugPrint('Error updating profile: $e');
+      rethrow;
+    }
+  }
+
+  Future<Profile?> completeOnboarding(OnboardingRequest payload) async {
+    try {
+      final response = await _dio.post('/api/v1/onboarding/complete', data: payload.toJson());
+      if (response.data != null && response.data['profile'] != null) {
+        return Profile.fromJson(response.data['profile']);
+      }
       return null;
+    } catch (e) {
+      debugPrint('Error completing onboarding: $e');
+      rethrow;
     }
   }
 
@@ -34,7 +66,7 @@ class ApiService {
       final response = await _dio.get('/api/v1/cycles/current');
       return CurrentCycleResponse.fromJson(response.data);
     } catch (e) {
-      print('Error fetching current cycle: $e');
+      debugPrint('Error fetching current cycle: $e');
       return null;
     }
   }
@@ -50,36 +82,38 @@ class ApiService {
       if (e.response?.statusCode == 404) {
         return null;
       }
-      print('Error fetching daily log: $e');
+      debugPrint('DioException fetching daily log: $e');
       return null;
     } catch (e) {
-      print('Error fetching daily log: $e');
+      debugPrint('Error fetching daily log: $e');
       return null;
     }
   }
 
-  Future<DailyLogResponse?> upsertDailyLog(DailyLogCreate payload) async {
+  Future<DailyLogResponse?> saveDailyLog(DailyLogCreate payload) async {
     try {
       final response = await _dio.post('/api/v1/logs', data: payload.toJson());
       return DailyLogResponse.fromJson(response.data);
     } catch (e) {
-      print('Error upserting daily log: $e');
+      debugPrint('Error saving daily log: $e');
       return null;
     }
   }
 
-  Future<void> completeOnboarding(OnboardingRequest request) async {
-    await _dio.post('/api/v1/onboarding/complete', data: request.toJson());
-  }
+  Future<DailyLogResponse?> upsertDailyLog(DailyLogCreate payload) => saveDailyLog(payload);
 
-  // --- Care API ---
+
+  // --- Care Interaction API ---
   Future<CareInteractionResponse?> postCareInteraction(CareInteractionRequest request) async {
     try {
-      final response = await _dio.post('/api/v1/care/interactions', data: request.toJson());
+      final response = await _dio.post(
+        '/api/v1/care/interact',
+        data: request.toJson(),
+      );
       return CareInteractionResponse.fromJson(response.data);
     } catch (e) {
-      print('Error posting care interaction: $e');
-      return null;
+      debugPrint('Error posting care interaction: $e');
+      rethrow;
     }
   }
 
@@ -89,18 +123,29 @@ class ApiService {
       final response = await _dio.get('/api/v1/summary/history');
       return HistorySummaryResponse.fromJson(response.data);
     } catch (e) {
-      print('Error fetching history summary: $e');
+      debugPrint('Error fetching cycle history: $e');
       return null;
     }
   }
 
   // --- Devices API ---
+  Future<List<Device>> getDevices() async {
+    try {
+      final response = await _dio.get('/api/v1/devices');
+      final List data = response.data;
+      return data.map((json) => Device.fromJson(json)).toList();
+    } catch (e) {
+      debugPrint('Error fetching devices: $e');
+      return [];
+    }
+  }
+
   Future<Device?> registerDevice(DeviceCreate payload) async {
     try {
       final response = await _dio.post('/api/v1/devices', data: payload.toJson());
       return Device.fromJson(response.data);
     } catch (e) {
-      print('Error registering device: $e');
+      debugPrint('Error registering device: $e');
       return null;
     }
   }
@@ -112,7 +157,7 @@ class ApiService {
       final List data = response.data;
       return data.map((json) => CycleResponse.fromJson(json)).toList();
     } catch (e) {
-      print('Error fetching cycles: $e');
+      debugPrint('Error fetching cycles: $e');
       return [];
     }
   }
@@ -123,7 +168,7 @@ class ApiService {
         'period_start': "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}",
       });
     } catch (e) {
-      print('Error starting period: $e');
+      debugPrint('Error starting period: $e');
       rethrow;
     }
   }
@@ -134,7 +179,19 @@ class ApiService {
         'period_end': "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}",
       });
     } catch (e) {
-      print('Error ending period: $e');
+      debugPrint('Error ending period: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> endOngoingPeriod(DateTime date) async {
+    final dateStr = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+    try {
+      await _dio.post('/api/v1/cycles/current/end', data: {
+        'period_end': dateStr,
+      });
+    } catch (e) {
+      debugPrint('Error ending ongoing period: $e');
       rethrow;
     }
   }
@@ -142,12 +199,14 @@ class ApiService {
   // --- Therapy API ---
   Future<TherapyRecommendationResponse?> getTherapyRecommendations({int? painScore}) async {
     try {
-      final response = await _dio.post('/api/v1/therapy/recommend', data: {
-        if (painScore != null) 'pain_score': painScore,
-      });
+      final payload = <String, dynamic>{};
+      if (painScore != null) {
+        payload['pain_score'] = painScore;
+      }
+      final response = await _dio.post('/api/v1/therapy/recommend', data: payload);
       return TherapyRecommendationResponse.fromJson(response.data);
     } catch (e) {
-      print('Error getting therapy recommendations: $e');
+      debugPrint('Error getting therapy recommendations: $e');
       return null;
     }
   }
@@ -158,7 +217,7 @@ class ApiService {
       final List data = response.data;
       return data.map((json) => TherapySessionResponse.fromJson(json)).toList();
     } catch (e) {
-      print('Error fetching therapy history: $e');
+      debugPrint('Error fetching therapy history: $e');
       return [];
     }
   }

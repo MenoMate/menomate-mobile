@@ -1,65 +1,101 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../screens/auth_screen.dart';
-import '../screens/home_screen.dart';
-import '../screens/splash_screen.dart';
-import '../screens/onboarding_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../models/profile.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
-
+import '../screens/auth_screen.dart';
+import '../screens/home_screen.dart';
+import '../screens/onboarding_screen.dart';
+import '../screens/splash_screen.dart';
 import '../screens/symptom_logger_screen.dart';
 
-/// Provider that exposes the GoRouter instance. 
-/// It watches the [authStateProvider] and [profileProvider] to automatically redirect users
-/// based on their authentication status and onboarding completion.
+/// Listenable that triggers GoRouter redirects without destroying the router instance.
+class RouterNotifier extends ChangeNotifier {
+  final Ref _ref;
+
+  RouterNotifier(this._ref) {
+    _ref.listen<AsyncValue<User?>>(
+      authStateProvider,
+      (_, _) => notifyListeners(),
+    );
+    _ref.listen<AsyncValue<Profile?>>(
+      profileProvider,
+      (_, _) => notifyListeners(),
+    );
+  }
+}
+
+final routerNotifierProvider = Provider<RouterNotifier>((ref) {
+  return RouterNotifier(ref);
+});
+
+/// Provider that exposes a stable GoRouter instance.
+/// It uses [RouterNotifier] as a refreshListenable to re-evaluate [redirect]
+/// without tearing down navigation state or rebuilding active screens.
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final profileAsync = ref.watch(profileProvider);
+  final notifier = ref.watch(routerNotifierProvider);
 
   return GoRouter(
     initialLocation: '/splash',
+    refreshListenable: notifier,
     redirect: (BuildContext context, GoRouterState state) {
-      final isLoadingAuth = authState.isLoading;
+      final authState = ref.read(authStateProvider);
+      final profileAsync = ref.read(profileProvider);
+
       final user = authState.value;
+      final isAuthLoading = authState.isLoading;
 
-      final isSplash = state.uri.toString() == '/splash';
-      final isLoggingIn = state.uri.toString() == '/login';
-      final isOnboarding = state.uri.toString() == '/onboarding';
-      final isLogger = state.uri.toString() == '/logger';
+      final location = state.uri.toString();
+      final isSplash = location == '/splash';
+      final isLogin = location == '/login';
+      final isOnboarding = location == '/onboarding';
 
-      // If we are still loading the initial auth state from Supabase, stay on splash
-      if (isLoadingAuth) {
+      // 1. Initializing auth session from Supabase: stay on splash
+      if (isAuthLoading) {
         return isSplash ? null : '/splash';
       }
 
-      // If there is no user and we aren't already on the login screen, redirect to login
-      if (user == null && !isLoggingIn) {
-        return '/login';
-      }
-      
-      // If the user is authenticated, check their profile status
-      if (user != null) {
-        // Wait for profile to load before making routing decisions
-        if (profileAsync.isLoading) {
-          return isSplash ? null : '/splash';
-        }
-
-        final profile = profileAsync.value;
-        // If profile fetch failed or name is missing, they need onboarding
-        final needsOnboarding = profile == null || profile.name == null || profile.name!.isEmpty;
-
-        if (needsOnboarding && !isOnboarding) {
-          return '/onboarding';
-        }
-
-        // If they are onboarded, don't let them on splash, login, or onboarding screens
-        if (!needsOnboarding && (isLoggingIn || isSplash || isOnboarding)) {
-          return '/home';
-        }
+      // 2. Unauthenticated: redirect to login
+      if (user == null) {
+        return isLogin ? null : '/login';
       }
 
-      // Otherwise, no redirect needed
+      // 3. Authenticated: check profile loading and onboarding status
+      // 3a. Profile is currently loading: keep user on splash until status is known
+      if (profileAsync.isLoading) {
+        if (isSplash) return null;
+        if (isLogin) return '/splash';
+        return null; // Do not interrupt if user is already on home or onboarding
+      }
+
+      // 3b. Profile fetch encountered a network or server error
+      // CRITICAL: A network/backend error must NOT be interpreted as "needs onboarding"
+      if (profileAsync.hasError) {
+        if (isSplash) return null; // SplashScreen renders the error & Retry button
+        if (isLogin) return '/splash';
+        return null;
+      }
+
+      // 3c. Profile fetched successfully: check onboarding completion
+      final profile = profileAsync.value;
+      final bool isOnboarded = profile != null &&
+          profile.name != null &&
+          profile.name!.trim().isNotEmpty;
+
+      if (!isOnboarded) {
+        // User needs onboarding
+        return isOnboarding ? null : '/onboarding';
+      }
+
+      // 3d. User is fully onboarded: redirect away from splash, login, or onboarding to home
+      if (isSplash || isLogin || isOnboarding) {
+        return '/home';
+      }
+
+      // Otherwise allow current route (e.g. /home, /logger)
       return null;
     },
     routes: [

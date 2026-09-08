@@ -1,14 +1,20 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
 
 final bleServiceProvider = Provider<BleService>((ref) {
   return BleService();
 });
 
+final bleConnectedProvider = Provider<bool>((ref) {
+  final service = ref.watch(bleServiceProvider);
+  return service.isConnected;
+});
+
 class BleService {
   bool get isWeb => kIsWeb;
+  bool get isConnected => !kIsWeb && FlutterBluePlus.connectedDevices.isNotEmpty;
 
   Future<bool> requestPermissions() async {
     if (kIsWeb) return false;
@@ -29,14 +35,14 @@ class BleService {
 
   Future<void> startScan() async {
     if (kIsWeb) {
-      print('BLE not supported on Web');
+      debugPrint('BLE not supported on Web');
       return;
     }
 
     try {
       final hasPermissions = await requestPermissions();
       if (!hasPermissions) {
-        print('Bluetooth permissions not granted');
+        debugPrint('Bluetooth permissions not granted');
         return;
       }
 
@@ -45,7 +51,7 @@ class BleService {
         timeout: const Duration(seconds: 15),
       );
     } catch (e) {
-      print('Error starting BLE scan: $e');
+      debugPrint('Error starting BLE scan: $e');
     }
   }
 
@@ -59,16 +65,16 @@ class BleService {
     required String vibrationMode,
     required int vibrationIntensity,
   }) async {
-    print('BLE COMMAND: Set Temp to $targetTemperature C');
-    print('BLE COMMAND: Set Vibration Mode to $vibrationMode');
-    print('BLE COMMAND: Set Vibration Intensity to $vibrationIntensity');
+    debugPrint('BLE COMMAND: Set Temp to $targetTemperature C');
+    debugPrint('BLE COMMAND: Set Vibration Mode to $vibrationMode');
+    debugPrint('BLE COMMAND: Set Vibration Intensity to $vibrationIntensity');
     
     if (kIsWeb) {
-      print('Mocking BLE command on Web');
+      debugPrint('Mocking BLE command on Web');
       return;
     }
 
     // In the future, this will serialize the command and write to the ESP32 characteristic
-    print('Sending BLE command payload...');
+    debugPrint('Sending BLE command payload...');
   }
 }

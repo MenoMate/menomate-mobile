@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/env.dart';
 import 'core/router.dart';
+import 'core/theme.dart';
 import 'providers/theme_provider.dart';
 
 Future<void> main() async {
@@ -35,22 +36,8 @@ class MenoMateApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'MenoMate',
       themeMode: themeMode,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE17F93),
-          brightness: Brightness.light,
-        ),
-        scaffoldBackgroundColor: const Color(0xFFFAFAFA),
-        useMaterial3: true,
-      ),
-      darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFE17F93),
-          brightness: Brightness.dark,
-        ),
-        scaffoldBackgroundColor: const Color(0xFF121212),
-        useMaterial3: true,
-      ),
+      theme: MenoMateTheme.sakuraTheme,
+      darkTheme: MenoMateTheme.starryNightTheme,
       routerConfig: router,
     );
   }
