@@ -515,6 +515,16 @@ class CycleRepository {
         return ConflictState(view, e.message);
       }
     } else {
+      // Retrospective correction guard: the user must explicitly supply a
+      // valid end date. Never write an end before the recorded start;
+      // report it as a conflict without touching the row or the server.
+      // ISO yyyy-MM-dd strings compare chronologically.
+      if (isoDate.compareTo(ongoing.periodStart) < 0) {
+        final r = await _localRows(userId);
+        final view = _assembleCurrent(r, await _cache(userId));
+        return ConflictState(
+            view, 'End date cannot be before the period start date.');
+      }
       await (db.update(db.localCycles)..where((t) => t.id.equals(ongoing!.id)))
           .write(LocalCyclesCompanion(
         periodEnd: Value(isoDate),

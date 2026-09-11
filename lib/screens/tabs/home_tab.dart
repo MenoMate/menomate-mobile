@@ -257,6 +257,11 @@ class HomeTab extends ConsumerWidget {
 
                             return PeriodTrackerButton(
                               isOngoing: isPeriodOngoing,
+                              // Enables the retrospective end-date correction
+                              // only while a period is actually ongoing.
+                              ongoingStart: isPeriodOngoing
+                                  ? cycleData.latestPeriodStart
+                                  : null,
                             );
                           },
                         ),

@@ -83,6 +83,9 @@ class FakeApiService extends ApiService {
   }) async {
     _guard();
     createCycleCalls++;
+    if (periodEnd != null && periodEnd.compareTo(periodStart) < 0) {
+      throw Conflict('period_end cannot be prior to period_start');
+    }
     if (conflictStarts.contains(periodStart) ||
         serverCycles.any((c) =>
             _iso(c.periodStart) == periodStart)) {
@@ -118,6 +121,12 @@ class FakeApiService extends ApiService {
     final i = serverCycles.indexWhere((c) => c.id == serverId);
     if (i < 0) throw const Conflict('Cycle period not found');
     final old = serverCycles[i];
+    final start = periodStart ?? _iso(old.periodStart);
+    final oldEnd = old.periodEnd == null ? null : _iso(old.periodEnd!);
+    final end = periodEnd ?? oldEnd;
+    if (end != null && end.compareTo(start) < 0) {
+      throw Conflict('period_end cannot be prior to period_start');
+    }
     final now = DateTime.now();
     final row = CycleResponse(
       id: old.id,
