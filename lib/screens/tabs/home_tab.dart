@@ -96,16 +96,26 @@ class HomeTab extends ConsumerWidget {
                     );
                   }
 
-                  // Predict text
+                  // Predict text — Rule J: display backend results, no client date math.
+                  // Rule F: never show negative countdown.
                   String nextPeriodInfo = 'Log cycles to calculate prediction';
                   if (cycleData.predictedNextPeriod != null) {
                     final nextDateStr = DateFormat('MMM d').format(cycleData.predictedNextPeriod!);
-                    final daysDiff = cycleData.predictedNextPeriod!.difference(DateTime.now()).inDays;
-                    final daysText = daysDiff > 0
-                        ? 'in ~$daysDiff days'
-                        : (daysDiff == 0 ? 'today' : '$daysDiff days ago');
+                    final daysLeft = cycleData.daysUntilNextPeriod;
+                    final status = cycleData.predictionStatus;
                     final conf = cycleData.predictionConfidence;
-                    nextPeriodInfo = 'Next period: $nextDateStr ($daysText) · $conf confidence';
+                    if (daysLeft == null) {
+                      nextPeriodInfo = 'Expected around $nextDateStr · $conf confidence';
+                    } else if (status == 'awaiting_next_start') {
+                      nextPeriodInfo =
+                          'Expected around $nextDateStr — Log your next period when it starts';
+                    } else if (daysLeft <= 0 || status == 'today') {
+                      // Backend clamps passed predictions to 0; treat as today/expected.
+                      nextPeriodInfo = 'Next period: $nextDateStr (today) · $conf confidence';
+                    } else {
+                      nextPeriodInfo =
+                          'Next period: $nextDateStr (in ~$daysLeft days) · $conf confidence';
+                    }
                   }
 
                   return Container(

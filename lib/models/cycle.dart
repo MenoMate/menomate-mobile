@@ -10,6 +10,7 @@ class CurrentCycleResponse {
   final int? predictedCycleLength;
   final DateTime? predictedNextPeriod;
   final int? daysUntilNextPeriod;
+  final String? predictionStatus;
   final String predictionConfidence;
   final String? predictionSource;
   final int? averageCycleLength;
@@ -27,6 +28,7 @@ class CurrentCycleResponse {
     this.predictedCycleLength,
     this.predictedNextPeriod,
     this.daysUntilNextPeriod,
+    this.predictionStatus,
     required this.predictionConfidence,
     this.predictionSource,
     this.averageCycleLength,
@@ -56,6 +58,7 @@ class CurrentCycleResponse {
           ? DateTime.parse(json['predicted_next_period']) 
           : null,
       daysUntilNextPeriod: json['days_until_next_period'] as int?,
+      predictionStatus: json['prediction_status'] as String?,
       predictionConfidence: json['prediction_confidence'] as String? ?? 'None',
       predictionSource: json['prediction_source'] as String?,
       averageCycleLength: json['average_cycle_length'] as int?,
