@@ -128,7 +128,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/logger',
-        builder: (context, state) => const SymptomLoggerScreen(),
+        builder: (context, state) {
+          final date = state.uri.queryParameters['date'];
+          final valid =
+              date != null && RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date);
+          return SymptomLoggerScreen(initialDate: valid ? date : null);
+        },
       ),
     ],
   );

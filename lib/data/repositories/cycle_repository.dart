@@ -475,6 +475,7 @@ class CycleRepository {
           ));
     }
     await syncPending(userId);
+    await _refreshPredictionAfterPush(userId);
     final r = await _localRows(userId);
     final view = _assembleCurrent(r, await _cache(userId));
     if (_hasConflict(r)) return ConflictState(view, 'One entry needs review.');
@@ -522,6 +523,7 @@ class CycleRepository {
       ));
     }
     await syncPending(userId);
+    await _refreshPredictionAfterPush(userId);
     final r = await _localRows(userId);
     final view = _assembleCurrent(r, await _cache(userId));
     if (_hasConflict(r)) return ConflictState(view, 'One entry needs review.');
@@ -585,6 +587,22 @@ class CycleRepository {
     }
   }
 
+  /// Re-fetches the server-computed prediction into the cache after a
+  /// successful push, so the UI immediately reflects the authoritative
+  /// server-derived state (e.g. phase after period end). Skipped while any
+  /// row is still pending/conflict: the server lacks those rows, so its
+  /// prediction would be stale relative to local reality. Offline this is a
+  /// no-op and the locally stored factual state stands. Performs NO local
+  /// prediction calculation.
+  Future<void> _refreshPredictionAfterPush(String userId) async {
+    final rows = await _localRows(userId);
+    if (rows.any((r) => r.syncState != SyncState.synced)) return;
+    try {
+      await _storePredictionCache(userId, await api.fetchCurrentCycle());
+    } on ApiError {
+      // Keep the existing cache; it retries on the next load.
+    }
+  }
   Future<void> _adoptServerMatch(String userId, LocalCycle row) async {
     try {
       final server = await api.fetchCycles();

@@ -142,6 +142,28 @@ class HomeTab extends ConsumerWidget {
                     }
                   }
 
+                  // Tracked period/bleeding status. Intentionally separate from
+                  // the backend cycle-phase classification in the ring above:
+                  // this line reports only whether the user's logged period
+                  // is ongoing or has ended, from stored start/end facts.
+                  // It derives no phase, prediction, or confidence.
+                  String? periodStatus;
+                  if (cycleData.hasData &&
+                      cycleData.latestPeriodStart != null) {
+                    if (cycleData.isOngoing) {
+                      periodStatus = 'Period in progress';
+                    } else if (cycleData.latestPeriodEnd != null) {
+                      final start = cycleData.latestPeriodStart!;
+                      final end = cycleData.latestPeriodEnd!;
+                      final startDay =
+                          DateTime(start.year, start.month, start.day);
+                      final endDay = DateTime(end.year, end.month, end.day);
+                      final days = endDay.difference(startDay).inDays + 1;
+                      periodStatus =
+                          'Period ended ${DateFormat('MMM d').format(endDay)} · $days days';
+                    }
+                  }
+
                   return Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
@@ -190,6 +212,20 @@ class HomeTab extends ConsumerWidget {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
+                        // Tracked period status: secondary, smaller than Day
+                        // and phase, no phase-color semantics.
+                        if (periodStatus != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            periodStatus,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colorScheme.secondary,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                         const SizedBox(height: 16),
 
                         // View Calendar Button

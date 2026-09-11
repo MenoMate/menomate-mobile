@@ -9,7 +9,13 @@ import '../providers/data_providers.dart';
 import '../widgets/offline_banner.dart';
 
 class SymptomLoggerScreen extends ConsumerStatefulWidget {
-  const SymptomLoggerScreen({super.key});
+  /// ISO `yyyy-MM-dd` date this logger edits. Defaults to today.
+  /// History/calendar passes the selected day so saved logs are
+  /// discoverable and editable in place — same record per user+date,
+  /// never a duplicate.
+  final String? initialDate;
+
+  const SymptomLoggerScreen({super.key, this.initialDate});
 
   @override
   ConsumerState<SymptomLoggerScreen> createState() => _SymptomLoggerScreenState();
@@ -17,10 +23,14 @@ class SymptomLoggerScreen extends ConsumerStatefulWidget {
 
 class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
   final TextEditingController _notesController = TextEditingController();
-  
+
   bool _isLoading = true;
   bool _isSaving = false;
   DataState<DailyLogResponse?>? _loadState;
+
+  /// Whether a saved log existed when this screen opened. A save that
+  /// creates the record resets the form; a save that edits keeps values.
+  bool _existedAtOpen = false;
   
   int _pain = 0;
   String? _mood;
@@ -37,12 +47,17 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
 
   final List<int> _painOptions = List.generate(11, (index) => index);
 
-  late String _todayDateString;
+  late String _dateString;
+
+  static final _isoDate = RegExp(r'^\d{4}-\d{2}-\d{2}$');
 
   @override
   void initState() {
     super.initState();
-    _todayDateString = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final initial = widget.initialDate;
+    _dateString = (initial != null && _isoDate.hasMatch(initial))
+        ? initial
+        : DateFormat('yyyy-MM-dd').format(DateTime.now());
     _loadDailyLog();
   }
 
@@ -54,9 +69,9 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
       try {
         state = await ref
             .read(dailyLogRepositoryProvider)
-            .loadLog(userId, _todayDateString);
+            .loadLog(userId, _dateString);
       } catch (_) {
-        state = const Unavailable('Couldn\'t load today\'s log.');
+        state = const Unavailable('Couldn\'t load this log.');
       }
     }
 
@@ -64,6 +79,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     final log = state.dataOrNull;
     setState(() {
       _loadState = state;
+      _existedAtOpen = log != null;
       if (log != null) {
         _pain = log.pain;
         _mood = log.mood;
@@ -72,6 +88,21 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
       }
       _isLoading = false;
     });
+  }
+
+  void _resetForm() {
+    _pain = 0;
+    _mood = null;
+    _flow = null;
+    _notesController.clear();
+  }
+
+  String _prettyDate() {
+    try {
+      return DateFormat('EEEE, MMMM d').format(DateTime.parse(_dateString));
+    } catch (_) {
+      return _dateString;
+    }
   }
 
   Future<void> _saveLog() async {
@@ -87,7 +118,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     });
 
     final payload = DailyLogCreate(
-      logDate: _todayDateString,
+      logDate: _dateString,
       pain: _pain,
       mood: _mood,
       flow: _flow,
@@ -96,7 +127,9 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     );
 
     // Local-first: the entry is persisted before any network attempt, so
-    // an offline save is never lost.
+    // an offline save is never lost. Same user+date always updates the
+    // same local/server record — never a duplicate.
+    final wasCreate = !_existedAtOpen;
     DataState<DailyLogResponse> result;
     try {
       result = await ref
@@ -110,25 +143,32 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     setState(() {
       _isSaving = false;
       _loadState = result;
+      if (wasCreate &&
+          (result is Fresh<DailyLogResponse> ||
+              result is PendingSync<DailyLogResponse>)) {
+        // A fresh create resets the form; the record now exists, so any
+        // further save edits it rather than looking like a new entry.
+        _resetForm();
+        _existedAtOpen = true;
+      }
     });
 
+    // Explicit result: where the data went is never ambiguous. The screen
+    // stays open so the pending/not-synced state remains visible offline.
     switch (result) {
       case Fresh():
         refreshAllAppData(ref);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Wellness log saved!')),
+          const SnackBar(content: Text('Daily log saved')),
         );
-        context.pop();
       case PendingSync():
         refreshAllAppData(ref);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Saved locally. Will sync when you\'re online.')),
+          const SnackBar(content: Text('Saved on this device')),
         );
-        context.pop();
       case ConflictState(message: final m):
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved locally, needs review: $m')),
+          SnackBar(content: Text('Saved on this device, needs review: $m')),
         );
       case Unavailable(message: final m):
         ScaffoldMessenger.of(context).showSnackBar(
@@ -137,7 +177,6 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
       case NoData():
       case Cached():
         refreshAllAppData(ref);
-        context.pop();
     }
   }
 
@@ -176,7 +215,18 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
           children: [
             if (_loadState != null) SyncStatusChip(state: _loadState!),
             Text(
-              'How are you feeling today?',
+              _prettyDate(),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.secondary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _existedAtOpen
+                  ? 'Editing your saved log'
+                  : 'How are you feeling today?',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,

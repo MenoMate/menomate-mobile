@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+import '../../data/app_database.dart';
 import '../../data/sync_policy.dart';
 import '../../models/summary.dart';
 import '../../models/cycle.dart';
@@ -552,6 +554,20 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
               style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
             ),
           ],
+          const SizedBox(height: 12),
+          // Existing History/calendar experience is the discovery path for
+          // saved daily logs: opens the same logger for this date, which
+          // edits the existing user+date record (never a duplicate).
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                context.push('/logger?date=${toIsoDate(day)}');
+              },
+              icon: const Icon(Icons.edit_note_outlined, size: 18),
+              label: const Text('View / edit wellness log'),
+            ),
+          ),
         ],
       ),
     );
