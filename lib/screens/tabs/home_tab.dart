@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../data/sync_policy.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/cycle_provider.dart';
+import '../../widgets/offline_banner.dart';
 import '../../widgets/symptom_logger_card.dart';
 import '../../widgets/device_telemetry_card.dart';
 import '../../widgets/period_tracker_button.dart';
@@ -29,27 +31,30 @@ class HomeTab extends ConsumerWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: profileAsync.when(
-          data: (profile) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Hello, ${profile?.name ?? "MenoMate User"}',
-                style: TextStyle(
-                  color: colorScheme.onSurface,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
+          data: (profileState) {
+            final profile = profileState.dataOrNull;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hello, ${profile?.name ?? "MenoMate User"}',
+                  style: TextStyle(
+                    color: colorScheme.onSurface,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
                 ),
-              ),
-              Text(
-                'Welcome to your cycle companion',
-                style: TextStyle(
-                  color: colorScheme.secondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.normal,
+                Text(
+                  'Welcome to your cycle companion',
+                  style: TextStyle(
+                    color: colorScheme.secondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.normal,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            );
+          },
           loading: () => Text(
             'MenoMate',
             style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold),
@@ -77,7 +82,26 @@ class HomeTab extends ConsumerWidget {
             children: [
               // Current Cycle Overview Card
               cycleAsync.when(
-                data: (cycleData) {
+                data: (cycleState) {
+                  if (cycleState is Unavailable) {
+                    return Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: colorScheme.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: colorScheme.outline),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'Couldn\'t load cycle data. Check your connection and pull to refresh.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: colorScheme.secondary),
+                        ),
+                      ),
+                    );
+                  }
+                  final cycleData = cycleState.dataOrNull;
                   if (cycleData == null) {
                     return Container(
                       width: double.infinity,
@@ -135,6 +159,7 @@ class HomeTab extends ConsumerWidget {
                     padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
                     child: Column(
                       children: [
+                        SyncStatusChip(state: cycleState),
                         // Interactive Cycle Ring (tap opens calendar)
                         GestureDetector(
                           onTap: () {

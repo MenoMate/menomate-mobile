@@ -1,8 +1,9 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../services/api_service.dart';
+import '../data/app_database.dart';
+import '../data/sync_policy.dart';
 import '../providers/cycle_provider.dart';
+import '../providers/data_providers.dart';
 
 class PeriodTrackerButton extends ConsumerStatefulWidget {
   final bool isOngoing;
@@ -25,24 +26,45 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
     });
 
     try {
-      final apiService = ref.read(apiServiceProvider);
-
-      if (widget.isOngoing) {
-        await apiService.endOngoingPeriod(DateTime.now());
-      } else {
-        await apiService.startPeriod(DateTime.now());
+      final userId = ref.read(currentUserIdProvider);
+      if (userId == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Signed out. Please sign in again.')),
+          );
+        }
+        return;
       }
+
+      // Local-first: the action is stored immediately and pushed when
+      // reachable, so an offline tap is never lost.
+      final repo = ref.read(cycleRepositoryProvider);
+      final todayStr = toIsoDate(DateTime.now());
+      final result = widget.isOngoing
+          ? await repo.endOngoingPeriod(userId, todayStr)
+          : await repo.startPeriod(userId, todayStr);
 
       refreshAllAppData(ref);
 
       if (mounted) {
+        final base = widget.isOngoing
+            ? 'Period marked as ended today.'
+            : 'Period marked as started today.';
+        final message = switch (result) {
+          PendingSync() => '$base Will sync when you\'re online.',
+          ConflictState(message: final m) => '$base Needs review: $m',
+          Unavailable(message: final m) => m,
+          _ => base,
+        };
+        final isError =
+            result is ConflictState || result is Unavailable;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              widget.isOngoing
-                  ? 'Period marked as ended today.'
-                  : 'Period marked as started today.',
-            ),
+            content: Text(message),
+            backgroundColor: isError
+                ? Theme.of(context).colorScheme.error
+                : null,
             duration: const Duration(seconds: 2),
           ),
         );
@@ -50,16 +72,9 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
     } catch (e) {
       debugPrint('Error updating period: $e');
       if (mounted) {
-        String friendlyMessage = "Couldn't update your period. Please try again.";
-        if (e is DioException) {
-          final data = e.response?.data;
-          if (data is Map && data['detail'] != null) {
-            friendlyMessage = data['detail'].toString();
-          }
-        }
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(friendlyMessage),
+            content: Text('Couldn\'t update your period: $e'),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );

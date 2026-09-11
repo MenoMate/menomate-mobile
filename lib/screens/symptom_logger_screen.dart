@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../data/sync_policy.dart';
 import '../models/daily_log.dart';
 import '../providers/cycle_provider.dart';
-import '../services/api_service.dart';
+import '../providers/data_providers.dart';
+import '../widgets/offline_banner.dart';
 
 class SymptomLoggerScreen extends ConsumerStatefulWidget {
   const SymptomLoggerScreen({super.key});
@@ -18,6 +20,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
   
   bool _isLoading = true;
   bool _isSaving = false;
+  DataState<DailyLogResponse?>? _loadState;
   
   int _pain = 0;
   String? _mood;
@@ -44,59 +47,97 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
   }
 
   Future<void> _loadDailyLog() async {
-    final apiService = ref.read(apiServiceProvider);
-    final log = await apiService.getDailyLog(_todayDateString);
-    
-    if (log != null && mounted) {
-      setState(() {
+    final userId = ref.read(currentUserIdProvider);
+    DataState<DailyLogResponse?> state =
+        const Unavailable('Signed out.');
+    if (userId != null) {
+      try {
+        state = await ref
+            .read(dailyLogRepositoryProvider)
+            .loadLog(userId, _todayDateString);
+      } catch (_) {
+        state = const Unavailable('Couldn\'t load today\'s log.');
+      }
+    }
+
+    if (!mounted) return;
+    final log = state.dataOrNull;
+    setState(() {
+      _loadState = state;
+      if (log != null) {
         _pain = log.pain;
         _mood = log.mood;
         _flow = log.flow;
         _notesController.text = log.notes ?? '';
-      });
-    }
-    
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
+      }
+      _isLoading = false;
+    });
   }
 
   Future<void> _saveLog() async {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed out. Please sign in again.')),
+      );
+      return;
+    }
     setState(() {
       _isSaving = true;
     });
 
-    final apiService = ref.read(apiServiceProvider);
-    
     final payload = DailyLogCreate(
       logDate: _todayDateString,
       pain: _pain,
       mood: _mood,
       flow: _flow,
       notes: _notesController.text.isNotEmpty ? _notesController.text : null,
-      symptoms: [], 
+      symptoms: [],
     );
 
-    final result = await apiService.upsertDailyLog(payload);
-    
-    if (mounted) {
-      setState(() {
-        _isSaving = false;
-      });
-      
-      if (result != null) {
+    // Local-first: the entry is persisted before any network attempt, so
+    // an offline save is never lost.
+    DataState<DailyLogResponse> result;
+    try {
+      result = await ref
+          .read(dailyLogRepositoryProvider)
+          .saveLog(userId, payload);
+    } catch (_) {
+      result = const Unavailable('Couldn\'t save right now.');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _isSaving = false;
+      _loadState = result;
+    });
+
+    switch (result) {
+      case Fresh():
         refreshAllAppData(ref);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Wellness log saved!')),
         );
         context.pop();
-      } else {
+      case PendingSync():
+        refreshAllAppData(ref);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save log. Please try again.')),
+          const SnackBar(
+              content: Text('Saved locally. Will sync when you\'re online.')),
         );
-      }
+        context.pop();
+      case ConflictState(message: final m):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved locally, needs review: $m')),
+        );
+      case Unavailable(message: final m):
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(m)),
+        );
+      case NoData():
+      case Cached():
+        refreshAllAppData(ref);
+        context.pop();
     }
   }
 
@@ -133,6 +174,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (_loadState != null) SyncStatusChip(state: _loadState!),
             Text(
               'How are you feeling today?',
               style: TextStyle(

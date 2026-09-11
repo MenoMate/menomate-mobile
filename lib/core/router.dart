@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../data/sync_policy.dart';
 import '../models/profile.dart';
 import '../providers/auth_provider.dart';
 import '../providers/profile_provider.dart';
@@ -21,7 +22,7 @@ class RouterNotifier extends ChangeNotifier {
       authStateProvider,
       (_, _) => notifyListeners(),
     );
-    _ref.listen<AsyncValue<Profile?>>(
+    _ref.listen<AsyncValue<DataState<Profile?>>>(
       profileProvider,
       (_, _) => notifyListeners(),
     );
@@ -79,8 +80,18 @@ final routerProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // 3c. Profile fetched successfully: check onboarding completion
-      final profile = profileAsync.value;
+      // 3c. Profile fetched successfully: check onboarding completion.
+      // The value is a DataState: cached/pending/conflict rows still carry
+      // a usable profile. Unavailable (no local data + unreachable backend)
+      // keeps the user on splash EXACTLY like an error — it must never read
+      // as "needs onboarding".
+      final dataState = profileAsync.value;
+      if (dataState is Unavailable<Profile?>) {
+        if (isSplash) return null;
+        if (isLogin) return '/splash';
+        return null;
+      }
+      final profile = dataState?.dataOrNull;
       final bool isOnboarded = profile != null &&
           profile.name != null &&
           profile.name!.trim().isNotEmpty;

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api_client.dart';
+import '../data/sync_policy.dart';
 import '../models/profile.dart';
 import '../models/onboarding.dart';
 import '../models/cycle.dart';
@@ -21,27 +22,27 @@ class ApiService {
 
   ApiService(this._dio);
 
-  Future<Profile?> getProfile() async {
+  /// Remote-only transport. Data methods throw typed [ApiError] so
+  /// repositories can distinguish no-data from network/auth/server
+  /// failures. `null` is returned ONLY for genuine 404 no-data cases.
+  Future<Profile> fetchProfile() async {
     try {
       final response = await _dio.get('/api/v1/profile');
-      if (response.data == null) return null;
       return Profile.fromJson(response.data);
     } on DioException catch (e) {
-      if (e.response?.statusCode == 404) {
-        return null;
-      }
-      debugPrint('DioException fetching profile: $e');
-      rethrow;
+      throw mapDioException(e);
     } catch (e) {
       debugPrint('Error fetching profile: $e');
       rethrow;
     }
   }
 
-  Future<Profile?> updateProfile(Map<String, dynamic> payload) async {
+  Future<Profile> patchProfile(Map<String, dynamic> payload) async {
     try {
       final response = await _dio.patch('/api/v1/profile', data: payload);
       return Profile.fromJson(response.data);
+    } on DioException catch (e) {
+      throw mapDioException(e);
     } catch (e) {
       debugPrint('Error updating profile: $e');
       rethrow;
@@ -61,17 +62,21 @@ class ApiService {
     }
   }
 
-  Future<CurrentCycleResponse?> getCurrentCycle() async {
+  Future<CurrentCycleResponse> fetchCurrentCycle() async {
     try {
       final response = await _dio.get('/api/v1/cycles/current');
       return CurrentCycleResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw mapDioException(e);
     } catch (e) {
       debugPrint('Error fetching current cycle: $e');
-      return null;
+      rethrow;
     }
   }
 
-  Future<DailyLogResponse?> getDailyLog(String dateString) async {
+  /// Returns null ONLY on 404 (no log for this date). All other failures
+  /// throw typed [ApiError].
+  Future<DailyLogResponse?> fetchDailyLog(String dateString) async {
     try {
       final response = await _dio.get('/api/v1/logs/$dateString');
       if (response.data == null || response.data.toString().isEmpty) {
@@ -82,25 +87,24 @@ class ApiService {
       if (e.response?.statusCode == 404) {
         return null;
       }
-      debugPrint('DioException fetching daily log: $e');
-      return null;
+      throw mapDioException(e);
     } catch (e) {
       debugPrint('Error fetching daily log: $e');
-      return null;
+      rethrow;
     }
   }
 
-  Future<DailyLogResponse?> saveDailyLog(DailyLogCreate payload) async {
+  Future<DailyLogResponse> upsertDailyLog(DailyLogCreate payload) async {
     try {
       final response = await _dio.post('/api/v1/logs', data: payload.toJson());
       return DailyLogResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw mapDioException(e);
     } catch (e) {
       debugPrint('Error saving daily log: $e');
-      return null;
+      rethrow;
     }
   }
-
-  Future<DailyLogResponse?> upsertDailyLog(DailyLogCreate payload) => saveDailyLog(payload);
 
 
   // --- Care Interaction API ---
@@ -118,13 +122,15 @@ class ApiService {
   }
 
   // --- Summary API ---
-  Future<HistorySummaryResponse?> getCycleHistory() async {
+  Future<HistorySummaryResponse> fetchCycleHistory() async {
     try {
       final response = await _dio.get('/api/v1/summary/history');
       return HistorySummaryResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw mapDioException(e);
     } catch (e) {
       debugPrint('Error fetching cycle history: $e');
-      return null;
+      rethrow;
     }
   }
 
@@ -151,45 +157,64 @@ class ApiService {
   }
 
   // --- Cycles API ---
-  Future<List<CycleResponse>> getCycles() async {
+  Future<List<CycleResponse>> fetchCycles() async {
     try {
       final response = await _dio.get('/api/v1/cycles');
       final List data = response.data;
       return data.map((json) => CycleResponse.fromJson(json)).toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
     } catch (e) {
       debugPrint('Error fetching cycles: $e');
-      return [];
-    }
-  }
-
-  Future<void> startPeriod(DateTime date) async {
-    try {
-      await _dio.post('/api/v1/cycles', data: {
-        'period_start': "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}",
-      });
-    } catch (e) {
-      debugPrint('Error starting period: $e');
       rethrow;
     }
   }
 
-  Future<void> endPeriod(int cycleId, DateTime date) async {
+  Future<CycleResponse> createCycle({
+    required String periodStart,
+    String? periodEnd,
+  }) async {
     try {
-      await _dio.patch('/api/v1/cycles/$cycleId', data: {
-        'period_end': "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}",
-      });
+      final data = <String, dynamic>{'period_start': periodStart};
+      if (periodEnd != null) data['period_end'] = periodEnd;
+      final response = await _dio.post('/api/v1/cycles', data: data);
+      return CycleResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw mapDioException(e);
     } catch (e) {
-      debugPrint('Error ending period: $e');
+      debugPrint('Error creating period: $e');
       rethrow;
     }
   }
 
-  Future<void> endOngoingPeriod(DateTime date) async {
-    final dateStr = "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+  Future<CycleResponse> patchCycle(
+    int serverId, {
+    String? periodStart,
+    String? periodEnd,
+  }) async {
     try {
-      await _dio.post('/api/v1/cycles/current/end', data: {
-        'period_end': dateStr,
+      final data = <String, dynamic>{};
+      if (periodStart != null) data['period_start'] = periodStart;
+      if (periodEnd != null) data['period_end'] = periodEnd;
+      final response =
+          await _dio.patch('/api/v1/cycles/$serverId', data: data);
+      return CycleResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error updating period: $e');
+      rethrow;
+    }
+  }
+
+  Future<CycleResponse> endOngoingCycle(String dateString) async {
+    try {
+      final response = await _dio.post('/api/v1/cycles/current/end', data: {
+        'period_end': dateString,
       });
+      return CycleResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw mapDioException(e);
     } catch (e) {
       debugPrint('Error ending ongoing period: $e');
       rethrow;

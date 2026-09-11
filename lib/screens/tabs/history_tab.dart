@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+import '../../data/sync_policy.dart';
 import '../../models/summary.dart';
 import '../../models/cycle.dart';
 import '../../providers/cycle_provider.dart';
+import '../../widgets/offline_banner.dart';
 
 class HistoryTab extends ConsumerStatefulWidget {
   const HistoryTab({super.key});
@@ -65,9 +67,31 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
                   children: [
                     // Summary Stats Card
                     summaryAsync.when(
-                      data: (summary) => summary != null
-                          ? _buildStatsCard(summary, context)
-                          : const SizedBox.shrink(),
+                      data: (summaryState) {
+                        if (summaryState is Unavailable) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24.0),
+                              child: Text(
+                                'Couldn\'t load history. Check your connection and pull to refresh.',
+                                textAlign: TextAlign.center,
+                                style:
+                                    TextStyle(color: colorScheme.secondary),
+                              ),
+                            ),
+                          );
+                        }
+                        final summary = summaryState.dataOrNull;
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SyncStatusChip(state: summaryState),
+                            if (summary != null)
+                              _buildStatsCard(summary, context),
+                          ],
+                        );
+                      },
                       loading: () => const Center(
                         child: Padding(
                           padding: EdgeInsets.all(24.0),
@@ -93,20 +117,25 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
                     const SizedBox(height: 12),
 
                     // The Calendar Card
-                    _buildCalendar(cyclesAsync, currentCycleAsync, context),
+                    _buildCalendar(
+                      _cyclesForCalendar(cyclesAsync),
+                      currentCycleAsync.value?.dataOrNull,
+                      context,
+                    ),
 
                     const SizedBox(height: 12),
 
                     // Calendar Legend & Confidence Badge
-                    _buildCalendarLegend(currentCycleAsync.value, context),
+                    _buildCalendarLegend(
+                        currentCycleAsync.value?.dataOrNull, context),
 
                     // Selected Date Detail Card
                     if (_selectedDay != null) ...[
                       const SizedBox(height: 16),
                       _buildSelectedDayCard(
                         _selectedDay!,
-                        cyclesAsync.value,
-                        currentCycleAsync.value,
+                        _cyclesForCalendar(cyclesAsync),
+                        currentCycleAsync.value?.dataOrNull,
                         context,
                       ),
                     ],
@@ -130,7 +159,22 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
 
             // Past Cycles List
             summaryAsync.when(
-              data: (summary) {
+              data: (summaryState) {
+                if (summaryState is Unavailable) {
+                  return SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'Couldn\'t load history. Check your connection and pull to refresh.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: colorScheme.secondary),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                final summary = summaryState.dataOrNull;
                 if (summary == null || summary.history.isEmpty) {
                   return SliverToBoxAdapter(
                     child: Padding(
@@ -165,9 +209,17 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     );
   }
 
+  /// Unwraps the cycle list for calendar rendering. Unavailable/no-data
+  /// yields null (renders an empty calendar), never fake entries.
+  List<CycleResponse>? _cyclesForCalendar(
+    AsyncValue<DataState<List<CycleResponse>>> cyclesAsync,
+  ) {
+    return cyclesAsync.value?.dataOrNull;
+  }
+
   Widget _buildCalendar(
-    AsyncValue<List<CycleResponse>> cyclesAsync,
-    AsyncValue<CurrentCycleResponse?> currentCycleAsync,
+    List<CycleResponse>? cycles,
+    CurrentCycleResponse? currentCycle,
     BuildContext context,
   ) {
     final theme = Theme.of(context);
@@ -216,13 +268,13 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
         },
         calendarBuilders: CalendarBuilders(
           defaultBuilder: (context, day, focusedDay) {
-            return _buildCalendarCell(day, cyclesAsync.value, currentCycleAsync.value, isOutside: false);
+            return _buildCalendarCell(day, cycles, currentCycle, isOutside: false);
           },
           todayBuilder: (context, day, focusedDay) {
-            return _buildCalendarCell(day, cyclesAsync.value, currentCycleAsync.value, isToday: true, isOutside: false);
+            return _buildCalendarCell(day, cycles, currentCycle, isToday: true, isOutside: false);
           },
           outsideBuilder: (context, day, focusedDay) {
-            return _buildCalendarCell(day, cyclesAsync.value, currentCycleAsync.value, isOutside: true);
+            return _buildCalendarCell(day, cycles, currentCycle, isOutside: true);
           },
         ),
       ),

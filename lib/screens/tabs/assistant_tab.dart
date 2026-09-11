@@ -1,3 +1,4 @@
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -73,14 +74,38 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
     if (text.isEmpty) return;
 
     _textController.clear();
+
+    // Care is online-only: never spin forever or fabricate a reply offline.
+    // A plugin failure counts as offline too (fail closed, never claim AI).
+    bool online = false;
+    try {
+      final connectivity = await Connectivity().checkConnectivity();
+      online = connectivity.any((r) => r != ConnectivityResult.none);
+    } catch (_) {
+      online = false;
+    }
     setState(() {
       _messages.insert(0, {
         'isUser': true,
         'text': text,
       });
-      _isLoading = true;
+      _isLoading = online;
     });
     _scrollToBottom();
+    if (!online) {
+      if (mounted) {
+        setState(() {
+          _messages.insert(0, {
+            'isUser': false,
+            'text': 'MenoMate Care needs an internet connection. '
+                'Your history, logs, and calendar remain available offline.',
+            'isAi': false,
+          });
+        });
+        _scrollToBottom();
+      }
+      return;
+    }
 
     try {
       final api = ref.read(apiServiceProvider);
@@ -283,7 +308,7 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
             ),
             const SizedBox(height: 8),
             Text(
-              'I can help you understand your cycle, symptoms, pain patterns, and how you\'ve used MenoMate.',
+              'I can help you understand your cycle, symptoms, pain patterns, and how you\'ve used MenoMate. Care needs an internet connection.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 14,

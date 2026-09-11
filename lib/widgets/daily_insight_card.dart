@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../data/sync_policy.dart';
 import '../services/api_service.dart';
 import '../models/care.dart';
 import '../providers/cycle_provider.dart';
 
 final dailyInsightProvider = FutureProvider.autoDispose<String?>((ref) async {
   final apiService = ref.watch(apiServiceProvider);
-  final cycleData = await ref.watch(currentCycleProvider.future);
+  final cycleState = await ref.watch(currentCycleProvider.future);
+  final cycleData = cycleState.dataOrNull;
   
   final phase = cycleData?.phase.toLowerCase() ?? 'menstrual';
 

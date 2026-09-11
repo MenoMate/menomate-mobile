@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/sync_policy.dart';
 import '../../models/device.dart';
 import '../../models/profile.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/cycle_provider.dart';
+import '../../providers/data_providers.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/api_service.dart';
@@ -67,10 +68,17 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       return;
     }
 
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Signed out. Please sign in again.')),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
-      final api = ref.read(apiServiceProvider);
       final currentThemeMode = ref.read(themeModeProvider);
       final themeStr = currentThemeMode == ThemeMode.dark ? 'dark' : 'light';
 
@@ -82,12 +90,22 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         'units': _selectedUnits,
       };
 
-      await api.updateProfile(payload);
+      // Local-first: applies immediately, syncs when reachable.
+      final result = await ref
+          .read(profileRepositoryProvider)
+          .saveProfile(userId, payload);
       refreshAllAppData(ref);
 
       if (mounted) {
+        final message = switch (result) {
+          PendingSync() =>
+            'Saved locally. Will sync when you\'re online.',
+          ConflictState(message: final m) =>
+            'Saved locally, needs review: $m',
+          _ => 'Profile preferences saved successfully.',
+        };
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile preferences saved successfully.')),
+          SnackBar(content: Text(message)),
         );
       }
     } catch (e) {
@@ -140,9 +158,9 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     final profileAsync = ref.watch(profileProvider);
     final themeMode = ref.watch(themeModeProvider);
 
-    profileAsync.whenData((profile) {
+    profileAsync.whenData((profileState) {
       if (!_isInitialized) {
-        _initFields(profile);
+        _initFields(profileState.dataOrNull);
       }
     });
 
@@ -427,7 +445,9 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   title: const Text('Sign Out', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                   trailing: const Icon(Icons.chevron_right, color: Colors.redAccent),
                   onTap: () async {
-                    await ref.read(supabaseClientProvider).auth.signOut();
+                    // Wipes local rows + cached prediction so the next user
+                    // on this device never sees this account's data.
+                    await signOutAndClearLocalData(ref);
                   },
                 ),
               ),

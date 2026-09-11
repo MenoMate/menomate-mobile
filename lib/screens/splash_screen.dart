@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../data/sync_policy.dart';
+import '../models/profile.dart';
 import '../providers/profile_provider.dart';
 
 class SplashScreen extends ConsumerWidget {
@@ -11,7 +13,11 @@ class SplashScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    if (profileAsync.hasError) {
+    // Error OR unavailable-with-no-local-data: same retry screen. A cached
+    // profile never lands here (router lets it through to home).
+    final unavailable =
+        profileAsync.value is Unavailable<Profile?> && !profileAsync.isLoading;
+    if (profileAsync.hasError || unavailable) {
       return Scaffold(
         body: Center(
           child: Padding(
