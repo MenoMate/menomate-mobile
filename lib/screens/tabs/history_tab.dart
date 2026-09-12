@@ -14,6 +14,17 @@ import '../../core/format.dart';
 
 enum _HistoryPane { calendar, cycles }
 
+/// Neutral Today emphasis shared by cells and the legend dot.
+///
+/// A whisper of onSurface (light: dark tint; dark: light tint), so Today
+/// reads as "today/selection" rather than another menstrual status. Rose
+/// stays logged-only, violet stays prediction-only. Single source for
+/// cells and legend (exact match guaranteed); token-derived, so it tracks
+/// light/dark mode with no new literals.
+Color todayNeutralFill(ColorScheme colorScheme) {
+  return colorScheme.onSurface.withValues(alpha: 0.10);
+}
+
 class HistoryTab extends ConsumerStatefulWidget {
   const HistoryTab({super.key});
 
@@ -363,15 +374,27 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
 
     final isSelected = _selectedDay != null && isSameDay(_selectedDay, day);
 
-    // All fills/borders/text come from theme tokens (primary = logged /
-    // today family, tertiary = predicted span). No package defaults, no
-    // hardcoded accent literals: the legend dots use these same tokens.
+    // Semantic fills from theme tokens: primary = logged rose,
+    // todayNeutralFill = neutral Today emphasis, tertiary = predicted.
+    // No package defaults, no hardcoded accents: the legend dots use these
+    // same tokens. Rims are minimal: Today always carries an onSurface rim
+    // (dark in light mode, light in dark mode); any selection upgrades it
+    // to 2px. Fill alone already separates the three meanings.
+    final todayFill = todayNeutralFill(colorScheme);
     BoxDecoration? decoration;
     Color? textColor = isOutside
         ? colorScheme.secondary.withValues(alpha: 0.35)
         : colorScheme.onSurface;
 
-    if (isLoggedPeriod) {
+    if (isLoggedPeriod && isToday) {
+      // Logged status wins the fill; the onSurface rim marks Today.
+      decoration = BoxDecoration(
+        color: colorScheme.primary.withValues(alpha: isOutside ? 0.4 : 0.85),
+        shape: BoxShape.circle,
+        border: Border.all(color: colorScheme.onSurface, width: 2),
+      );
+      textColor = colorScheme.onPrimary;
+    } else if (isLoggedPeriod) {
       decoration = BoxDecoration(
         color: colorScheme.primary.withValues(alpha: isOutside ? 0.4 : 0.85),
         shape: BoxShape.circle,
@@ -390,15 +413,17 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
         ),
       );
       textColor = colorScheme.onSurface;
-    } else if (isToday && isSelected) {
-      // Today + selected: solid token fill, exactly matching the legend's
-      // "Today" dot. Covered by widget test (today-is-selected case).
+    } else if (isToday) {
       decoration = BoxDecoration(
-        color: colorScheme.primary,
+        color: isOutside ? todayFill.withValues(alpha: 0.4) : todayFill,
         shape: BoxShape.circle,
+        border: Border.all(
+          color: colorScheme.onSurface,
+          width: isSelected ? 2 : 1.5,
+        ),
       );
-      textColor = colorScheme.onPrimary;
-    } else if (isToday || isSelected) {
+      textColor = colorScheme.onSurface;
+    } else if (isSelected) {
       decoration = BoxDecoration(
         color: colorScheme.primary.withValues(alpha: 0.15),
         shape: BoxShape.circle,
@@ -453,9 +478,16 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildLegendDot(colorScheme.primary, 'Logged period', colorScheme),
-              _buildLegendDot(colorScheme.tertiary, 'Predicted span', colorScheme, isOutlined: true),
-              _buildLegendDot(colorScheme.primary, 'Today', colorScheme),
+              _buildLegendDot('Logged period', colorScheme,
+                  fill: colorScheme.primary),
+              _buildLegendDot('Predicted span', colorScheme,
+                  fill: colorScheme.tertiary.withValues(alpha: 0.25),
+                  rim: colorScheme.tertiary),
+              // Neutral Today marker: the exact fill + rim of today cells,
+              // so the three meanings separate without relying on the rim.
+              _buildLegendDot('Today', colorScheme,
+                  fill: todayNeutralFill(colorScheme),
+                  rim: colorScheme.onSurface),
             ],
           ),
           Divider(height: 16, color: colorScheme.outline),
@@ -480,16 +512,18 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     );
   }
 
-  Widget _buildLegendDot(Color color, String label, ColorScheme colorScheme, {bool isOutlined = false}) {
+  Widget _buildLegendDot(String label, ColorScheme colorScheme,
+      {required Color fill, Color? rim, double rimWidth = 1.5}) {
     return Row(
       children: [
         Container(
           width: 12,
           height: 12,
           decoration: BoxDecoration(
-            color: isOutlined ? color.withValues(alpha: 0.25) : color,
+            color: fill,
             shape: BoxShape.circle,
-            border: isOutlined ? Border.all(color: color, width: 1.5) : null,
+            border:
+                rim != null ? Border.all(color: rim, width: rimWidth) : null,
           ),
         ),
         const SizedBox(width: 6),

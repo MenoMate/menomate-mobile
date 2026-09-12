@@ -117,68 +117,210 @@ void main() {
     expect(find.text('Log Period Ended Today'), findsOneWidget);
   });
 
-  // Item 2: calendar selected/today styling from MenoMate tokens.
-  testWidgets('today+selected cell uses theme primary, not package default',
-      (tester) async {
-    _tallViewport(tester);
-    final now = DateTime.now();
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          historySummaryProvider.overrideWith(
-            (ref) => Future.value(Fresh<HistorySummaryResponse>(
-              HistorySummaryResponse(
-                totalPeriodsLogged: 0,
-                history: const [],
-                symptomFrequencies: const {},
-              ),
-            )),
+  // Item 2: calendar semantic colors from tokens (light + dark).
+  // Ranges are computed from "today" so every target label is unique and
+  // in-month on any run date (outside labels are only month tails/heads).
+  group('calendar semantic colors', () {
+    late int loggedMid;
+    late int predictedAnchor;
+    late int tapDay;
+
+    Future<void> pumpHistory(
+      WidgetTester tester, {
+      required ThemeData theme,
+    }) async {
+      _tallViewport(tester);
+      final now = DateTime.now();
+      if (now.day >= 20) {
+        loggedMid = 9; // logged span 8..10
+        predictedAnchor = 14; // predicted span 14..16 (avgLen 3)
+        tapDay = 18;
+      } else {
+        loggedMid = 23; // logged span 22..24
+        predictedAnchor = 25; // predicted span 25..26 (avgLen 2, Feb-safe)
+        tapDay = 20;
+      }
+      final spanLen = now.day >= 20 ? 3 : 2;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            historySummaryProvider.overrideWith(
+              (ref) => Future.value(Fresh<HistorySummaryResponse>(
+                HistorySummaryResponse(
+                  totalPeriodsLogged: 0,
+                  history: const [],
+                  symptomFrequencies: const {},
+                ),
+              )),
+            ),
+            cycleListProvider.overrideWith(
+              (ref) => Future.value(Fresh<List<CycleResponse>>([
+                CycleResponse(
+                  id: 1,
+                  userId: 'user-a',
+                  periodStart:
+                      DateTime(now.year, now.month, loggedMid - 1),
+                  periodEnd: DateTime(now.year, now.month, loggedMid + 1),
+                  periodLengthDays: 3,
+                  createdAt: now,
+                  updatedAt: now,
+                ),
+              ])),
+            ),
+            currentCycleProvider.overrideWith(
+              (ref) => Future.value(Fresh<CurrentCycleResponse?>(
+                CurrentCycleResponse(
+                  hasData: true,
+                  currentCycleDay: now.day,
+                  phase: 'menstrual',
+                  isBleeding: true,
+                  isOngoing: true,
+                  latestPeriodStart:
+                      DateTime(now.year, now.month, loggedMid - 1),
+                  averagePeriodLength: spanLen,
+                  predictedNextPeriod: DateTime(
+                      now.year, now.month, predictedAnchor),
+                  predictionConfidence: 'low',
+                ),
+              )),
+            ),
+          ],
+          child: MaterialApp(
+            theme: theme,
+            home: const HistoryTab(),
           ),
-          cycleListProvider.overrideWith(
-            (ref) => Future.value(const Fresh<List<CycleResponse>>([])),
-          ),
-          currentCycleProvider.overrideWith(
-            (ref) => Future.value(const Fresh<CurrentCycleResponse?>(null)),
-          ),
-        ],
-        child: MaterialApp(
-          theme: MenoMateTheme.sakuraTheme,
-          home: const HistoryTab(),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
+    }
 
-    // TableCalendar must have an explicit selected builder: without it the
-    // package-default indigo selected decoration leaks into the app.
-    final calendar =
-        tester.widget<TableCalendar>(find.byType(TableCalendar));
-    expect(calendar.calendarBuilders.selectedBuilder, isNotNull);
+    Container decoratedDayCell(WidgetTester tester, String label) {
+      final cells = find.ancestor(
+        of: find.text(label),
+        matching: find.byWidgetPredicate((w) =>
+            w is Container &&
+            w.decoration is BoxDecoration &&
+            (w.decoration as BoxDecoration).shape == BoxShape.circle),
+      );
+      expect(cells, findsOneWidget);
+      return tester.widget<Container>(cells);
+    }
 
-    // Today is selected by default: solid primary fill + onPrimary text.
-    final dayText = find.text('${now.day}');
-    expect(dayText, findsOneWidget);
-    final cell = find.ancestor(
-      of: dayText,
-      matching: find.byWidgetPredicate((w) =>
-          w is Container &&
-          w.decoration is BoxDecoration &&
-          (w.decoration as BoxDecoration).shape == BoxShape.circle),
-    );
-    expect(cell, findsOneWidget);
-    final decoration =
-        tester.widget<Container>(cell).decoration as BoxDecoration;
-    expect(decoration.color, MenoMateTheme.sakuraPrimary);
-    expect(tester.widget<Text>(dayText).style?.color, Colors.white);
+    testWidgets('light: logged/today/predicted/selected all distinct tokens',
+        (tester) async {
+      await pumpHistory(tester, theme: MenoMateTheme.sakuraTheme);
+      final colors = MenoMateTheme.sakuraTheme.colorScheme;
+      final neutral = todayNeutralFill(colors);
 
-    // No package-default indigo anywhere in the subtree.
-    const indigoDefault = Color(0xFF5C6BC0);
-    final indigoCells = tester
-        .widgetList<Container>(find.byType(Container))
-        .where((c) =>
-            c.decoration is BoxDecoration &&
-            (c.decoration as BoxDecoration).color == indigoDefault);
-    expect(indigoCells, isEmpty);
+      // todayNeutralFill is a whisper of onSurface: never rose, never
+      // violet, and identical for cells and the legend dot by construction.
+      expect(neutral, isNot(colors.primary));
+      expect(neutral, isNot(colors.tertiary));
+      expect(
+        neutral,
+        colors.onSurface.withValues(alpha: 0.10),
+      );
+
+      // TableCalendar must have an explicit selected builder: without it
+      // the package-default indigo selected decoration leaks into the app.
+      final calendar =
+          tester.widget<TableCalendar>(find.byType(TableCalendar));
+      expect(calendar.calendarBuilders.selectedBuilder, isNotNull);
+
+      // Today is selected by default: neutral fill + onSurface text/rim.
+      final now = DateTime.now();
+      final todayCell = decoratedDayCell(tester, '${now.day}');
+      final todayDeco = todayCell.decoration as BoxDecoration;
+      expect(todayDeco.color, neutral);
+      expect(todayDeco.border?.top.color, colors.onSurface);
+      expect(
+        tester.widget<Text>(find.text('${now.day}')).style?.color,
+        colors.onSurface,
+      );
+
+      // Ordinary logged day: solid primary rose A + onPrimary text.
+      final loggedCell = decoratedDayCell(tester, '$loggedMid');
+      final loggedDeco = loggedCell.decoration as BoxDecoration;
+      expect(loggedDeco.color, colors.primary.withValues(alpha: 0.85));
+      expect(
+        tester.widget<Text>(find.text('$loggedMid')).style?.color,
+        colors.onPrimary,
+      );
+
+      // Predicted day: tertiary span styling.
+      final predictedCell = decoratedDayCell(tester, '$predictedAnchor');
+      final predictedDeco = predictedCell.decoration as BoxDecoration;
+      expect(
+        predictedDeco.color,
+        colors.tertiary.withValues(alpha: 0.25),
+      );
+
+      // Legend Today dot uses the exact same neutral as today cells:
+      // exactly two neutral circles exist (today cell + legend dot),
+      // so the three meanings separate without relying on the rim.
+      final neutralCircles = tester
+          .widgetList<Container>(find.byType(Container))
+          .where((c) =>
+              c.decoration is BoxDecoration &&
+              (c.decoration as BoxDecoration).shape == BoxShape.circle &&
+              (c.decoration as BoxDecoration).color == neutral);
+      expect(neutralCircles.length, 2);
+
+      // No package-default indigo anywhere in the subtree.
+      const indigoDefault = Color(0xFF5C6BC0);
+      final indigoCells = tester
+          .widgetList<Container>(find.byType(Container))
+          .where((c) =>
+              c.decoration is BoxDecoration &&
+              (c.decoration as BoxDecoration).color == indigoDefault);
+      expect(indigoCells, isEmpty);
+    });
+
+    testWidgets('light: selected non-today day keeps token rim styling',
+        (tester) async {
+      await pumpHistory(tester, theme: MenoMateTheme.sakuraTheme);
+      final colors = MenoMateTheme.sakuraTheme.colorScheme;
+
+      await tester.tap(find.text('$tapDay'));
+      await tester.pumpAndSettle();
+
+      final cell = decoratedDayCell(tester, '$tapDay');
+      final deco = cell.decoration as BoxDecoration;
+      expect(deco.color, colors.primary.withValues(alpha: 0.15));
+      expect(deco.border?.top.color, colors.primary);
+      expect(
+        tester.widget<Text>(find.text('$tapDay')).style?.color,
+        colors.primary,
+      );
+    });
+
+    testWidgets('dark: today neutral tracks dark tokens, no indigo',
+        (tester) async {
+      await pumpHistory(tester, theme: MenoMateTheme.starryNightTheme);
+      final colors = MenoMateTheme.starryNightTheme.colorScheme;
+      final neutral = todayNeutralFill(colors);
+
+      expect(neutral, isNot(colors.primary));
+      expect(neutral, isNot(colors.tertiary));
+
+      final now = DateTime.now();
+      final todayCell = decoratedDayCell(tester, '${now.day}');
+      final todayDeco = todayCell.decoration as BoxDecoration;
+      expect(todayDeco.color, neutral);
+      expect(todayDeco.border?.top.color, colors.onSurface);
+      expect(
+        tester.widget<Text>(find.text('${now.day}')).style?.color,
+        colors.onSurface,
+      );
+
+      const indigoDefault = Color(0xFF5C6BC0);
+      final indigoCells = tester
+          .widgetList<Container>(find.byType(Container))
+          .where((c) =>
+              c.decoration is BoxDecoration &&
+              (c.decoration as BoxDecoration).color == indigoDefault);
+      expect(indigoCells, isEmpty);
+    });
   });
 
   // Item 4: History [Calendar | Cycles] panes.
