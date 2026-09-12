@@ -17,8 +17,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // Send a message via a quick chip.
-    await tester.tap(find.text('Pain help'));
+    // Send a message via a canonical empty-state quick chip
+    // (single prompt system; the duplicate bottom bar was removed).
+    await tester.tap(find.text('Help with my current pain'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
 

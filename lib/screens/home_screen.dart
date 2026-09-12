@@ -61,7 +61,7 @@ class HomeScreen extends ConsumerWidget {
           BottomNavigationBarItem(
             icon: Icon(Icons.calendar_month_outlined),
             activeIcon: Icon(Icons.calendar_month),
-            label: 'Calendar',
+            label: 'History',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined),

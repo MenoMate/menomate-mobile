@@ -18,6 +18,11 @@ class _FixedProfileNotifier extends ProfileNotifier {
   Future<DataState<Profile?>> build() async => fixed;
 }
 
+class _FixedInsightNotifier extends DailyInsightNotifier {
+  @override
+  AsyncValue<String?> build() => const AsyncData<String?>('tip');
+}
+
 /// Home cycle card: tracked period/bleeding status is rendered separately
 /// from the authoritative backend phase. The ring keeps Day N + verbatim
 /// server phase; one secondary line reports ongoing vs ended from stored
@@ -37,13 +42,13 @@ void main() {
           profileProvider.overrideWith(
             () => _FixedProfileNotifier(const NoData<Profile?>()),
           ),
-          dailyInsightProvider.overrideWith((ref) => Future.value('tip')),
+          dailyInsightProvider.overrideWith(() => _FixedInsightNotifier()),
         ],
         child: const MaterialApp(home: HomeTab()),
       ),
     );
-    // Bounded pumps only: the therapy FAB pulses forever, so pumpAndSettle
-    // would never terminate. Futures resolve on the first frames.
+    // Bounded pumps only (stable even with animations on screen).
+    // Futures resolve on the first frames.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pump(const Duration(seconds: 1));
@@ -96,7 +101,7 @@ void main() {
 
     expect(
       find.text(
-          'Period ended ${DateFormat('MMM d').format(todayDay)} · 1 days'),
+          'Period ended ${DateFormat('MMM d').format(todayDay)} · 1 day'),
       findsOneWidget,
     );
     // No Flutter-side conversion to FOLLICULAR occurred.

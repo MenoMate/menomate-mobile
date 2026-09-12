@@ -10,6 +10,9 @@ import '../../models/summary.dart';
 import '../../models/cycle.dart';
 import '../../providers/cycle_provider.dart';
 import '../../widgets/offline_banner.dart';
+import '../../core/format.dart';
+
+enum _HistoryPane { calendar, cycles }
 
 class HistoryTab extends ConsumerStatefulWidget {
   const HistoryTab({super.key});
@@ -21,6 +24,9 @@ class HistoryTab extends ConsumerStatefulWidget {
 class _HistoryTabState extends ConsumerState<HistoryTab> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
+
+  /// Active pane: calendar browsing vs past-cycle statistics.
+  _HistoryPane _pane = _HistoryPane.calendar;
 
   @override
   void initState() {
@@ -67,100 +73,118 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Summary Stats Card
-                    summaryAsync.when(
-                      data: (summaryState) {
-                        if (summaryState is Unavailable) {
-                          return Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24.0),
-                              child: Text(
-                                'Couldn\'t load history. Check your connection and pull to refresh.',
-                                textAlign: TextAlign.center,
-                                style:
-                                    TextStyle(color: colorScheme.secondary),
-                              ),
-                            ),
-                          );
-                        }
-                        final summary = summaryState.dataOrNull;
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            SyncStatusChip(state: summaryState),
-                            if (summary != null)
-                              _buildStatsCard(summary, context),
-                          ],
-                        );
-                      },
-                      loading: () => const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(24.0),
-                          child: CircularProgressIndicator(),
-                        ),
-                      ),
-                      error: (err, _) => Text(
-                        'Could not load summary history.',
-                        style: TextStyle(color: colorScheme.secondary),
+                    // Pane selector: Calendar (day browsing) vs Cycles
+                    // (statistics + past cycles). Tab index stays stable;
+                    // this segments one destination, it adds no routes.
+                    Center(
+                      child: SegmentedButton<_HistoryPane>(
+                        segments: const [
+                          ButtonSegment<_HistoryPane>(
+                            value: _HistoryPane.calendar,
+                            icon: Icon(Icons.calendar_month_rounded, size: 16),
+                            label: Text('Calendar'),
+                          ),
+                          ButtonSegment<_HistoryPane>(
+                            value: _HistoryPane.cycles,
+                            icon: Icon(Icons.history_rounded, size: 16),
+                            label: Text('Cycles'),
+                          ),
+                        ],
+                        selected: {_pane},
+                        onSelectionChanged: (selected) {
+                          setState(() {
+                            _pane = selected.first;
+                          });
+                        },
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
 
-                    // Section Title: Cycle Calendar
-                    Text(
-                      'Cycle Calendar',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // The Calendar Card
-                    _buildCalendar(
-                      _cyclesForCalendar(cyclesAsync),
-                      currentCycleAsync.value?.dataOrNull,
-                      context,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Calendar Legend & Confidence Badge
-                    _buildCalendarLegend(
-                        currentCycleAsync.value?.dataOrNull, context),
-
-                    // Selected Date Detail Card
-                    if (_selectedDay != null) ...[
-                      const SizedBox(height: 16),
-                      _buildSelectedDayCard(
-                        _selectedDay!,
+                    if (_pane == _HistoryPane.calendar) ...[
+                      // The Calendar Card
+                      _buildCalendar(
                         _cyclesForCalendar(cyclesAsync),
                         currentCycleAsync.value?.dataOrNull,
                         context,
                       ),
-                    ],
 
-                    const SizedBox(height: 28),
+                      const SizedBox(height: 12),
 
-                    // Section Title: Past Cycles
-                    Text(
-                      'Past Cycles',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
+                      // Calendar Legend (concise single prediction line)
+                      _buildCalendarLegend(
+                          currentCycleAsync.value?.dataOrNull, context),
+
+                      // Selected Date Detail Card
+                      if (_selectedDay != null) ...[
+                        const SizedBox(height: 16),
+                        _buildSelectedDayCard(
+                          _selectedDay!,
+                          _cyclesForCalendar(cyclesAsync),
+                          currentCycleAsync.value?.dataOrNull,
+                          context,
+                        ),
+                      ],
+                    ] else ...[
+                      // Cycles pane: compact statistics + past-cycle list
+                      // header. The list itself stays a sliver below.
+                      summaryAsync.when(
+                        data: (summaryState) {
+                          if (summaryState is Unavailable) {
+                            return Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24.0),
+                                child: Text(
+                                  'Couldn\'t load history. Check your connection and pull to refresh.',
+                                  textAlign: TextAlign.center,
+                                  style:
+                                      TextStyle(color: colorScheme.secondary),
+                                ),
+                              ),
+                            );
+                          }
+                          final summary = summaryState.dataOrNull;
+                          return Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SyncStatusChip(state: summaryState),
+                              if (summary != null)
+                                _buildStatsCard(summary, context),
+                            ],
+                          );
+                        },
+                        loading: () => const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(24.0),
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        error: (err, _) => Text(
+                          'Could not load summary history.',
+                          style: TextStyle(color: colorScheme.secondary),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
+                      const SizedBox(height: 24),
+
+                      // Section Title: Past Cycles
+                      Text(
+                        'Past Cycles',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                   ],
                 ),
               ),
             ),
 
-            // Past Cycles List
-            summaryAsync.when(
+            // Past Cycles List (Cycles pane only)
+            if (_pane == _HistoryPane.cycles)
+              summaryAsync.when(
               data: (summaryState) {
                 if (summaryState is Unavailable) {
                   return SliverToBoxAdapter(
@@ -275,6 +299,19 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
           todayBuilder: (context, day, focusedDay) {
             return _buildCalendarCell(day, cycles, currentCycle, isToday: true, isOutside: false);
           },
+          // Explicit selected styling in MenoMate tokens. Without this,
+          // table_calendar falls back to its package-default indigo
+          // selected decoration, which contradicts the legend.
+          selectedBuilder: (context, day, focusedDay) {
+            return _buildCalendarCell(
+              day,
+              cycles,
+              currentCycle,
+              isToday: isSameDay(day, DateTime.now()),
+              isSelected: true,
+              isOutside: false,
+            );
+          },
           outsideBuilder: (context, day, focusedDay) {
             return _buildCalendarCell(day, cycles, currentCycle, isOutside: true);
           },
@@ -288,6 +325,7 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     List<CycleResponse>? cycles,
     CurrentCycleResponse? currentCycle, {
     bool isToday = false,
+    bool isSelected = false,
     bool isOutside = false,
   }) {
     final theme = Theme.of(context);
@@ -325,6 +363,9 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
 
     final isSelected = _selectedDay != null && isSameDay(_selectedDay, day);
 
+    // All fills/borders/text come from theme tokens (primary = logged /
+    // today family, tertiary = predicted span). No package defaults, no
+    // hardcoded accent literals: the legend dots use these same tokens.
     BoxDecoration? decoration;
     Color? textColor = isOutside
         ? colorScheme.secondary.withValues(alpha: 0.35)
@@ -332,35 +373,38 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
 
     if (isLoggedPeriod) {
       decoration = BoxDecoration(
-        color: const Color(0xFFE88FA8).withValues(alpha: isOutside ? 0.4 : 0.85),
+        color: colorScheme.primary.withValues(alpha: isOutside ? 0.4 : 0.85),
         shape: BoxShape.circle,
-        border: isSelected ? Border.all(color: Colors.black, width: 2) : null,
+        border: isSelected
+            ? Border.all(color: colorScheme.onSurface, width: 2)
+            : null,
       );
-      textColor = Colors.white;
+      textColor = colorScheme.onPrimary;
     } else if (isPredictedPeriod) {
       decoration = BoxDecoration(
-        color: const Color(0xFFAEBBFF).withValues(alpha: isOutside ? 0.15 : 0.25),
+        color: colorScheme.tertiary.withValues(alpha: isOutside ? 0.15 : 0.25),
         shape: BoxShape.circle,
         border: Border.all(
-          color: const Color(0xFFAEBBFF).withValues(alpha: isOutside ? 0.5 : 1.0),
+          color: colorScheme.tertiary.withValues(alpha: isOutside ? 0.5 : 1.0),
           width: 1.8,
         ),
       );
-      textColor = isOutside
-          ? const Color(0xFFAEBBFF).withValues(alpha: 0.6)
-          : (theme.brightness == Brightness.dark ? const Color(0xFFAEBBFF) : const Color(0xFF5367B8));
-    } else if (isToday) {
+      textColor = colorScheme.onSurface;
+    } else if (isToday && isSelected) {
+      // Today + selected: solid token fill, exactly matching the legend's
+      // "Today" dot. Covered by widget test (today-is-selected case).
+      decoration = BoxDecoration(
+        color: colorScheme.primary,
+        shape: BoxShape.circle,
+      );
+      textColor = colorScheme.onPrimary;
+    } else if (isToday || isSelected) {
       decoration = BoxDecoration(
         color: colorScheme.primary.withValues(alpha: 0.15),
         shape: BoxShape.circle,
         border: Border.all(color: colorScheme.primary, width: 1.5),
       );
       textColor = colorScheme.primary;
-    } else if (isSelected) {
-      decoration = BoxDecoration(
-        border: Border.all(color: colorScheme.onSurface, width: 1.5),
-        shape: BoxShape.circle,
-      );
     }
 
     return Container(
@@ -383,13 +427,15 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
   Widget _buildCalendarLegend(CurrentCycleResponse? currentCycle, BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final confidence = currentCycle?.predictionConfidence ?? 'None';
     final nextPredicted = currentCycle?.predictedNextPeriod;
 
+    // Concise single prediction line. Confidence detail lives on Home;
+    // the low-history explainer paragraph was removed to avoid stating
+    // the same prediction information in multiple places.
     String predictionText;
     if (nextPredicted != null) {
       final formatted = DateFormat('MMM d').format(nextPredicted);
-      predictionText = 'Predicted period: Around $formatted ($confidence confidence)';
+      predictionText = 'Likely window around $formatted';
     } else {
       predictionText = 'Predictions will appear once enough cycles are logged.';
     }
@@ -407,12 +453,12 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildLegendDot(const Color(0xFFE88FA8), 'Logged period', colorScheme),
-              _buildLegendDot(const Color(0xFFAEBBFF), 'Predicted span', colorScheme, isOutlined: true),
+              _buildLegendDot(colorScheme.primary, 'Logged period', colorScheme),
+              _buildLegendDot(colorScheme.tertiary, 'Predicted span', colorScheme, isOutlined: true),
               _buildLegendDot(colorScheme.primary, 'Today', colorScheme),
             ],
           ),
-          const Divider(height: 16),
+          Divider(height: 16, color: colorScheme.outline),
           Row(
             children: [
               Icon(Icons.auto_awesome_outlined, size: 16, color: colorScheme.primary),
@@ -429,13 +475,6 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
               ),
             ],
           ),
-          if (confidence.toLowerCase() == 'low' || confidence.toLowerCase() == 'none') ...[
-            const SizedBox(height: 4),
-            Text(
-              'Limited cycle history logged. Prediction confidence will improve over subsequent cycles.',
-              style: TextStyle(fontSize: 11, color: colorScheme.secondary.withValues(alpha: 0.8)),
-            ),
-          ],
         ],
       ),
     );
@@ -503,10 +542,10 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     Color statusColor = colorScheme.secondary;
     if (isPeriod) {
       statusText = 'Logged Active Period';
-      statusColor = const Color(0xFFE88FA8);
+      statusColor = colorScheme.primary;
     } else if (isPredicted) {
       statusText = 'Estimated Predicted Period Span';
-      statusColor = const Color(0xFFAEBBFF);
+      statusColor = colorScheme.tertiary;
     }
 
     return Container(
@@ -648,11 +687,14 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
         ? DateFormat('MMM d').format(cycle.periodEnd!)
         : 'Ongoing';
 
+    // Display formatting only: counts render grammatically ("1 day"),
+    // and zero/sub-day intervals render as an em dash, never "0 days".
+    // Cycle calculations are untouched.
     final periodLenStr = cycle.periodLengthDays != null
-        ? '${cycle.periodLengthDays} days'
+        ? formatDayCount(cycle.periodLengthDays!, 'day')
         : '--';
     final cycleLenStr = cycle.cycleLengthDays != null
-        ? '${cycle.cycleLengthDays} days'
+        ? formatDayCount(cycle.cycleLengthDays!, 'day')
         : '--';
 
     return Container(

@@ -10,6 +10,8 @@ class MenoMateTheme {
   static const Color sakuraSecondary = Color(0xFF756B70);
   static const Color sakuraBorder = Color(0xFFF1DDE3);
   static const Color sakuraSoftPink = Color(0xFFFCE8EE);
+  // Muted periwinkle for predicted-span surfaces (calendar, legend).
+  static const Color sakuraPredicted = Color(0xFF8F9BD8);
 
   // --- Starry Night (Dark Theme) Palette ---
   static const Color starryBg = Color(0xFF080D1F);
@@ -37,6 +39,8 @@ class MenoMateTheme {
         outline: sakuraBorder,
         primaryContainer: sakuraSoftPink,
         onPrimaryContainer: sakuraPrimaryDark,
+        tertiary: sakuraPredicted,
+        onTertiary: Colors.white,
       ),
       cardTheme: CardThemeData(
         color: sakuraSurface,

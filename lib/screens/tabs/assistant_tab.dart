@@ -268,9 +268,6 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
                 ),
               ),
 
-            // Quick Actions Horizontal Bar
-            _buildQuickActionsBar(context),
-
             // Chat Input Box
             _buildChatInputBox(context),
           ],
@@ -317,6 +314,8 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
               ),
             ),
             const SizedBox(height: 24),
+            // One canonical quick-prompt set (single prompt system:
+            // the bottom bar and Home row were removed as duplicates).
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -326,7 +325,6 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
                 _buildQuickChip('Help with my current pain', 'pain_help'),
                 _buildQuickChip('What patterns do you notice?', 'pattern_summary'),
                 _buildQuickChip('What helped me before?', 'therapy_recommendation'),
-                _buildQuickChip('Prepare for my next period', 'cycle_insight'),
               ],
             ),
           ],
@@ -568,39 +566,6 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
             ],
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActionsBar(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: [
-          _buildSmallQuickAction('Cycle insight', 'cycle_insight', colorScheme),
-          _buildSmallQuickAction('Pain help', 'pain_help', colorScheme),
-          _buildSmallQuickAction('What helped before?', 'therapy_recommendation', colorScheme),
-          _buildSmallQuickAction('Patterns', 'pattern_summary', colorScheme),
-          _buildSmallQuickAction('Next period', 'cycle_insight', colorScheme),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSmallQuickAction(String label, String intent, ColorScheme colorScheme) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: ActionChip(
-        label: Text(label, style: TextStyle(fontSize: 11, color: colorScheme.secondary)),
-        backgroundColor: colorScheme.surface,
-        side: BorderSide(color: colorScheme.outline),
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        onPressed: _isLoading ? null : () => _sendMessage(label, intent: intent),
       ),
     );
   }

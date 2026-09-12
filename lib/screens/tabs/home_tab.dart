@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../data/sync_policy.dart';
+import '../../core/format.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/cycle_provider.dart';
 import '../../widgets/offline_banner.dart';
@@ -11,9 +12,7 @@ import '../../widgets/device_telemetry_card.dart';
 import '../../widgets/period_tracker_button.dart';
 import '../../widgets/interactive_cycle_ring.dart';
 import '../../widgets/daily_insight_card.dart';
-import '../../widgets/pulsing_therapy_fab.dart';
 import '../home_screen.dart';
-import 'assistant_tab.dart';
 
 class HomeTab extends ConsumerWidget {
   const HomeTab({super.key});
@@ -122,23 +121,29 @@ class HomeTab extends ConsumerWidget {
 
                   // Predict text — Rule J: display backend results, no client date math.
                   // Rule F: never show negative countdown.
-                  String nextPeriodInfo = 'Log cycles to calculate prediction';
+                  // Hierarchy: one compact primary line; confidence is a
+                  // subtle secondary suffix, never equal-weight text.
+                  String nextPeriodMain = 'Log cycles to calculate prediction';
+                  String? nextPeriodSuffix;
                   if (cycleData.predictedNextPeriod != null) {
                     final nextDateStr = DateFormat('MMM d').format(cycleData.predictedNextPeriod!);
                     final daysLeft = cycleData.daysUntilNextPeriod;
                     final status = cycleData.predictionStatus;
                     final conf = cycleData.predictionConfidence;
                     if (daysLeft == null) {
-                      nextPeriodInfo = 'Expected around $nextDateStr · $conf confidence';
+                      nextPeriodMain = 'Expected around $nextDateStr';
+                      nextPeriodSuffix = '$conf confidence';
                     } else if (status == 'awaiting_next_start') {
-                      nextPeriodInfo =
+                      nextPeriodMain =
                           'Expected around $nextDateStr — Log your next period when it starts';
                     } else if (daysLeft <= 0 || status == 'today') {
                       // Backend clamps passed predictions to 0; treat as today/expected.
-                      nextPeriodInfo = 'Next period: $nextDateStr (today) · $conf confidence';
+                      nextPeriodMain = 'Next period: $nextDateStr (today)';
+                      nextPeriodSuffix = '$conf confidence';
                     } else {
-                      nextPeriodInfo =
-                          'Next period: $nextDateStr (in ~$daysLeft days) · $conf confidence';
+                      nextPeriodMain =
+                          'Next period: $nextDateStr (in ~$daysLeft days)';
+                      nextPeriodSuffix = '$conf confidence';
                     }
                   }
 
@@ -160,7 +165,7 @@ class HomeTab extends ConsumerWidget {
                       final endDay = DateTime(end.year, end.month, end.day);
                       final days = endDay.difference(startDay).inDays + 1;
                       periodStatus =
-                          'Period ended ${DateFormat('MMM d').format(endDay)} · $days days';
+                          'Period ended ${DateFormat('MMM d').format(endDay)} · ${formatDayCount(days, 'day')}';
                     }
                   }
 
@@ -182,38 +187,47 @@ class HomeTab extends ConsumerWidget {
                     child: Column(
                       children: [
                         SyncStatusChip(state: cycleState),
-                        // Interactive Cycle Ring (tap opens calendar)
-                        GestureDetector(
-                          onTap: () {
-                            ref.read(homeTabIndexProvider.notifier).setIndex(2);
-                          },
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              InteractiveCycleRing(
-                                phase: cycleData.phase,
-                                currentDay: cycleData.currentCycleDay ?? 1,
-                                cycleLength: cycleData.averageCycleLength ??
-                                    cycleData.predictedCycleLength ??
-                                    28,
-                              ),
-                            ],
-                          ),
+                        // Cycle ring: Day N + server phase stay dominant.
+                        Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            InteractiveCycleRing(
+                              phase: cycleData.phase,
+                              currentDay: cycleData.currentCycleDay ?? 1,
+                              cycleLength: cycleData.averageCycleLength ??
+                                  cycleData.predictedCycleLength ??
+                                  28,
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 12),
 
-                        // Subtitle with next period info
-                        Text(
-                          nextPeriodInfo,
+                        // Compact prediction line + subtle confidence suffix.
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: nextPeriodMain),
+                              if (nextPeriodSuffix != null)
+                                TextSpan(
+                                  text: ' · $nextPeriodSuffix',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: colorScheme.secondary
+                                        .withValues(alpha: 0.75),
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                ),
+                            ],
+                          ),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 13,
                             color: colorScheme.secondary,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        // Tracked period status: secondary, smaller than Day
-                        // and phase, no phase-color semantics.
+                        // Tracked period status: quieter secondary line,
+                        // smaller than Day and phase, no phase-color semantics.
                         if (periodStatus != null) ...[
                           const SizedBox(height: 4),
                           Text(
@@ -221,30 +235,51 @@ class HomeTab extends ConsumerWidget {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 12,
-                              color: colorScheme.secondary,
-                              fontWeight: FontWeight.w500,
+                              color: colorScheme.secondary
+                                  .withValues(alpha: 0.85),
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ],
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
 
-                        // View Calendar Button
-                        OutlinedButton.icon(
-                          onPressed: () {
+                        // Quiet calendar navigation (replaces the pill button).
+                        InkWell(
+                          onTap: () {
                             ref.read(homeTabIndexProvider.notifier).setIndex(2);
                           },
-                          icon: const Icon(Icons.calendar_month_rounded, size: 18),
-                          label: const Text('View Calendar'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: colorScheme.primary,
-                            side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.5)),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.calendar_month_rounded,
+                                  size: 15,
+                                  color: colorScheme.primary,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Calendar',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  size: 16,
+                                  color: colorScheme.primary,
+                                ),
+                              ],
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: 12),
 
                         // Period Start / End Toggle Button
                         Builder(
@@ -307,20 +342,6 @@ class HomeTab extends ConsumerWidget {
 
               const SizedBox(height: 24),
 
-              // Section: Quick Care
-              Text(
-                'Quick Care',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _buildQuickCareRow(context, ref),
-
-              const SizedBox(height: 24),
-
               // Section: Wearable Device
               Text(
                 'MenoMate Wearable',
@@ -336,100 +357,6 @@ class HomeTab extends ConsumerWidget {
               const SizedBox(height: 32),
             ],
           ),
-        ),
-      ),
-      floatingActionButton: const PulsingTherapyFab(),
-    );
-  }
-
-  Widget _buildQuickCareRow(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Wrap(
-      spacing: 10,
-      runSpacing: 10,
-      children: [
-        _buildCareChip(
-          context,
-          icon: Icons.healing_rounded,
-          label: 'Pain Help',
-          onTap: () {
-            ref.read(careInitialPromptProvider.notifier).setPrompt(const CarePromptData(
-              'Help with my current pain',
-              'pain_help',
-            ));
-            ref.read(homeTabIndexProvider.notifier).setIndex(1);
-          },
-          colorScheme: colorScheme,
-        ),
-        _buildCareChip(
-          context,
-          icon: Icons.insights_rounded,
-          label: 'Cycle Insight',
-          onTap: () {
-            ref.read(careInitialPromptProvider.notifier).setPrompt(const CarePromptData(
-              'What\'s happening today in my cycle?',
-              'cycle_insight',
-            ));
-            ref.read(homeTabIndexProvider.notifier).setIndex(1);
-          },
-          colorScheme: colorScheme,
-        ),
-        _buildCareChip(
-          context,
-          icon: Icons.history_rounded,
-          label: 'What Helped Before?',
-          onTap: () {
-            ref.read(careInitialPromptProvider.notifier).setPrompt(const CarePromptData(
-              'What therapy setting usually worked well for me?',
-              'therapy_recommendation',
-            ));
-            ref.read(homeTabIndexProvider.notifier).setIndex(1);
-          },
-          colorScheme: colorScheme,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCareChip(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    required ColorScheme colorScheme,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: colorScheme.outline),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: colorScheme.primary),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: colorScheme.onSurface,
-              ),
-            ),
-          ],
         ),
       ),
     );

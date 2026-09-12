@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/sync_policy.dart';
@@ -5,37 +7,66 @@ import '../services/api_service.dart';
 import '../models/care.dart';
 import '../providers/cycle_provider.dart';
 
-final dailyInsightProvider = FutureProvider.autoDispose<String?>((ref) async {
-  final apiService = ref.watch(apiServiceProvider);
-  final cycleState = await ref.watch(currentCycleProvider.future);
-  final cycleData = cycleState.dataOrNull;
-  
-  final phase = cycleData?.phase.toLowerCase() ?? 'menstrual';
+/// Last-good insight holder (plain Riverpod state, no new cache layer).
+///
+/// A single fetch per app run: the value survives Home revisits,
+/// pull-to-refresh cycles, and offline transitions, so there is no spinner
+/// flash and no repeated Care request on every navigation. Offline revisits
+/// render the cached value; only a first-ever offline visit falls back to
+/// the phase tip below. Use [DailyInsightNotifier.refresh] for an explicit
+/// refresh if a future design needs one.
+class DailyInsightNotifier extends Notifier<AsyncValue<String?>> {
+  @override
+  AsyncValue<String?> build() {
+    unawaited(_fetchOnce());
+    return const AsyncLoading();
+  }
 
-  final prompt = 'Provide ONE concise, supportive wellness tip (nutrition, hydration, gentle movement, or rest) specifically suited for the $phase phase of the menstrual cycle. Do NOT repeat the cycle day number, do NOT name the cycle phase, and do NOT mention any next period dates. Maximum 2 sentences.';
+  Future<void> refresh() async {
+    state = const AsyncLoading();
+    await _fetchOnce();
+  }
 
-  try {
-    final request = CareInteractionRequest(
-      intent: 'cycle_insight',
-      userMessage: prompt,
-    );
-    final response = await apiService.postCareInteraction(request);
-    return response?.responseText;
-  } catch (_) {
-    switch (phase) {
-      case 'menstrual':
-        return 'Focus on warm fluids, magnesium-rich foods, and extra rest today.';
-      case 'follicular':
-        return 'Naturally rising energy makes this a great time for fresh nutrients and active movement.';
-      case 'ovulation':
-        return 'Support peak vitality with steady hydration and balanced meals.';
-      case 'luteal':
-        return 'Prioritize grounding evening routines and restorative rest as your body unwinds.';
-      default:
-        return 'Listen to your body today, stay hydrated, and take moments to rest.';
+  Future<void> _fetchOnce() async {
+    final apiService = ref.read(apiServiceProvider);
+    String phase = 'menstrual';
+    try {
+      final cycleState = await ref.read(currentCycleProvider.future);
+      phase = cycleState.dataOrNull?.phase.toLowerCase() ?? 'menstrual';
+    } catch (_) {
+      // Offline/empty cycle state: keep default phase for the fallback.
+    }
+
+    final prompt = 'Provide ONE concise, supportive wellness tip (nutrition, hydration, gentle movement, or rest) specifically suited for the $phase phase of the menstrual cycle. Do NOT repeat the cycle day number, do NOT name the cycle phase, and do NOT mention any next period dates. Maximum 2 sentences.';
+
+    try {
+      final request = CareInteractionRequest(
+        intent: 'cycle_insight',
+        userMessage: prompt,
+      );
+      final response = await apiService.postCareInteraction(request);
+      state = AsyncData(response?.responseText);
+    } catch (_) {
+      switch (phase) {
+        case 'menstrual':
+          state = const AsyncData('Focus on warm fluids, magnesium-rich foods, and extra rest today.');
+        case 'follicular':
+          state = const AsyncData('Naturally rising energy makes this a great time for fresh nutrients and active movement.');
+        case 'ovulation':
+          state = const AsyncData('Support peak vitality with steady hydration and balanced meals.');
+        case 'luteal':
+          state = const AsyncData('Prioritize grounding evening routines and restorative rest as your body unwinds.');
+        default:
+          state = const AsyncData('Listen to your body today, stay hydrated, and take moments to rest.');
+      }
     }
   }
-});
+}
+
+final dailyInsightProvider =
+    NotifierProvider<DailyInsightNotifier, AsyncValue<String?>>(
+  DailyInsightNotifier.new,
+);
 
 class DailyInsightCard extends ConsumerStatefulWidget {
   const DailyInsightCard({super.key});
