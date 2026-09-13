@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
@@ -146,12 +147,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // --- Auth Card ---
+                  // --- Auth Card (radius 18: same card family as Home) ---
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
                       color: colorScheme.surface,
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: colorScheme.outline, width: 1),
                       boxShadow: [
                         BoxShadow(
@@ -260,7 +261,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   )
                                 : Text(
                                     _isLoginMode ? 'Sign In' : 'Create Account',
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                   ),
                           ),
                         ),
@@ -284,7 +284,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             TextSpan(
                               text: _isLoginMode ? "Create Account" : "Sign In",
                               style: TextStyle(
-                                color: colorScheme.primary,
+                                // Mode-switch link: interaction indigo, same
+                                // role as nav/focus/secondary actions.
+                                color: MenoMateTheme.interactionColor(
+                                    theme.brightness == Brightness.dark),
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

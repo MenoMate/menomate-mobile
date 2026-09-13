@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/theme.dart';
+
 class SymptomLoggerCard extends StatelessWidget {
   const SymptomLoggerCard({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Pastel sage tile: wellness is supportive and non-menstrual, so it
+    // gets the complementary hue instead of borrowing the rose.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: () => context.push('/logger'),
       child: Container(
@@ -13,7 +18,7 @@ class SymptomLoggerCard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
               color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.05),
@@ -28,10 +33,16 @@ class SymptomLoggerCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFF3E8FF),
+                color: isDark
+                    ? MenoMateTheme.starrySage
+                    : MenoMateTheme.sakuraSage,
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.favorite, color: Color(0xFFA855F7), size: 28),
+              child: Icon(Icons.favorite,
+                  color: isDark
+                      ? MenoMateTheme.starrySageInk
+                      : MenoMateTheme.sakuraSageInk,
+                  size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(

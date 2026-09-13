@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../data/sync_policy.dart';
 import '../../core/format.dart';
+import '../../core/theme.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/cycle_provider.dart';
 import '../../widgets/offline_banner.dart';
@@ -25,7 +26,9 @@ class HomeTab extends ConsumerWidget {
     final cycleAsync = ref.watch(currentCycleProvider);
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      // Transparent: the shared ThemeAtmosphereBackground painted by
+      // HomeScreen shows through; tab content cards stay opaque.
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -88,7 +91,7 @@ class HomeTab extends ConsumerWidget {
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: colorScheme.outline),
                       ),
                       child: Center(
@@ -107,7 +110,7 @@ class HomeTab extends ConsumerWidget {
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         color: colorScheme.surface,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(18),
                         border: Border.all(color: colorScheme.outline),
                       ),
                       child: Center(
@@ -173,7 +176,7 @@ class HomeTab extends ConsumerWidget {
                     width: double.infinity,
                     decoration: BoxDecoration(
                       color: colorScheme.surface,
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: colorScheme.outline),
                       boxShadow: [
                         BoxShadow(
@@ -258,22 +261,25 @@ class HomeTab extends ConsumerWidget {
                                 Icon(
                                   Icons.calendar_month_rounded,
                                   size: 15,
-                                  color: colorScheme.primary,
+                                  color: MenoMateTheme.interactionColor(
+                                      theme.brightness == Brightness.dark),
                                 ),
                                 const SizedBox(width: 6),
-                                Text(
-                                  'Calendar',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: colorScheme.primary,
-                                  ),
-                                ),
+                Text(
+                  'Calendar',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: MenoMateTheme.interactionColor(
+                        theme.brightness == Brightness.dark),
+                  ),
+                ),
                                 const SizedBox(width: 2),
                                 Icon(
                                   Icons.chevron_right_rounded,
                                   size: 16,
-                                  color: colorScheme.primary,
+                                  color: MenoMateTheme.interactionColor(
+                                      theme.brightness == Brightness.dark),
                                 ),
                               ],
                             ),
@@ -315,7 +321,7 @@ class HomeTab extends ConsumerWidget {
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
                   ),
                   child: Text('Error loading cycle data: $err'),
                 ),

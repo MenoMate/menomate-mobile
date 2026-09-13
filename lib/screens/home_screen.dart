@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/theme.dart';
 import '../widgets/theme_atmosphere.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/assistant_tab.dart';
@@ -45,7 +46,10 @@ class HomeScreen extends ConsumerWidget {
         },
         type: BottomNavigationBarType.fixed,
         backgroundColor: colorScheme.surface,
-        selectedItemColor: colorScheme.primary,
+        // Selection is interaction indigo, not menstrual rose: rose keeps
+        // its period-only meaning instead of marking navigation.
+        selectedItemColor: MenoMateTheme.interactionColor(
+            theme.brightness == Brightness.dark),
         unselectedItemColor: colorScheme.secondary,
         items: const [
           BottomNavigationBarItem(

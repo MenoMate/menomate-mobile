@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../content/insight_library.dart';
+import '../core/theme.dart';
 import '../data/sync_policy.dart';
 import '../models/cycle.dart';
 import '../providers/cycle_provider.dart';
@@ -122,9 +123,10 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
         });
       },
       child: Card(
-        elevation: 2,
+        elevation: 0,
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         color: colorScheme.surface,
         child: Padding(
           // Tight vertical padding; the card height is driven by the
@@ -181,7 +183,11 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: i == _page
-                                  ? colorScheme.primary
+                                  // Position indicator: interaction indigo,
+                                  // not menstrual rose (no meaning here).
+                                  ? MenoMateTheme.interactionColor(
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark)
                                   : colorScheme.outline,
                             ),
                           ),

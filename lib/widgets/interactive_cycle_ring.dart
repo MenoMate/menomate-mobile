@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../core/theme.dart';
 
 class InteractiveCycleRing extends StatelessWidget {
   final String phase;
@@ -15,24 +16,11 @@ class InteractiveCycleRing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Map string response to colors
-    Color phaseColor;
-    switch (phase.toLowerCase()) {
-      case 'menstrual':
-        phaseColor = Colors.pinkAccent;
-        break;
-      case 'follicular':
-        phaseColor = Colors.purpleAccent;
-        break;
-      case 'ovulation':
-        phaseColor = Colors.orangeAccent;
-        break;
-      case 'luteal':
-        phaseColor = Colors.greenAccent.shade400;
-        break;
-      default:
-        phaseColor = Colors.grey.shade400;
-    }
+    // Calm pastel phase ramp from the shared theme tokens (never neon
+    // accents); the track follows the theme outline in both modes.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final phaseColor =
+        MenoMateTheme.ringPhaseColor(isDark: isDark, phase: phase);
 
     // Safely calculate progress between 0.0 and 1.0
     final progress = cycleLength > 0 ? (currentDay / cycleLength).clamp(0.0, 1.0) : 0.0;
@@ -46,7 +34,7 @@ class InteractiveCycleRing extends StatelessWidget {
           painter: CycleRingPainter(
             progress: progress,
             activeColor: phaseColor,
-            backgroundColor: Colors.grey.shade200,
+            backgroundColor: Theme.of(context).colorScheme.outline,
           ),
           child: Center(
             child: Column(

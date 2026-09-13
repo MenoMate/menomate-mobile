@@ -206,15 +206,22 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
                 : Icon(widget.isOngoing ? Icons.stop_circle_rounded : Icons.water_drop_rounded),
             label: Text(
               widget.isOngoing ? 'Log Period Ended Today' : 'Log Period Started Today',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  widget.isOngoing ? Colors.redAccent.shade100 : Colors.redAccent,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              // Period action: menstrual rose carries the meaning. Ongoing
+              // (stop) state rests on the soft container; starting a log
+              // keeps full primary emphasis as the key Home action.
+              backgroundColor: widget.isOngoing
+                  ? Theme.of(context).colorScheme.primaryContainer
+                  : Theme.of(context).colorScheme.primary,
+              foregroundColor: widget.isOngoing
+                  ? Theme.of(context).colorScheme.onPrimaryContainer
+                  : Colors.white,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(14),
               ),
               elevation: 0,
             ),

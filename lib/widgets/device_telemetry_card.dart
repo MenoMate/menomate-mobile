@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../core/theme.dart';
 import '../services/ble_service.dart';
 
 class DeviceTelemetryCard extends ConsumerStatefulWidget {
@@ -46,19 +47,25 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
 
   @override
   Widget build(BuildContext context) {
+    // The card stays deep navy in both modes (hardware identity), but on
+    // the dark theme it needs a restrained outline plus a high-contrast
+    // action button so the section reads as actionable, never neon.
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blueGrey.shade800, Colors.blueGrey.shade900],
+        gradient: const LinearGradient(
+          colors: [MenoMateTheme.starrySurface, MenoMateTheme.starrySurface2],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+            color: Theme.of(context).colorScheme.outline, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.blueGrey.withValues(alpha: 0.3),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -93,8 +100,12 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
                 child: Row(
                   children: [
                     Icon(
-                      _isScanning ? Icons.search : Icons.circle, 
-                      color: _isScanning ? Colors.blueAccent : Colors.redAccent, 
+                      _isScanning ? Icons.search : Icons.circle,
+                      // Active scan glows lavender; idle disconnected is a
+                      // quiet neutral, never an error red.
+                      color: _isScanning
+                          ? MenoMateTheme.starryAccent
+                          : Colors.white38,
                       size: _isScanning ? 12 : 8
                     ),
                     const SizedBox(width: 4),
@@ -117,11 +128,19 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
             child: ElevatedButton(
               onPressed: _isScanning ? null : _handleConnect,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.surface,
-                foregroundColor: Colors.blueGrey.shade900,
-                padding: const EdgeInsets.symmetric(vertical: 16),
+                // Pale neutral button in dark mode (navy text): maximum
+                // separation on the navy card. Light mode keeps the white
+                // button it already had.
+                backgroundColor: isDark
+                    ? MenoMateTheme.starryText
+                    : Theme.of(context).colorScheme.surface,
+                foregroundColor: isDark
+                    ? MenoMateTheme.starryBg
+                    : Colors.blueGrey.shade900,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 elevation: 0,
               ),
@@ -130,8 +149,8 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
                   : const Text(
                       'Connect Device',
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
             ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/sync_policy.dart';
+import '../../core/theme.dart';
 import '../../models/device.dart';
 import '../../models/profile.dart';
 import '../../providers/cycle_provider.dart';
@@ -155,6 +156,10 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    // Selection states use the restrained interaction indigo (theme
+    // toggle, checked controls) — never menstrual rose.
+    final interaction =
+        MenoMateTheme.interactionColor(theme.brightness == Brightness.dark);
     final profileAsync = ref.watch(profileProvider);
     final themeMode = ref.watch(themeModeProvider);
 
@@ -165,7 +170,9 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     });
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      // Transparent: the shared ThemeAtmosphereBackground painted by
+      // HomeScreen shows through.
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -265,7 +272,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
                             color: themeMode == ThemeMode.light
-                                ? colorScheme.primary.withValues(alpha: 0.15)
+                                ? interaction.withValues(alpha: 0.15)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -276,7 +283,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                                 Icons.light_mode_outlined,
                                 size: 18,
                                 color: themeMode == ThemeMode.light
-                                    ? colorScheme.primary
+                                    ? interaction
                                     : colorScheme.secondary,
                               ),
                               const SizedBox(width: 8),
@@ -286,7 +293,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                                   fontSize: 14,
                                   fontWeight: themeMode == ThemeMode.light ? FontWeight.bold : FontWeight.normal,
                                   color: themeMode == ThemeMode.light
-                                      ? colorScheme.primary
+                                      ? interaction
                                       : colorScheme.secondary,
                                 ),
                               ),
@@ -308,7 +315,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
                             color: themeMode == ThemeMode.dark
-                                ? colorScheme.primary.withValues(alpha: 0.15)
+                                ? interaction.withValues(alpha: 0.15)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(12),
                           ),
@@ -319,7 +326,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                                 Icons.dark_mode_outlined,
                                 size: 18,
                                 color: themeMode == ThemeMode.dark
-                                    ? colorScheme.primary
+                                    ? interaction
                                     : colorScheme.secondary,
                               ),
                               const SizedBox(width: 8),
@@ -329,7 +336,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                                   fontSize: 14,
                                   fontWeight: themeMode == ThemeMode.dark ? FontWeight.bold : FontWeight.normal,
                                   color: themeMode == ThemeMode.dark
-                                      ? colorScheme.primary
+                                      ? interaction
                                       : colorScheme.secondary,
                                 ),
                               ),
@@ -436,11 +443,15 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               _buildSectionHeader('Account', colorScheme),
               Container(
                 decoration: BoxDecoration(
-                  color: colorScheme.surface,
                   borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: colorScheme.outline),
                 ),
-                child: ListTile(
+                // Own Material so the ListTile ink splash paints visibly
+                // instead of hiding behind the decorated container.
+                child: Material(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  child: ListTile(
                   leading: const Icon(Icons.logout, color: Colors.redAccent),
                   title: const Text('Sign Out', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
                   trailing: const Icon(Icons.chevron_right, color: Colors.redAccent),
@@ -451,6 +462,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   },
                 ),
               ),
+            ),
               const SizedBox(height: 36),
             ],
           ),

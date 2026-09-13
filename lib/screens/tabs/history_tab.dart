@@ -54,7 +54,9 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     final currentCycleAsync = ref.watch(currentCycleProvider);
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      // Transparent: the shared ThemeAtmosphereBackground painted by
+      // HomeScreen shows through.
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -493,7 +495,10 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
           Divider(height: 16, color: colorScheme.outline),
           Row(
             children: [
-              Icon(Icons.auto_awesome_outlined, size: 16, color: colorScheme.primary),
+              // Prediction line carries the prediction violet, matching the
+              // predicted-span legend dot and cells — never menstrual rose.
+              Icon(Icons.auto_awesome_outlined,
+                  size: 16, color: colorScheme.tertiary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -572,58 +577,76 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
       }
     }
 
+    // Quiet status: short label + small icon in the semantic color. The
+    // pill treatment is intentionally gone — the status must communicate
+    // without dominating the date. Wording stays factual.
     String statusText = 'Non-bleeding day';
     Color statusColor = colorScheme.secondary;
+    IconData statusIcon = Icons.circle_outlined;
     if (isPeriod) {
-      statusText = 'Logged Active Period';
+      statusText = 'Period active';
       statusColor = colorScheme.primary;
+      statusIcon = Icons.water_drop_outlined;
     } else if (isPredicted) {
-      statusText = 'Estimated Predicted Period Span';
+      statusText = 'Predicted span';
       statusColor = colorScheme.tertiary;
+      statusIcon = Icons.auto_awesome_outlined;
+    }
+
+    // Cycle context uses served today-values, and only when the selected
+    // day IS today: day-index/phase for arbitrary past dates would require
+    // inventing backend-owned phase semantics client-side, which is out of
+    // scope. Non-today meaning rides on the status row above.
+    String? contextText;
+    if (currentCycle != null && isSameDay(DateTime.now(), day)) {
+      final phase = currentCycle.phase;
+      final phaseLabel = phase.isEmpty
+          ? phase
+          : phase[0].toUpperCase() + phase.substring(1).toLowerCase();
+      contextText = 'Day ${currentCycle.currentCycleDay ?? 1} · $phaseLabel';
     }
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colorScheme.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // [Date]
+          Text(
+            formattedDate,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 6),
+          // [Quiet status]
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.min,
             children: [
+              Icon(statusIcon, size: 14, color: statusColor),
+              const SizedBox(width: 6),
               Text(
-                formattedDate,
+                statusText,
                 style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  statusText,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: statusColor,
-                  ),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: statusColor,
                 ),
               ),
             ],
           ),
-          if (currentCycle != null && isSameDay(DateTime.now(), day)) ...[
-            const SizedBox(height: 8),
+          // [Cycle context] — today only, served values, concise form.
+          if (contextText != null) ...[
+            const SizedBox(height: 6),
             Text(
-              'Today: Day ${currentCycle.currentCycleDay ?? 1} of your cycle (${currentCycle.phase.toUpperCase()} phase).',
+              contextText,
               style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
             ),
           ],
@@ -637,7 +660,7 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
               onPressed: () {
                 context.push('/logger?date=${toIsoDate(day)}');
               },
-              icon: const Icon(Icons.edit_note_outlined, size: 18),
+              icon: const Icon(Icons.edit_note_outlined, size: 16),
               label: const Text('View / edit wellness log'),
             ),
           ),
@@ -661,7 +684,7 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colorScheme.outline),
         boxShadow: [
           BoxShadow(
@@ -695,12 +718,14 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
   Widget _buildStatItem(String label, String value, ColorScheme colorScheme) {
     return Column(
       children: [
+        // Neutral data ink: counts and averages carry no menstrual
+        // meaning, so they do not borrow the rose.
         Text(
           value,
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: colorScheme.primary,
+            color: colorScheme.onSurface,
           ),
         ),
         const SizedBox(height: 4),
@@ -736,7 +761,7 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colorScheme.outline),
       ),
       child: Row(

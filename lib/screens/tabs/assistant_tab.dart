@@ -201,7 +201,9 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      // Transparent: the shared ThemeAtmosphereBackground painted by
+      // HomeScreen shows through.
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -221,7 +223,7 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
               style: TextStyle(
                 color: colorScheme.onSurface,
                 fontWeight: FontWeight.bold,
-                fontSize: 19,
+                fontSize: 20,
               ),
             ),
           ],

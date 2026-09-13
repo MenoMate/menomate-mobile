@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../data/sync_policy.dart';
+import '../core/theme.dart';
 import '../models/daily_log.dart';
 import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
@@ -242,7 +243,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
               selectedValue: _mood,
               onSelected: (val) => setState(() => _mood = val),
               labelBuilder: (val) => val[0].toUpperCase() + val.substring(1),
-              activeColor: Colors.blueAccent,
+              activeColor: MenoMateTheme.sakuraInteraction,
             ),
             
             const SizedBox(height: 32),
@@ -254,7 +255,8 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
               selectedValue: _flow,
               onSelected: (val) => setState(() => _flow = val),
               labelBuilder: (val) => val[0].toUpperCase() + val.substring(1),
-              activeColor: Colors.redAccent,
+              // Blood logging shares the menstrual rose token.
+              activeColor: MenoMateTheme.sakuraPrimaryDark,
             ),
 
             const SizedBox(height: 32),
@@ -266,7 +268,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
               selectedValue: _pain,
               onSelected: (val) => setState(() => _pain = val),
               labelBuilder: (val) => val.toString(),
-              activeColor: Colors.orangeAccent,
+              activeColor: MenoMateTheme.sakuraAmber,
               crossAxisCount: 6,
             ),
 
@@ -295,19 +297,12 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
             
             SizedBox(
               width: double.infinity,
+              // Theme elevated style: rose primary action, no custom purple.
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _saveLog,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFA855F7),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                child: _isSaving 
+                child: _isSaving
                   ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('Save Log', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  : const Text('Save Log'),
               ),
             ),
           ],
