@@ -1,348 +1,153 @@
 # MenoMate Mobile
 
-MenoMate Mobile is the cross-platform Flutter client for the MenoMate autonomous menstrual wellness platform. It connects women with real-time cycle intelligence, symptom tracking, guided non-diagnostic care, and Bluetooth Low Energy (BLE) control for the MenoMate thermal and vibrational wearable device.
+Flutter client for MenoMate: cycle tracking UI, offline-first daily logging, server-driven predictions display, deterministic Daily Insight, Care chat, and BLE wearable plumbing. Backend: [MenoMate_core](../MenoMate_core/README.md) (FastAPI, the only database access layer).
 
-## Table of Contents
-
-- [Overview](#overview)
-- [Architecture and Tech Stack](#architecture-and-tech-stack)
-- [Project Structure](#project-structure)
-- [Prerequisites](#prerequisites)
-- [Environment Configuration](#environment-configuration)
-- [Command Reference](#command-reference)
-  - [Dependencies](#dependencies)
-  - [Code Quality and Analysis](#code-quality-and-analysis)
-  - [Running the App](#running-the-app)
-  - [Building Application Packages](#building-application-packages)
-  - [ADB Device Management and Deployment](#adb-device-management-and-deployment)
-  - [Automated Testing](#automated-testing)
-- [Hardware & BLE Integration](#hardware--ble-integration)
-- [Troubleshooting & FAQ](#troubleshooting--faq)
-- [License](#license)
-
----
+> Status labels: **implemented** (shipped in the app), **partial** (scaffolded, not end-to-end), **planned** (agreed, not built).
 
 ## Overview
 
-The mobile client serves as the primary interface for users to:
+What the app does today: onboarding → Supabase Auth session → Home (cycle ring, status, Daily Insight, wellness + wearable cards) → History (calendar + cycles panes) → Care chat → Settings, all working offline-first against a local Drift/SQLite store that syncs to FastAPI when reachable.
 
-- Authenticate and manage their profile securely via Supabase Auth (JWT).
-- Complete a structured, atomic onboarding flow capturing baseline cycle length, period duration, and preferences.
-- Monitor active menstrual cycle status through an interactive visual cycle ring with phase calculations (Menstrual, Follicular, Ovulation, Luteal) and data-driven predictions.
-- Log period start and end events with source-of-truth backend validation that prevents conflicting overlapping entries.
-- Record comprehensive daily wellness metrics (pain score 0 to 10, bleeding flow, mood, cervical discharge, notes, and taxonomy-validated symptom lists).
-- Converse with MenoMate Care, an empathetic, non-diagnostic AI assistant powered by contextual cycle and symptom telemetry.
-- Connect to and command the MenoMate wearable hardware over Bluetooth Low Energy (BLE) for thermal regulation (capped at a strict 44.0 degrees Celsius) and vibrational therapy.
-
----
-
-## Architecture and Tech Stack
-
-- **Framework**: Flutter 3.x / Dart SDK `^3.13.2`
-- **State Management**: Flutter Riverpod (`flutter_riverpod: ^3.4.3`) for reactive, testable state management and scoped provider invalidation.
-- **Navigation**: GoRouter (`go_router: ^18.0.1`) for declarative, deep-linkable routing with authentication-aware redirect guards.
-- **Authentication**: Supabase Flutter SDK (`supabase_flutter: ^2.17.2`) managing auth state transitions, session persistence, and secure token storage.
-- **Network / API Client**: Dio (`dio: ^5.11.1`) with a dedicated `AuthInterceptor` that automatically injects valid Supabase JWT Bearer tokens into outbound requests to `menomate-core`.
-- **Bluetooth Hardware Layer**: Flutter Blue Plus (`flutter_blue_plus: ^2.3.12`) for BLE peripheral scanning, connection lifecycle, MTU negotiation, and characteristic read/write/notify operations.
-- **Calendar & Visuals**: TableCalendar (`table_calendar: ^3.2.1`) for cycle history visualization; custom Canvas painters for the interactive cycle ring.
-- **Design System**: Material 3 theming with custom soft palettes supporting Light, Dark, and System modes.
-
----
-
-## Project Structure
+## Architecture
 
 ```text
-mobile/
-├── android/                   # Android native platform project and Gradle configuration
-├── ios/                       # iOS native platform project and CocoaPods configuration
-├── lib/
-│   ├── core/                  # Core constants, routing, theming, and environment
-│   │   ├── env.dart           # Backend API URLs and Supabase public keys
-│   │   ├── router.dart        # GoRouter routes and auth redirect logic
-│   │   └── theme.dart         # Material 3 light and dark theme definitions
-│   ├── models/                # Pydantic-compatible Dart data models (fromJson/toJson)
-│   │   ├── cycle.dart         # CycleResponse, CurrentCycleResponse, CycleCreate
-│   │   ├── log.dart           # DailyLogResponse, DailyLogCreate, SymptomLogItem
-│   │   ├── profile.dart       # ProfileResponse, ProfileUpdate
-│   │   ├── summary.dart       # HistorySummaryResponse, CurrentSummaryResponse
-│   │   ├── symptom.dart       # SymptomType metadata model
-│   │   └── therapy.dart       # TherapyRecommendationResponse, TherapySessionResponse
-│   ├── providers/             # Riverpod state providers and invalidation helpers
-│   │   ├── auth_provider.dart    # User session, login, signup, logout
-│   │   ├── cycle_provider.dart   # Current cycle, cycle history, refreshAllAppData
-│   │   ├── device_provider.dart  # Paired BLE hardware and telemetry state
-│   │   ├── log_provider.dart     # Daily wellness log retrieval and mutations
-│   │   ├── profile_provider.dart # Profile settings and theme preferences
-│   │   └── theme_provider.dart   # Active ThemeMode notifier
-│   ├── screens/               # Application user interface screens
-│   │   ├── auth/              # Sign In, Sign Up, and Password Reset screens
-│   │   ├── onboarding/        # Multi-step onboarding setup flow
-│   │   ├── tabs/              # Main shell tabs (Home, Care, Calendar, Settings)
-│   │   │   ├── home_tab.dart      # Interactive cycle ring, quick actions, insights
-│   │   │   ├── care_tab.dart      # MenoMate Care conversational assistant
-│   │   │   ├── calendar_tab.dart  # Menstrual cycle calendar and past logs
-│   │   │   └── settings_tab.dart  # Account, theme, units, wearable pairing
-│   │   └── log/               # Daily wellness and symptom logging screen
-│   ├── services/              # External service integrations
-│   │   ├── api_service.dart   # REST API client for menomate-core endpoints
-│   │   ├── auth_service.dart  # Supabase authentication wrapper
-│   │   └── ble_service.dart   # Wearable Bluetooth Low Energy controller
-│   ├── widgets/               # Reusable presentation components
-│   │   ├── interactive_cycle_ring.dart # Radial menstrual phase progress ring
-│   │   ├── period_tracker_button.dart  # State-driven Start / End period action button
-│   │   ├── daily_insight_card.dart     # Contextual educational insights card
-│   │   └── symptom_logger_card.dart    # Quick-access daily log launcher
-│   └── main.dart              # Application entry point, Supabase initialization, ProviderScope
-├── test/                      # Unit and widget test suite
-├── pubspec.yaml               # Package dependencies, assets, and build configuration
-└── README.md                  # Mobile project documentation
+UI (screens/widgets)
+  → Riverpod providers (same names as before, DataState values)
+    → repositories (cycle / daily-log / profile)
+      → Drift/SQLite locally (pending rows) + FastAPI remotely (sync)
+
+Flutter handset <--BLE--> ESP32 wearable (partial: scan works, commands stubbed)
 ```
 
----
+Boundaries that must stay intact:
 
-## Prerequisites
+- The app performs **no prediction or phase math** — it displays server values and caches them. There is deliberately no second local prediction engine.
+- Care/AI output is advisory text; it cannot drive hardware.
+- `lib/core/device_timezone.dart` (hand-rolled `menomate/timezone` channel) is the only IANA timezone source; the server owns "today".
 
-Before running the mobile application, ensure the following software is installed on your development workstation:
+## Project structure
 
-1. **Flutter SDK**: Version 3.13.2 or newer. Verify by running `flutter --version`.
-2. **Android SDK & Build Tools**: Android Studio or command-line tools with API level 33/34 installed.
-3. **Android Platform Tools (ADB)**: Ensure `adb` is added to your system `PATH`.
-4. **Hardware Device or Emulator**: A physical Android device with Developer Options and USB Debugging enabled, or an Android Virtual Device (AVD).
-5. **Backend Server**: The `menomate-core` FastAPI server running locally or accessible via network.
+Actual layout (`lib/`):
 
----
-
-## Environment Configuration
-
-The application configuration resides in `lib/core/env.dart`:
-
-```dart
-class Env {
-  static const String supabaseUrl = 'https://<your-project-id>.supabase.co';
-  static const String supabaseAnonKey = '<your-anon-public-key>';
-  static const String apiUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://127.0.0.1:8000',
-  );
-}
+```text
+lib/
+├── main.dart                  # Supabase init, open Drift file, ProviderScope, router + sync wiring
+├── core/
+│   ├── api_client.dart        # Dio + AuthInterceptor (Supabase JWT Bearer)
+│   ├── device_timezone.dart   # IANA zone via native channel (no plugin)
+│   ├── env.dart               # Supabase URLanon key (edit for your project), API_BASE_URL dart-define
+│   ├── format.dart            # Day-count display helper
+│   ├── router.dart            # GoRouter: /splash /login /onboarding /home /logger + tab index
+│   └── theme.dart             # MenoMateTheme: sakura (light) + starry-night (dark), semantic tokens
+├── content/insight_library.dart  # Daily Insight deterministic pair library
+├── data/
+│   ├── app_database.dart      # Drift schema v2 + migration + date-only helpers (toIsoDate/parseIsoDate)
+│   ├── sync_policy.dart       # DataState (Fresh/Cached/PendingSync/…) + typed ApiError
+│   └── repositories/          # cycle_repository, daily_log_repository, profile_repository
+├── models/                    # cycle, daily_log, profile, summary, care, device, therapy, onboarding
+├── providers/                 # auth, cycle (refresh/sync/sign-out), data_providers, profile, theme
+├── screens/                   # auth, splash, onboarding, symptom_logger, home_screen,
+│   └── tabs/                  # home, assistant (Care), history, settings
+├── services/                  # api_service (REST), ble_service (scan + stubbed commands)
+├── widgets/                   # cycle ring + phase card, insight card, tracker button,
+│                              # logger/telemetry cards, banners, atmosphere painter
+├── android/ios                # Native shells; timezone channel in MainActivity.kt + AppDelegate.swift
+└── test/                      # Unit + widget tests + offline_fake_api.dart
 ```
 
-- **Supabase Keys**: The `supabaseAnonKey` is a client-safe public key intended for mobile consumption.
-- **Backend API Base URL**: Defaults to `http://127.0.0.1:8000`. You can override this at runtime or build time using the `--dart-define` flag without modifying source code.
+## Current features
 
----
+**Implemented:** onboarding (atomic profile + first period, sends device timezone), Supabase Auth session, cycle ring + status from server values, period start/end logging with retro-end picker, calendar/history with semantic fills, daily wellness logging, offline-first everything below, cached server predictions, Daily Insight (local library), Care chat (online), Settings (profile, theme, units, device register), sign-out wipe.
 
-## Command Reference
+**Partial:** BLE — scanning for the `MenoMate` peripheral works (15 s, permission-gated); `sendTherapyCommand` is currently a debug-print stub, no GATT characteristics exist yet, no thermistor streaming, nothing hardware-validated.
 
-### Dependencies
+**Planned:** push notifications, daily-log personalization, full wearable integration, iOS store release.
 
-Fetch all project packages:
+## Offline-first behavior
+
+- Reads serve the local row first, then refresh from server when reachable (`Fresh` vs `Cached`/`PendingSync` states).
+- Writes apply locally as `pending` immediately, then PATCH/POST upstream; natural keys (`user,log_date`) make retries converge.
+- Cached predictions stay displayable until replaced (no TTL expiry).
+- Works offline: browse history, log periods/wellness, Daily Insight, cached predictions, retrospective end (device-local dates).
+- Needs network: Care chat, first login/onboarding submit, syncing pending rows.
+- Sign-out wipes every user-scoped local row + cached prediction.
+- Sync is a single best-effort pass on startup/reconnect (`syncAllPending`), oldest-first per store.
+
+## Local database
+
+Drift/SQLite (`menomate.db`, schema v2): `LocalProfiles` (incl. IANA `timezone`), `LocalCycles` (ISO `yyyy-MM-dd` text dates, `localId`/`serverId` reconcile), `LocalDailyLogs` (+ `LocalSymptoms`), `PredictionCache` (7 server fields + `fetchedAt`). Regenerate after table edits:
+
+```bash
+flutter pub run build_runner build --delete-conflicting-outputs
+```
+
+Date rule (see `toIsoDate`/`parseIsoDate` docs): calendar parts only, device-local, never UTC-shifted.
+
+## API/backend relationship
+
+- Base URL: `Env.apiUrl`, default `http://127.0.0.1:8000`, override with `--dart-define=API_BASE_URL=…` (no source edit).
+- Auth: Supabase session token injected as `Authorization: Bearer` by the Dio interceptor; 401s surface as auth failures, 404 as no-data, rest as typed errors.
+- The app never touches Supabase PostgreSQL directly — only FastAPI routes, only its own user's data.
+
+## BLE
+
+Honest status: peripheral **scan** works; everything past scan is scaffolding. `sendTherapyCommand` logs to console and writes nothing to hardware. There are no GATT service/characteristic UUIDs in the codebase, no temperature stream, no pairing flow beyond the scan UI, and no hardware validation of any kind. Do not document or demo BLE control as working. Web builds explicitly disable BLE paths.
+
+## Daily Insight
+
+Fully local and offline: a small deterministic library (`content/insight_library.dart`) maps cycle context (phase + menstrual day) to one insight + one complementary action slide, with evidence metadata and tiny attribution on select pieces. Manual swipe, no timers, resolve-once per run with safe fallback. A future optional AI layer would consume the `InsightInput` context object and return the same pair shape — it is **not implemented** and must never become required.
+
+## Theme/design system
+
+Semantic roles (both modes, see `core/theme.dart`): **rose = menstrual/logged**, **violet = prediction**, **indigo = interaction/selection**, **sage = wellness**, warm neutrals for canvas/surfaces/borders, deep navy/plum dark foundation, Sakura petals (light) / stars (dark) as quiet atmosphere. Type scale 20/18/16–18/14/12–13/10–11 by role; cards share radius-18, 1px outline, zero-elevation language.
+
+## Timezone/date handling
+
+- Device IANA zone via the native `menomate/timezone` channel; synced to `profiles.timezone` on profile load, sync passes, and onboarding (offline-safe pending row; null never wipes a server value).
+- DATE-only fields travel and store as `yyyy-MM-dd` strings; `DateTime.parse` keeps them local-midnight; nothing converts them through UTC.
+- "Today", retro-end defaults, and log defaults all use device-local calendar parts offline; the server recomputes authoritatively from the stored zone once online.
+
+## Running locally
+
+Prerequisites: Flutter SDK (developed on 3.47.x; `sdk: ^3.13.2`), Android SDK + platform tools, a device/emulator, and the backend running (see [core README](../MenoMate_core/README.md)).
+
 ```bash
 flutter pub get
 ```
 
-Inspect available package updates:
-```bash
-flutter pub outdated
-```
-
-Upgrade package versions within constraint ranges:
-```bash
-flutter pub upgrade
-```
-
-Clean build artifacts and package caches:
-```bash
-flutter clean
-flutter pub get
-```
-
----
-
-### Code Quality and Analysis
-
-Run the static analyzer to check for errors, warnings, and lint violations:
-```bash
-flutter analyze
-```
-
-Format all Dart source files in the project according to official guidelines:
-```bash
-dart format .
-```
-
-Verify formatting without modifying files (useful for CI/CD pipelines):
-```bash
-dart format --output=none --set-exit-if-changed .
-```
-
----
-
-### Running the App
-
-#### Step 1: Route Backend Traffic via ADB (Physical Device over USB)
-
-When testing on a physical Android handset connected via USB, configure port forwarding so `http://127.0.0.1:8000` routes directly to the development server on your computer:
+Configure `lib/core/env.dart` for your Supabase project (URL + **anon public key only** — client-safe; service-role keys must never enter this repo), or point at a backend:
 
 ```bash
-adb reverse tcp:8000 tcp:8000
-```
-
-Verify that the rule is registered:
-```bash
-adb reverse --list
-# Expected output: UsbFfs tcp:8000 tcp:8000
-```
-
-#### Step 2: Launch the App
-
-Run on the default connected device or emulator:
-```bash
+adb reverse tcp:8000 tcp:8000   # physical device over USB
 flutter run
-```
-
-Run on a specific device identified by device ID (from `adb devices`):
-```bash
-flutter run -d <DEVICE_ID>
-```
-
-Run with a custom backend URL (for instance, over local Wi-Fi or a staging server):
-```bash
 flutter run -d <DEVICE_ID> --dart-define=API_BASE_URL=http://192.168.1.50:8000
-```
-
-Run in release mode for production performance testing:
-```bash
-flutter run -d <DEVICE_ID> --release
-```
-
----
-
-### Building Application Packages
-
-Build a debug APK:
-```bash
-flutter build apk --debug
-```
-Output artifact location:
-`build/app/outputs/flutter-apk/app-debug.apk`
-
-Build an optimized release APK:
-```bash
+flutter build apk --debug       # → build/app/outputs/flutter-apk/app-debug.apk
 flutter build apk --release
-```
-Output artifact location:
-`build/app/outputs/flutter-apk/app-release.apk`
-
-Build an Android App Bundle (AAB) for Google Play distribution:
-```bash
-flutter build appbundle
-```
-Output artifact location:
-`build/app/outputs/bundle/release/app-release.aab`
-
----
-
-### ADB Device Management and Deployment
-
-List all attached physical devices and emulators:
-```bash
-adb devices -l
-```
-
-Install the compiled debug APK directly to a target device:
-```bash
 adb -s <DEVICE_ID> install -r -d -t build/app/outputs/flutter-apk/app-debug.apk
 ```
 
-Launch the MenoMate application activity directly on the device:
+## Testing
+
 ```bash
-adb -s <DEVICE_ID> shell monkey -p com.menomate.menomate_mobile -c android.intent.category.LAUNCHER 1
-```
-
-Force stop the application:
-```bash
-adb -s <DEVICE_ID> shell am force-stop com.menomate.menomate_mobile
-```
-
-Inspect live application logs and debug prints:
-```bash
-adb -s <DEVICE_ID> logcat -s flutter
-```
-
-Capture a screenshot from the physical device:
-```bash
-adb -s <DEVICE_ID> exec-out screencap -p > screen.png
-```
-
----
-
-### Automated Testing
-
-Execute all unit and widget tests:
-```bash
+flutter analyze
 flutter test
 ```
 
-Execute tests with detailed verbose output:
-```bash
-flutter test -v
-```
+Suite status (2026-09-13 snapshot): 115 passing — unit (library selection, safety/nutrition wording, timezone plumbing, formatting) + widget (cards, calendar tokens, caching, composition, overflow) + offline sync fakes. Real-device checks still matter for: atmosphere visibility, card proportions, BLE scan, and offline→online transitions.
 
----
+## Environment/configuration
 
-## Hardware & BLE Integration
+| Name | Where | Notes |
+|---|---|---|
+| `Env.supabaseUrl` / `Env.supabaseAnonKey` | `lib/core/env.dart` | Edit per project. Anon key is public-client-safe by design; **never** put service-role or JWT secrets here |
+| `API_BASE_URL` | `--dart-define` | Default `http://127.0.0.1:8000`; staging/CI overrides without source edits |
 
-The MenoMate mobile application communicates with the ESP32 wearable hardware over Bluetooth Low Energy:
+Production notes: release builds need a reachable HTTPS backend URL; the checked-in Supabase project is a development project.
 
-1. **Permissions**: The application requests runtime permissions via `permission_handler` and `flutter_blue_plus`:
-   - Android 12+ (API 31+): `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`.
-   - Android 11 and below: `ACCESS_FINE_LOCATION`.
-2. **Service Discovery**: The handset scans for peripherals advertising the MenoMate primary therapy service UUID.
-3. **Safety Telemetry**: The wearable streams continuous thermistor temperature readings back to the handset.
-4. **Actuation Protocol**: The handset transmits deterministic therapy parameters computed by `menomate-core`. Target temperatures are strictly capped at 44.0 degrees Celsius.
+## Known limitations / future work
 
----
-
-## Troubleshooting & FAQ
-
-### Device shows "Unable to connect" or Network Errors
-
-1. Verify that the `menomate-core` backend is running:
-   ```bash
-   curl http://127.0.0.1:8000/health
-   # Expected: {"status":"healthy"}
-   ```
-2. Re-establish ADB port reverse forwarding if the USB cable was disconnected:
-   ```bash
-   adb reverse tcp:8000 tcp:8000
-   ```
-3. Test connectivity directly from the device shell:
-   ```bash
-   adb shell curl -I http://127.0.0.1:8000/health
-   ```
-
-### Device shows "unauthorized" in `adb devices`
-
-1. Unlock the phone screen.
-2. Accept the "Allow USB debugging?" dialog prompt.
-3. Check "Always allow from this computer" and tap Allow.
-4. If the prompt does not appear, disconnect and reconnect the USB cable or restart the ADB server:
-   ```bash
-   adb kill-server
-   adb start-server
-   adb devices
-   ```
-
-### Cycle Action Button Shows "Log Period Started Today" During an Active Period
-
-The Home screen button derives its state strictly from the active cycle response (`GET /api/v1/cycles/current`):
-- If `latest_period_start` is set and `latest_period_end` is null, the button displays `Log Period Ended Today` and executes `POST /api/v1/cycles/current/end`.
-- If no period is ongoing, the button displays `Log Period Started Today` and executes `POST /api/v1/cycles`.
-- If data appears stale, trigger a pull-to-refresh on the Home tab or invoke `refreshAllAppData(ref)` to invalidate Riverpod caches.
-
----
-
-## License
-
-Developed as part of the MenoMate autonomous menstrual wellness system. All rights reserved.
+- Wearable: scan-only; commands, characteristics, telemetry, and all hardware validation pending.
+- Notifications: planned (backend timezone work unblocks scheduling).
+- Daily-log personalization: planned (Insight stays library-only until then).
+- iOS release packaging: not done.
+- Prediction evaluation needs thousands of resolved ledger rows before any model comparison.
