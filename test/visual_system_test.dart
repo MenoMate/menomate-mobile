@@ -123,7 +123,7 @@ void main() {
       return paint.painter! as CycleRingPainter;
     }
 
-    testWidgets('menstrual ring is the rose token on an outline track',
+    testWidgets('menstrual ring is the rose token on a tinted track',
         (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
@@ -135,6 +135,8 @@ void main() {
       final painter = ringPainter(tester);
       expect(painter.activeColor, MenoMateTheme.sakuraPrimaryDark);
       expect(painter.activeColor, isNot(Colors.pinkAccent));
+      expect(painter.backgroundColor,
+          MenoMateTheme.sakuraPrimaryDark.withValues(alpha: 0.14));
     });
 
     testWidgets('dark ring resolves dark tokens', (tester) async {
@@ -149,7 +151,7 @@ void main() {
       final painter = ringPainter(tester);
       expect(painter.activeColor, MenoMateTheme.starryRingFollicular);
       expect(painter.backgroundColor,
-          MenoMateTheme.starryNightTheme.colorScheme.outline);
+          MenoMateTheme.starryRingFollicular.withValues(alpha: 0.14));
     });
   });
 
@@ -427,6 +429,10 @@ void main() {
         MenoMateTheme.sakuraSageInk,
         MenoMateTheme.starrySage,
         MenoMateTheme.starrySageInk,
+        MenoMateTheme.sakuraSoftPink,
+        MenoMateTheme.starrySurfaceRose,
+        MenoMateTheme.starrySurfaceViolet,
+        MenoMateTheme.starrySurfaceSage,
         MenoMateTheme.starryPrimary,
         MenoMateTheme.starryAccent,
       ];
@@ -438,6 +444,7 @@ void main() {
     test('sakura table: seven petals, moderate-low alpha, logo tones', () {
       final tones = {
         MenoMateTheme.sakuraPrimary,
+        MenoMateTheme.sakuraSoftPink,
         MenoMateTheme.sakuraPredicted,
         MenoMateTheme.sakuraPrimaryDark,
         MenoMateTheme.sakuraRingLuteal,
@@ -473,8 +480,7 @@ void main() {
     });
   });
 
-  group('connect device visibility', () {
-    Future<void> pumpTelemetry(WidgetTester tester, ThemeData theme) async {
+  group('connect device visibility', () {    Future<void> pumpTelemetry(WidgetTester tester, ThemeData theme) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -598,6 +604,117 @@ void main() {
             false;
       });
       expect(link, findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('dark-mode surface hierarchy', () {
+    test('tinted surfaces stay dark, lifted, and distinct', () {
+      const bg = MenoMateTheme.starryBg;
+      const surface = MenoMateTheme.starrySurface;
+      const surface2 = MenoMateTheme.starrySurface2;
+      const tints = [
+        MenoMateTheme.starrySurfaceRose,
+        MenoMateTheme.starrySurfaceViolet,
+        MenoMateTheme.starrySurfaceSage,
+      ];
+      // All tints read as dark navy variants, clearly above background.
+      for (final t in tints) {
+        expect(t.computeLuminance(), greaterThan(bg.computeLuminance()));
+        expect(t, isNot(surface));
+        expect(t, isNot(surface2));
+      }
+      // Three distinct hues, not three shades of one color.
+      expect(
+        {tints[0].value, tints[1].value, tints[2].value}.length,
+        3,
+      );
+    });
+
+    testWidgets('cycle overview card earns the rose navy in dark mode',
+        (tester) async {
+      tester.view.physicalSize = const Size(800, 2000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      final now = DateTime.now();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            currentCycleProvider.overrideWith(
+              (ref) => Future.value(Fresh<CurrentCycleResponse?>(
+                CurrentCycleResponse(
+                  hasData: true,
+                  currentCycleDay: 2,
+                  phase: 'menstrual',
+                  isBleeding: true,
+                  isOngoing: true,
+                  latestPeriodStart:
+                      now.subtract(const Duration(days: 1)),
+                  predictionConfidence: 'low',
+                ),
+              )),
+            ),
+            profileProvider.overrideWith(
+              () => _FixedProfileNotifier(const NoData<Profile?>()),
+            ),
+          ],
+          child: MaterialApp(
+            theme: MenoMateTheme.starryNightTheme,
+            home: const HomeTab(),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // The overview is the only dusty-rose navy surface on Home.
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              (w.decoration as BoxDecoration?)?.color ==
+                  MenoMateTheme.starrySurfaceRose,
+        ),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('wellness card earns the sage navy in dark mode',
+        (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: MenoMateTheme.starryNightTheme,
+          home: const Scaffold(body: SymptomLoggerCard()),
+        ),
+      );
+
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              (w.decoration as BoxDecoration?)?.color ==
+                  MenoMateTheme.starrySurfaceSage,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('telemetry title uses warm pale neutral, not pure white',
+        (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: MenoMateTheme.starryNightTheme,
+            home: const Scaffold(body: DeviceTelemetryCard()),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final title =
+          tester.widget<Text>(find.text('MenoMate Wearable'));
+      expect(title.style?.color, MenoMateTheme.starryText);
       expect(tester.takeException(), isNull);
     });
   });

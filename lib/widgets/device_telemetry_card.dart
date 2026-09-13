@@ -77,16 +77,19 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.watch, color: Colors.white70, size: 24),
-                  SizedBox(width: 8),
-                  Text(
+                  Icon(Icons.watch,
+                      color: MenoMateTheme.starryText
+                          .withValues(alpha: 0.7),
+                      size: 24),
+                  const SizedBox(width: 8),
+                  const Text(
                     'MenoMate Wearable',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: MenoMateTheme.starryText,
                     ),
                   ),
                 ],
@@ -105,15 +108,17 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
                       // quiet neutral, never an error red.
                       color: _isScanning
                           ? MenoMateTheme.starryAccent
-                          : Colors.white38,
+                          : MenoMateTheme.starryText
+                              .withValues(alpha: 0.38),
                       size: _isScanning ? 12 : 8
                     ),
                     const SizedBox(width: 4),
                     Text(
                       _isScanning ? 'Scanning...' : 'Disconnected',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Colors.white70,
+                        color: MenoMateTheme.starryText
+                            .withValues(alpha: 0.7),
                         fontWeight: FontWeight.w600,
                       ),
                     ),

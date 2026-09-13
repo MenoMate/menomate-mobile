@@ -17,7 +17,9 @@ class SymptomLoggerCard extends StatelessWidget {
         width: double.infinity,
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: isDark
+            ? MenoMateTheme.starrySurfaceSage
+            : Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(

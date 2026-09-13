@@ -34,7 +34,10 @@ class InteractiveCycleRing extends StatelessWidget {
           painter: CycleRingPainter(
             progress: progress,
             activeColor: phaseColor,
-            backgroundColor: Theme.of(context).colorScheme.outline,
+            // Track carries the same phase hue at a whisper: the ring
+            // reads rose → mauve → lavender as a family while every
+            // color still means exactly its phase. Geometry untouched.
+            backgroundColor: phaseColor.withValues(alpha: 0.14),
           ),
           child: Center(
             child: Column(

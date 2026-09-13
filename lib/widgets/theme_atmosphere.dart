@@ -7,13 +7,13 @@ class ThemeAtmosphereBackground extends StatelessWidget {
   const ThemeAtmosphereBackground({super.key, required this.child});
 
   /// Sakura table: seven petals spread across the upper background in
-  /// logo tones only (rose / lavender / deep rose / mauve) at
+  /// logo tones only (rose / blush / lavender / deep rose / mauve) at
   /// moderate-low opacity — clearly present, never pinking the canvas.
   /// `x` is a width fraction; `y`/`scale` are logical pixels.
   static const List<Map<String, Object>> lightPetals = [
     {'x': 0.10, 'y': 60.0, 'scale': 9.0, 'angle': 0.6, 'color': MenoMateTheme.sakuraPrimary, 'alpha': 0.16},
     {'x': 0.27, 'y': 150.0, 'scale': 7.0, 'angle': 1.2, 'color': MenoMateTheme.sakuraPredicted, 'alpha': 0.18},
-    {'x': 0.16, 'y': 230.0, 'scale': 8.0, 'angle': 0.3, 'color': MenoMateTheme.sakuraPrimary, 'alpha': 0.14},
+    {'x': 0.16, 'y': 230.0, 'scale': 8.0, 'angle': 0.3, 'color': MenoMateTheme.sakuraSoftPink, 'alpha': 0.22},
     {'x': 0.44, 'y': 80.0, 'scale': 10.0, 'angle': 0.9, 'color': MenoMateTheme.sakuraPredicted, 'alpha': 0.16},
     {'x': 0.58, 'y': 190.0, 'scale': 7.5, 'angle': 0.4, 'color': MenoMateTheme.sakuraPrimaryDark, 'alpha': 0.16},
     {'x': 0.73, 'y': 55.0, 'scale': 9.0, 'angle': 1.0, 'color': MenoMateTheme.sakuraPrimary, 'alpha': 0.14},

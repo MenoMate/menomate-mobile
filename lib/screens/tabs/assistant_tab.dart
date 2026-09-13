@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../models/care.dart';
+import '../../core/theme.dart';
 import '../../services/api_service.dart';
 import '../../services/ble_service.dart';
 import '../home_screen.dart';
@@ -433,7 +434,11 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
             Text(
               text,
               style: TextStyle(
-                color: isUser ? Colors.white : colorScheme.onSurface,
+                // Warm pale neutral instead of pure white on the rose
+                // user bubble, matching the dark text philosophy.
+                color: isUser
+                    ? MenoMateTheme.starryText
+                    : colorScheme.onSurface,
                 fontSize: 14,
                 height: 1.4,
               ),

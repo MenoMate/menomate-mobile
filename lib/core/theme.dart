@@ -90,6 +90,15 @@ class MenoMateTheme {
   static const Color starrySecondary = Color(0xFFA6ABC0);
   static const Color starryBorder = Color(0xFF1D2847);
 
+  // --- Semantic: tinted dark surfaces (depth ladder, all stay dark) ---
+  // Deep-navy foundation < surface < these faintly tinted cards <
+  // surface2 < pastel accents. Each is the navy surface pulled ~10%
+  // toward its semantic hue: rose for menstrual, violet for prediction,
+  // sage for wellness. Light mode keeps neutral cards instead.
+  static const Color starrySurfaceRose = Color(0xFF262539);
+  static const Color starrySurfaceViolet = Color(0xFF1D243C);
+  static const Color starrySurfaceSage = Color(0xFF1F2837);
+
   // --- Theme Builders ---
   static ThemeData get sakuraTheme {
     return ThemeData(

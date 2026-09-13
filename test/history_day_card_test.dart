@@ -17,7 +17,8 @@ void main() {
   late int otherDay;
   late int predictedAnchor;
 
-  Future<void> pumpHistory(WidgetTester tester) async {
+  Future<void> pumpHistory(WidgetTester tester,
+      [ThemeData? theme]) async {
     tester.view.physicalSize = const Size(800, 2000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -77,7 +78,7 @@ void main() {
           ),
         ],
         child: MaterialApp(
-          theme: MenoMateTheme.sakuraTheme,
+          theme: theme ?? MenoMateTheme.sakuraTheme,
           home: const HistoryTab(),
         ),
       ),
@@ -186,6 +187,50 @@ void main() {
         expect(w.style?.color,
             MenoMateTheme.sakuraTheme.colorScheme.onSurface);
       }
+    });
+  });
+
+  group('dark-mode tinted surfaces stay dark', () {
+    Finder cardByRadius(double radius) => find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              (w.decoration as BoxDecoration?)?.borderRadius ==
+                  BorderRadius.circular(radius),
+        );
+
+    Color? cardColor(WidgetTester tester, double radius) {
+      final c = tester.widget<Container>(cardByRadius(radius));
+      return (c.decoration as BoxDecoration?)?.color;
+    }
+
+    testWidgets('logged day card earns the dusty-rose navy', (tester) async {
+      await pumpHistory(tester, MenoMateTheme.starryNightTheme);
+
+      expect(cardByRadius(18), findsOneWidget);
+      expect(cardColor(tester, 18), MenoMateTheme.starrySurfaceRose);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('non-period day card stays neutral dark', (tester) async {
+      await pumpHistory(tester, MenoMateTheme.starryNightTheme);
+      await tester.tap(find.text('$otherDay'));
+      await tester.pumpAndSettle();
+
+      expect(cardColor(tester, 18),
+          MenoMateTheme.starryNightTheme.colorScheme.surface);
+    });
+
+    testWidgets('legend strip earns the lavender navy', (tester) async {
+      await pumpHistory(tester, MenoMateTheme.starryNightTheme);
+
+      expect(cardColor(tester, 14), MenoMateTheme.starrySurfaceViolet);
+    });
+
+    testWidgets('light cards stay neutral white', (tester) async {
+      await pumpHistory(tester);
+
+      expect(cardColor(tester, 18), Colors.white);
+      expect(cardColor(tester, 14), Colors.white);
     });
   });
 }

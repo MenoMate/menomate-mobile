@@ -175,7 +175,11 @@ class HomeTab extends ConsumerWidget {
                   return Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: colorScheme.surface,
+                      // The cycle card is menstrual home: neutral white in
+                      // light mode, faint dusty-rose navy in dark mode.
+                      color: theme.brightness == Brightness.dark
+                          ? MenoMateTheme.starrySurfaceRose
+                          : colorScheme.surface,
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: colorScheme.outline),
                       boxShadow: [

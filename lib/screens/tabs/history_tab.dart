@@ -6,6 +6,7 @@ import 'package:table_calendar/table_calendar.dart';
 
 import '../../data/app_database.dart';
 import '../../data/sync_policy.dart';
+import '../../core/theme.dart';
 import '../../models/summary.dart';
 import '../../models/cycle.dart';
 import '../../providers/cycle_provider.dart';
@@ -470,7 +471,11 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        // The legend's distinctive content is prediction: neutral in
+        // light mode, faint lavender navy in dark mode.
+        color: theme.brightness == Brightness.dark
+            ? MenoMateTheme.starrySurfaceViolet
+            : colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: colorScheme.outline),
       ),
@@ -609,7 +614,11 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
+        // Light stays neutral white; a logged-period day earns the faint
+        // dusty-rose navy surface in dark mode only.
+        color: isPeriod && theme.brightness == Brightness.dark
+            ? MenoMateTheme.starrySurfaceRose
+            : colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: colorScheme.outline),
       ),
