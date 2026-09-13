@@ -4,6 +4,8 @@ class OnboardingRequest {
   final String? lastPeriodEnd;
   final int? usualCycleDays;
   final int? usualPeriodDays;
+  /// Device IANA timezone at onboarding time (e.g. "Asia/Kolkata").
+  final String? timezone;
 
   OnboardingRequest({
     required this.name,
@@ -11,6 +13,7 @@ class OnboardingRequest {
     this.lastPeriodEnd,
     this.usualCycleDays,
     this.usualPeriodDays,
+    this.timezone,
   });
 
   Map<String, dynamic> toJson() {
@@ -20,6 +23,7 @@ class OnboardingRequest {
       'last_period_end': lastPeriodEnd,
       'usual_cycle_days': usualCycleDays,
       'usual_period_days': usualPeriodDays,
+      'timezone': timezone,
     };
   }
 }

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 
+import '../../core/device_timezone.dart';
 import '../../models/profile.dart';
 import '../../services/api_service.dart';
 import '../app_database.dart';
@@ -29,6 +30,7 @@ class ProfileRepository {
       usualPeriodDays: row.usualPeriodDays,
       theme: row.theme,
       units: row.units,
+      timezone: row.timezone,
     );
   }
 
@@ -41,6 +43,7 @@ class ProfileRepository {
             usualPeriodDays: Value(profile.usualPeriodDays),
             theme: Value(profile.theme),
             units: Value(profile.units),
+            timezone: Value(profile.timezone),
             syncState: Value(state),
             updatedAt: Value(DateTime.now()),
           ),
@@ -123,22 +126,55 @@ class ProfileRepository {
           asInt(pick('usual_period_days', base?.usualPeriodDays)),
       theme: pick('theme', base?.theme) as String?,
       units: pick('units', base?.units) as String?,
+      timezone: pick('timezone', base?.timezone) as String?,
     );
   }
 
-  /// Pushes the single pending profile row, if any.
+  /// Ensures the server profile carries the current device IANA timezone.
+  ///
+  /// Compares the device zone against the local row; when they differ (or
+  /// the row is missing the zone), stores the device value locally as
+  /// pending — the existing [syncPending] machinery PATCHes it upstream,
+  /// so this works offline and survives travel. Unknown device zone is a
+  /// silent no-op (keeps the stored value; retried next session). Never
+  /// throws: timezone sync must never break profile loading or syncing.
+  Future<void> refreshDeviceTimezone(String userId) async {
+    try {
+      final deviceTz = await deviceTimeZoneId();
+      if (deviceTz == null || deviceTz.isEmpty) return;
+      final local = await _localRow(userId);
+      if (local?.timezone == deviceTz) return;
+      final merged = _applyPayload(
+        userId,
+        local == null ? null : _assemble(local),
+        {'timezone': deviceTz},
+      );
+      await _store(merged, SyncState.pending);
+      await syncPending(userId);
+    } catch (_) {
+      // Best-effort only.
+    }
+  }
+
+  /// Pushes the single pending profile row, if any. A null timezone is
+  /// omitted (never cleared remotely): the client only ever sets the zone
+  /// from the device and must not wipe a value stored by another device.
   Future<void> syncPending(String userId) async {
     final local = await _localRow(userId);
     if (local == null || local.syncState != SyncState.pending) return;
     final view = _assemble(local);
+    final payload = <String, dynamic>{
+      'name': view.name,
+      'usual_cycle_days': view.usualCycleDays,
+      'usual_period_days': view.usualPeriodDays,
+      'theme': view.theme,
+      'units': view.units,
+    };
+    if (view.timezone != null) {
+      payload['timezone'] = view.timezone;
+    }
     try {
-      final remote = await api.patchProfile({
-        'name': view.name,
-        'usual_cycle_days': view.usualCycleDays,
-        'usual_period_days': view.usualPeriodDays,
-        'theme': view.theme,
-        'units': view.units,
-      });
+      final remote = await api.patchProfile(payload);
       await _store(remote, SyncState.synced);
     } on ApiError catch (e) {
       final outcome = classifySyncError(e);

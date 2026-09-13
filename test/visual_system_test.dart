@@ -626,7 +626,7 @@ void main() {
       }
       // Three distinct hues, not three shades of one color.
       expect(
-        {tints[0].value, tints[1].value, tints[2].value}.length,
+        {tints[0].toARGB32(), tints[1].toARGB32(), tints[2].toARGB32()}.length,
         3,
       );
     });

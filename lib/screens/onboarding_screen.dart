@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
 
 import '../models/onboarding.dart';
+import '../core/device_timezone.dart';
 import '../services/api_service.dart';
 import '../providers/profile_provider.dart';
 
@@ -59,6 +60,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         lastPeriodEnd: _lastPeriodEnd?.toIso8601String().split('T')[0],
         usualCycleDays: int.tryParse(_cycleDaysController.text),
         usualPeriodDays: int.tryParse(_periodDaysController.text),
+        // Persist the device zone atomically with onboarding so the
+        // backend computes user-local dates from the very first request.
+        timezone: await deviceTimeZoneId(),
       );
 
       final updatedProfile = await ref.read(apiServiceProvider).completeOnboarding(request);

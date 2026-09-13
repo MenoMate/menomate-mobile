@@ -67,6 +67,9 @@ Future<void> syncAllPending(Ref ref) async {
     final cycleRepo = ref.read(cycleRepositoryProvider);
     final logRepo = ref.read(dailyLogRepositoryProvider);
     final profileRepo = ref.read(profileRepositoryProvider);
+    // Device timezone first: any change is staged as pending here and
+    // flushed by profileRepo.syncPending below, in the same pass.
+    await profileRepo.refreshDeviceTimezone(userId);
     await cycleRepo.syncPending(userId);
     await logRepo.syncPending(userId);
     await profileRepo.syncPending(userId);

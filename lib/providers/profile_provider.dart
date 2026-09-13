@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/sync_policy.dart';
@@ -19,7 +21,12 @@ class ProfileNotifier extends AsyncNotifier<DataState<Profile?>> {
     }
 
     final repo = ref.watch(profileRepositoryProvider);
-    return await repo.loadProfile(user.id);
+    final state = await repo.loadProfile(user.id);
+    // Fire-and-forget: keep the server profile's canonical timezone in
+    // step with this device (covers login, travel, and legacy users with
+    // no zone yet). Never blocks or breaks profile loading.
+    unawaited(repo.refreshDeviceTimezone(user.id));
+    return state;
   }
 
   void setProfile(Profile profile) {
@@ -32,7 +39,9 @@ class ProfileNotifier extends AsyncNotifier<DataState<Profile?>> {
       final userId = ref.read(currentUserIdProvider);
       if (userId == null) return const NoData<Profile?>();
       final repo = ref.read(profileRepositoryProvider);
-      return await repo.loadProfile(userId);
+      final loaded = await repo.loadProfile(userId);
+      unawaited(repo.refreshDeviceTimezone(userId));
+      return loaded;
     });
   }
 }

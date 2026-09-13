@@ -23,6 +23,9 @@ class LocalProfiles extends Table {
   IntColumn get usualPeriodDays => integer().nullable()();
   TextColumn get theme => text().nullable()();
   TextColumn get units => text().nullable()();
+  // Canonical IANA timezone, synced to the server profile. Null until the
+  // device reports it; offline-safe (pending rows flush via syncPending).
+  TextColumn get timezone => text().nullable()();
   IntColumn get syncState =>
       intEnum<SyncState>().withDefault(Constant(SyncState.synced.index))();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
@@ -122,7 +125,18 @@ class AppDatabase extends _$AppDatabase {
   static AppDatabase memory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (m, from, to) async {
+          // v1 -> v2: nullable profile timezone column (offline-safe;
+          // existing rows keep NULL until the device syncs its zone).
+          if (from < 2) {
+            await m.addColumn(localProfiles, localProfiles.timezone);
+          }
+        },
+      );
 
   /// Removes every user-scoped row. Called on sign-out so User B can never
   /// see User A's local records or cached prediction.

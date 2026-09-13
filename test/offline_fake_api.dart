@@ -66,6 +66,9 @@ class FakeApiService extends ApiService {
       units: payload.containsKey('units')
           ? payload['units'] as String?
           : serverProfile.units,
+      timezone: payload.containsKey('timezone')
+          ? payload['timezone'] as String?
+          : serverProfile.timezone,
     );
     return serverProfile;
   }

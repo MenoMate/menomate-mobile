@@ -67,6 +67,17 @@ class $LocalProfilesTable extends LocalProfiles
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _timezoneMeta = const VerificationMeta(
+    'timezone',
+  );
+  @override
+  late final GeneratedColumn<String> timezone = GeneratedColumn<String>(
+    'timezone',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   @override
   late final GeneratedColumnWithTypeConverter<SyncState, int> syncState =
       GeneratedColumn<int>(
@@ -97,6 +108,7 @@ class $LocalProfilesTable extends LocalProfiles
     usualPeriodDays,
     theme,
     units,
+    timezone,
     syncState,
     updatedAt,
   ];
@@ -156,6 +168,12 @@ class $LocalProfilesTable extends LocalProfiles
         units.isAcceptableOrUnknown(data['units']!, _unitsMeta),
       );
     }
+    if (data.containsKey('timezone')) {
+      context.handle(
+        _timezoneMeta,
+        timezone.isAcceptableOrUnknown(data['timezone']!, _timezoneMeta),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -195,6 +213,10 @@ class $LocalProfilesTable extends LocalProfiles
         DriftSqlType.string,
         data['${effectivePrefix}units'],
       ),
+      timezone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}timezone'],
+      ),
       syncState: $LocalProfilesTable.$convertersyncState.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.int,
@@ -224,6 +246,7 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
   final int? usualPeriodDays;
   final String? theme;
   final String? units;
+  final String? timezone;
   final SyncState syncState;
   final DateTime updatedAt;
   const LocalProfile({
@@ -233,6 +256,7 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
     this.usualPeriodDays,
     this.theme,
     this.units,
+    this.timezone,
     required this.syncState,
     required this.updatedAt,
   });
@@ -254,6 +278,9 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
     }
     if (!nullToAbsent || units != null) {
       map['units'] = Variable<String>(units);
+    }
+    if (!nullToAbsent || timezone != null) {
+      map['timezone'] = Variable<String>(timezone);
     }
     {
       map['sync_state'] = Variable<int>(
@@ -280,6 +307,9 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
       units: units == null && nullToAbsent
           ? const Value.absent()
           : Value(units),
+      timezone: timezone == null && nullToAbsent
+          ? const Value.absent()
+          : Value(timezone),
       syncState: Value(syncState),
       updatedAt: Value(updatedAt),
     );
@@ -297,6 +327,7 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
       usualPeriodDays: serializer.fromJson<int?>(json['usualPeriodDays']),
       theme: serializer.fromJson<String?>(json['theme']),
       units: serializer.fromJson<String?>(json['units']),
+      timezone: serializer.fromJson<String?>(json['timezone']),
       syncState: $LocalProfilesTable.$convertersyncState.fromJson(
         serializer.fromJson<int>(json['syncState']),
       ),
@@ -313,6 +344,7 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
       'usualPeriodDays': serializer.toJson<int?>(usualPeriodDays),
       'theme': serializer.toJson<String?>(theme),
       'units': serializer.toJson<String?>(units),
+      'timezone': serializer.toJson<String?>(timezone),
       'syncState': serializer.toJson<int>(
         $LocalProfilesTable.$convertersyncState.toJson(syncState),
       ),
@@ -327,6 +359,7 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
     Value<int?> usualPeriodDays = const Value.absent(),
     Value<String?> theme = const Value.absent(),
     Value<String?> units = const Value.absent(),
+    Value<String?> timezone = const Value.absent(),
     SyncState? syncState,
     DateTime? updatedAt,
   }) => LocalProfile(
@@ -340,6 +373,7 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
         : this.usualPeriodDays,
     theme: theme.present ? theme.value : this.theme,
     units: units.present ? units.value : this.units,
+    timezone: timezone.present ? timezone.value : this.timezone,
     syncState: syncState ?? this.syncState,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -355,6 +389,7 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
           : this.usualPeriodDays,
       theme: data.theme.present ? data.theme.value : this.theme,
       units: data.units.present ? data.units.value : this.units,
+      timezone: data.timezone.present ? data.timezone.value : this.timezone,
       syncState: data.syncState.present ? data.syncState.value : this.syncState,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -369,6 +404,7 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
           ..write('usualPeriodDays: $usualPeriodDays, ')
           ..write('theme: $theme, ')
           ..write('units: $units, ')
+          ..write('timezone: $timezone, ')
           ..write('syncState: $syncState, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -383,6 +419,7 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
     usualPeriodDays,
     theme,
     units,
+    timezone,
     syncState,
     updatedAt,
   );
@@ -396,6 +433,7 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
           other.usualPeriodDays == this.usualPeriodDays &&
           other.theme == this.theme &&
           other.units == this.units &&
+          other.timezone == this.timezone &&
           other.syncState == this.syncState &&
           other.updatedAt == this.updatedAt);
 }
@@ -407,6 +445,7 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
   final Value<int?> usualPeriodDays;
   final Value<String?> theme;
   final Value<String?> units;
+  final Value<String?> timezone;
   final Value<SyncState> syncState;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -417,6 +456,7 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
     this.usualPeriodDays = const Value.absent(),
     this.theme = const Value.absent(),
     this.units = const Value.absent(),
+    this.timezone = const Value.absent(),
     this.syncState = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -428,6 +468,7 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
     this.usualPeriodDays = const Value.absent(),
     this.theme = const Value.absent(),
     this.units = const Value.absent(),
+    this.timezone = const Value.absent(),
     this.syncState = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -439,6 +480,7 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
     Expression<int>? usualPeriodDays,
     Expression<String>? theme,
     Expression<String>? units,
+    Expression<String>? timezone,
     Expression<int>? syncState,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -450,6 +492,7 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
       if (usualPeriodDays != null) 'usual_period_days': usualPeriodDays,
       if (theme != null) 'theme': theme,
       if (units != null) 'units': units,
+      if (timezone != null) 'timezone': timezone,
       if (syncState != null) 'sync_state': syncState,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -463,6 +506,7 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
     Value<int?>? usualPeriodDays,
     Value<String?>? theme,
     Value<String?>? units,
+    Value<String?>? timezone,
     Value<SyncState>? syncState,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -474,6 +518,7 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
       usualPeriodDays: usualPeriodDays ?? this.usualPeriodDays,
       theme: theme ?? this.theme,
       units: units ?? this.units,
+      timezone: timezone ?? this.timezone,
       syncState: syncState ?? this.syncState,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -501,6 +546,9 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
     if (units.present) {
       map['units'] = Variable<String>(units.value);
     }
+    if (timezone.present) {
+      map['timezone'] = Variable<String>(timezone.value);
+    }
     if (syncState.present) {
       map['sync_state'] = Variable<int>(
         $LocalProfilesTable.$convertersyncState.toSql(syncState.value),
@@ -524,6 +572,7 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
           ..write('usualPeriodDays: $usualPeriodDays, ')
           ..write('theme: $theme, ')
           ..write('units: $units, ')
+          ..write('timezone: $timezone, ')
           ..write('syncState: $syncState, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -2649,6 +2698,7 @@ typedef $$LocalProfilesTableCreateCompanionBuilder =
       Value<int?> usualPeriodDays,
       Value<String?> theme,
       Value<String?> units,
+      Value<String?> timezone,
       Value<SyncState> syncState,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -2661,6 +2711,7 @@ typedef $$LocalProfilesTableUpdateCompanionBuilder =
       Value<int?> usualPeriodDays,
       Value<String?> theme,
       Value<String?> units,
+      Value<String?> timezone,
       Value<SyncState> syncState,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -2702,6 +2753,11 @@ class $$LocalProfilesTableFilterComposer
 
   ColumnFilters<String> get units => $composableBuilder(
     column: $table.units,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get timezone => $composableBuilder(
+    column: $table.timezone,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2756,6 +2812,11 @@ class $$LocalProfilesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get timezone => $composableBuilder(
+    column: $table.timezone,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get syncState => $composableBuilder(
     column: $table.syncState,
     builder: (column) => ColumnOrderings(column),
@@ -2797,6 +2858,9 @@ class $$LocalProfilesTableAnnotationComposer
 
   GeneratedColumn<String> get units =>
       $composableBuilder(column: $table.units, builder: (column) => column);
+
+  GeneratedColumn<String> get timezone =>
+      $composableBuilder(column: $table.timezone, builder: (column) => column);
 
   GeneratedColumnWithTypeConverter<SyncState, int> get syncState =>
       $composableBuilder(column: $table.syncState, builder: (column) => column);
@@ -2842,6 +2906,7 @@ class $$LocalProfilesTableTableManager
                 Value<int?> usualPeriodDays = const Value.absent(),
                 Value<String?> theme = const Value.absent(),
                 Value<String?> units = const Value.absent(),
+                Value<String?> timezone = const Value.absent(),
                 Value<SyncState> syncState = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -2852,6 +2917,7 @@ class $$LocalProfilesTableTableManager
                 usualPeriodDays: usualPeriodDays,
                 theme: theme,
                 units: units,
+                timezone: timezone,
                 syncState: syncState,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -2864,6 +2930,7 @@ class $$LocalProfilesTableTableManager
                 Value<int?> usualPeriodDays = const Value.absent(),
                 Value<String?> theme = const Value.absent(),
                 Value<String?> units = const Value.absent(),
+                Value<String?> timezone = const Value.absent(),
                 Value<SyncState> syncState = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -2874,6 +2941,7 @@ class $$LocalProfilesTableTableManager
                 usualPeriodDays: usualPeriodDays,
                 theme: theme,
                 units: units,
+                timezone: timezone,
                 syncState: syncState,
                 updatedAt: updatedAt,
                 rowid: rowid,

@@ -5,6 +5,9 @@ class Profile {
   final int? usualPeriodDays;
   final String? theme;
   final String? units;
+  /// Canonical IANA timezone identifier (e.g. "Asia/Kolkata"), null for
+  /// legacy users until the device syncs it. See core/device_timezone.dart.
+  final String? timezone;
 
   Profile({
     required this.userId,
@@ -13,6 +16,7 @@ class Profile {
     this.usualPeriodDays,
     this.theme,
     this.units,
+    this.timezone,
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) {
@@ -23,6 +27,7 @@ class Profile {
       usualPeriodDays: json['usual_period_days'] as int?,
       theme: json['theme'] as String?,
       units: json['units'] as String?,
+      timezone: json['timezone'] as String?,
     );
   }
 
@@ -34,6 +39,7 @@ class Profile {
       'usual_period_days': usualPeriodDays,
       'theme': theme,
       'units': units,
+      'timezone': timezone,
     };
   }
 }
