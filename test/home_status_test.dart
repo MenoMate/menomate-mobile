@@ -7,6 +7,7 @@ import 'package:menomate_mobile/models/cycle.dart';
 import 'package:menomate_mobile/models/profile.dart';
 import 'package:menomate_mobile/providers/cycle_provider.dart';
 import 'package:menomate_mobile/providers/profile_provider.dart';
+import 'package:menomate_mobile/content/insight_library.dart';
 import 'package:menomate_mobile/screens/tabs/home_tab.dart';
 import 'package:menomate_mobile/widgets/daily_insight_card.dart';
 
@@ -20,7 +21,12 @@ class _FixedProfileNotifier extends ProfileNotifier {
 
 class _FixedInsightNotifier extends DailyInsightNotifier {
   @override
-  AsyncValue<String?> build() => const AsyncData<String?>('tip');
+  AsyncValue<InsightPair?> build() => AsyncData<InsightPair?>(
+        selectInsightPair(
+          const InsightInput(
+              hasData: true, phase: 'menstrual', menstrualDay: 2),
+        ),
+      );
 }
 
 /// Home cycle card: tracked period/bleeding status is rendered separately

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:menomate_mobile/content/insight_library.dart';
 import 'package:menomate_mobile/core/format.dart';
 import 'package:menomate_mobile/core/theme.dart';
 import 'package:menomate_mobile/data/sync_policy.dart';
-import 'package:menomate_mobile/models/care.dart';
 import 'package:menomate_mobile/models/cycle.dart';
 import 'package:menomate_mobile/models/profile.dart';
 import 'package:menomate_mobile/models/summary.dart';
@@ -13,12 +13,9 @@ import 'package:menomate_mobile/providers/profile_provider.dart';
 import 'package:menomate_mobile/screens/tabs/assistant_tab.dart';
 import 'package:menomate_mobile/screens/tabs/history_tab.dart';
 import 'package:menomate_mobile/screens/tabs/home_tab.dart';
-import 'package:menomate_mobile/services/api_service.dart';
 import 'package:menomate_mobile/widgets/daily_insight_card.dart';
 import 'package:menomate_mobile/widgets/device_telemetry_card.dart';
 import 'package:table_calendar/table_calendar.dart';
-
-import 'offline_fake_api.dart';
 
 class _FixedProfileNotifier extends ProfileNotifier {
   final DataState<Profile?> fixed;
@@ -30,26 +27,12 @@ class _FixedProfileNotifier extends ProfileNotifier {
 
 class _FixedInsightNotifier extends DailyInsightNotifier {
   @override
-  AsyncValue<String?> build() => const AsyncData<String?>('tip');
-}
-
-class _CountingCareApi extends FakeApiService {
-  int calls = 0;
-  bool fail = false;
-
-  @override
-  Future<CareInteractionResponse?> postCareInteraction(
-      CareInteractionRequest request) async {
-    calls++;
-    if (fail) throw Exception('offline');
-    return CareInteractionResponse(
-      intent: request.intent,
-      responseText: 'canned tip',
-      isAiGenerated: true,
-      suggestedActions: const [],
-      disclaimer: '',
-    );
-  }
+  AsyncValue<InsightPair?> build() => AsyncData<InsightPair?>(
+        selectInsightPair(
+          const InsightInput(
+              hasData: true, phase: 'menstrual', menstrualDay: 2),
+        ),
+      );
 }
 
 void _tallViewport(WidgetTester tester) {
@@ -478,31 +461,34 @@ void main() {
 
   // Items 7/8/9(test 8,9): insight fetched once, reused, offline-safe.
   group('daily insight caching', () {
-    ProviderContainer makeContainer(_CountingCareApi api) {
+    CurrentCycleResponse cycleFor({
+      required String phase,
+      int? day,
+      bool bleeding = false,
+    }) {
+      return CurrentCycleResponse(
+        hasData: true,
+        currentCycleDay: day,
+        phase: phase,
+        isBleeding: bleeding,
+        isOngoing: bleeding,
+        latestPeriodStart: DateTime(2026, 9, 12),
+        predictionConfidence: 'low',
+      );
+    }
+
+    ProviderContainer makeContainer(DataState<CurrentCycleResponse?> cycle) {
       return ProviderContainer(
         overrides: [
-          apiServiceProvider.overrideWith((ref) => api),
-          currentCycleProvider.overrideWith(
-            (ref) => Future.value(Fresh<CurrentCycleResponse?>(
-              CurrentCycleResponse(
-                hasData: true,
-                currentCycleDay: 2,
-                phase: 'menstrual',
-                isBleeding: true,
-                isOngoing: true,
-                latestPeriodStart: DateTime(2026, 9, 12),
-                predictionConfidence: 'low',
-              ),
-            )),
-          ),
+          currentCycleProvider.overrideWith((ref) => Future.value(cycle)),
         ],
       );
     }
 
     Future<void> settleReads(ProviderContainer c) async {
-      // Mount (kicks off the single fetch), then drain the event loop
-      // until data lands. Never outlives the container: every awaited
-      // turn happens before tearDown disposes it.
+      // Mount (kicks off the single resolution), then drain the event
+      // loop until data lands. Never outlives the container: every
+      // awaited turn happens before tearDown disposes it.
       // ignore: unused_result
       c.read(dailyInsightProvider);
       for (var i = 0; i < 100; i++) {
@@ -513,68 +499,77 @@ void main() {
       c.read(dailyInsightProvider);
     }
 
-    test('single fetch reused across rebuilds and dependency churn',
+    test('single local resolution reused across rebuilds and churn',
         () async {
-      final api = _CountingCareApi();
-      final container = makeContainer(api);
+      final container = makeContainer(
+        Fresh<CurrentCycleResponse?>(cycleFor(phase: 'menstrual', day: 2, bleeding: true)),
+      );
       addTearDown(container.dispose);
 
       expect(container.read(dailyInsightProvider).isLoading, isTrue);
       await settleReads(container);
+      final first = container.read(dailyInsightProvider);
+      expect(first, isA<AsyncData<InsightPair?>>());
       expect(
-        container.read(dailyInsightProvider),
-        const AsyncData<String?>('canned tip'),
+        (first as AsyncData<InsightPair?>).value?.insight.body,
+        contains('first day or two'),
       );
-      expect(api.calls, 1);
 
-      // Rebuilds/re-reads never refetch.
+      // Rebuilds/re-reads never re-resolve.
       await settleReads(container);
-      expect(api.calls, 1);
+      expect(
+        identical(container.read(dailyInsightProvider), first),
+        isTrue,
+      );
 
       // Even invalidating the cycle provider (pull-to-refresh path)
-      // does not refetch the insight.
+      // does not re-resolve the insight.
       container.invalidate(currentCycleProvider);
       await settleReads(container);
-      expect(api.calls, 1);
       expect(
-        container.read(dailyInsightProvider),
-        const AsyncData<String?>('canned tip'),
+        identical(container.read(dailyInsightProvider), first),
+        isTrue,
       );
     });
 
-    test('offline revisit renders last-good value without a new request',
+    test('resolution follows the served context, refresh re-resolves',
         () async {
-      final api = _CountingCareApi();
-      final container = makeContainer(api);
+      final container = makeContainer(
+        Fresh<CurrentCycleResponse?>(cycleFor(phase: 'luteal')),
+      );
       addTearDown(container.dispose);
 
       await settleReads(container);
+      final state = container.read(dailyInsightProvider);
+      expect(state, isA<AsyncData<InsightPair?>>());
       expect(
-        container.read(dailyInsightProvider),
-        const AsyncData<String?>('canned tip'),
+        (state as AsyncData<InsightPair?>).value?.action.body,
+        contains('magnesium-rich'),
       );
-      expect(api.calls, 1);
 
-      api.fail = true;
+      // Explicit refresh still works (re-resolution path intact).
+      await container.read(dailyInsightProvider.notifier).refresh();
       await settleReads(container);
-      expect(api.calls, 1);
       expect(
         container.read(dailyInsightProvider),
-        const AsyncData<String?>('canned tip'),
+        isA<AsyncData<InsightPair?>>(),
       );
     });
 
-    test('first-ever offline visit falls back to the phase tip', () async {
-      final api = _CountingCareApi()..fail = true;
-      final container = makeContainer(api);
+    test('cycle read failure still yields the safe fallback pair', () async {
+      final container = ProviderContainer(
+        overrides: [
+          currentCycleProvider.overrideWith((ref) => Future<DataState<CurrentCycleResponse?>>.error('offline')),
+        ],
+      );
       addTearDown(container.dispose);
 
       await settleReads(container);
+      final state = container.read(dailyInsightProvider);
+      expect(state, isA<AsyncData<InsightPair?>>());
       expect(
-        container.read(dailyInsightProvider),
-        const AsyncData<String?>(
-          'Focus on warm fluids, magnesium-rich foods, and extra rest today.',
-        ),
+        (state as AsyncData<InsightPair?>).value?.insight.body,
+        contains('learns your cycles'),
       );
     });
   });
