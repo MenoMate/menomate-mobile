@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../models/care.dart';
 import '../../core/theme.dart';
+import '../../widgets/menomate_logo.dart';
 import '../../services/api_service.dart';
 import '../../services/ble_service.dart';
 import '../home_screen.dart';
@@ -210,14 +211,7 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
         elevation: 0,
         title: Row(
           children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: colorScheme.primary.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.spa_rounded, color: colorScheme.primary, size: 20),
-            ),
+            const MenoMateLogo(size: 32),
             const SizedBox(width: 10),
             Text(
               'MenoMate Care',

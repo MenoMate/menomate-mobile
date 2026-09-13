@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/menomate_logo.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -109,20 +110,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // --- App Branding Header ---
-                  Center(
-                    child: Container(
-                      width: 68,
-                      height: 68,
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary.withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.spa_rounded,
-                        size: 36,
-                        color: colorScheme.primary,
-                      ),
-                    ),
+                  const Center(
+                    child: MenoMateLogo(size: 68),
                   ),
                   const SizedBox(height: 16),
                   Text(
