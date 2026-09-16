@@ -118,13 +118,15 @@ class ApiService {
 
 
   // --- Care Interaction API ---
-  Future<CareInteractionResponse?> postCareInteraction(CareInteractionRequest request) async {
+  Future<CareInteractionResponse> postCareInteraction(CareInteractionRequest request) async {
     try {
       final response = await _dio.post(
-        '/api/v1/care/interact',
+        '/api/v1/care/interactions',
         data: request.toJson(),
       );
       return CareInteractionResponse.fromJson(response.data);
+    } on DioException catch (e) {
+      throw mapDioException(e);
     } catch (e) {
       debugPrint('Error posting care interaction: $e');
       rethrow;

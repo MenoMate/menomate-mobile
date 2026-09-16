@@ -3,6 +3,7 @@ import 'package:menomate_mobile/data/sync_policy.dart';
 import 'package:menomate_mobile/models/cycle.dart';
 import 'package:menomate_mobile/models/daily_log.dart';
 import 'package:menomate_mobile/models/onboarding.dart';
+import 'package:menomate_mobile/models/care.dart';
 import 'package:menomate_mobile/models/profile.dart';
 import 'package:menomate_mobile/models/summary.dart';
 import 'package:menomate_mobile/services/api_service.dart';
@@ -283,6 +284,32 @@ class FakeApiService extends ApiService {
       averagePeriodLength: 5,
     );
   }
+
+  @override
+  Future<CareInteractionResponse> postCareInteraction(
+      CareInteractionRequest request) async {
+    _guard();
+    lastCareRequest = request;
+    final preset = cannedCareResponse;
+    if (preset != null) return preset;
+    if (careFailure != null) throw careFailure!;
+    return CareInteractionResponse(
+      intent: request.intent,
+      responseText: 'Fake care reply.',
+      isAiGenerated: false,
+      tier: 'info',
+      disclaimer: 'Fake disclaimer.',
+    );
+  }
+
+  /// Preset reply served by postCareInteraction (null = generic reply).
+  CareInteractionResponse? cannedCareResponse;
+
+  /// Failure thrown by postCareInteraction instead of replying.
+  ApiError? careFailure;
+
+  /// Last Care request received (payload/routing asserts).
+  CareInteractionRequest? lastCareRequest;
 
   @override
   Future<HistorySummaryResponse> fetchCycleHistory() async {

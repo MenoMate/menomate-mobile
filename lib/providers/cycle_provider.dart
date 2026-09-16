@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/sync_policy.dart';
 import '../models/cycle.dart';
 import '../models/summary.dart';
+import 'care_session_provider.dart';
 import 'data_providers.dart';
 import 'profile_provider.dart';
 
@@ -101,6 +102,13 @@ Future<void> signOutAndClearLocalData(WidgetRef ref) async {
     await ref.read(appDatabaseProvider).clearAllUserData();
   } catch (_) {
     // Wipe is best-effort; sign-out still proceeds.
+  }
+  // Active Care session is in-memory only, but must still be dropped so
+  // the next user never inherits conversation context.
+  try {
+    ref.invalidate(careSessionProvider);
+  } catch (_) {
+    // Provider may be uninitialized in some scopes; sign-out proceeds.
   }
   await Supabase.instance.client.auth.signOut();
   refreshAllAppData(ref);
