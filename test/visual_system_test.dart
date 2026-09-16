@@ -547,9 +547,11 @@ void main() {
 
     testWidgets('flow selection shares the menstrual rose', (tester) async {
       await pumpLogger(tester);
-      await tester.ensureVisible(find.text('Light'));
+      // 'Light' labels both the Flow and Discharge options; the Flow
+      // section precedes Discharge, so .first is the flow bubble.
+      await tester.ensureVisible(find.text('Light').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Light'));
+      await tester.tap(find.text('Light').first);
       await tester.pump();
 
       expect(selectedBubble(MenoMateTheme.sakuraPrimaryDark), findsOneWidget);

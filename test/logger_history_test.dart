@@ -59,6 +59,10 @@ void main() {
         find.byType(TextField).first, 'mild headache');
     _tallViewport(tester);
     await tester.pump();
+    // The structured-logging sections made the form taller: scroll the
+    // action into view before tapping.
+    await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Save Log'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ElevatedButton, 'Save Log'));
     await tester.pumpAndSettle();
 
@@ -128,6 +132,8 @@ void main() {
 
     _tallViewport(tester);
     await tester.pump();
+    await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Save Log'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ElevatedButton, 'Save Log'));
     await tester.pumpAndSettle();
 

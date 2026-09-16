@@ -1136,10 +1136,9 @@ class $LocalDailyLogsTable extends LocalDailyLogs
   late final GeneratedColumn<int> pain = GeneratedColumn<int>(
     'pain',
     aliasedName,
-    false,
+    true,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
-    defaultValue: const Constant(0),
   );
   static const VerificationMeta _moodMeta = const VerificationMeta('mood');
   @override
@@ -1309,7 +1308,7 @@ class $LocalDailyLogsTable extends LocalDailyLogs
       pain: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}pain'],
-      )!,
+      ),
       mood: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}mood'],
@@ -1352,7 +1351,7 @@ class LocalDailyLog extends DataClass implements Insertable<LocalDailyLog> {
   final int id;
   final String userId;
   final String logDate;
-  final int pain;
+  final int? pain;
   final String? mood;
   final String? flow;
   final String? discharge;
@@ -1363,7 +1362,7 @@ class LocalDailyLog extends DataClass implements Insertable<LocalDailyLog> {
     required this.id,
     required this.userId,
     required this.logDate,
-    required this.pain,
+    this.pain,
     this.mood,
     this.flow,
     this.discharge,
@@ -1377,7 +1376,9 @@ class LocalDailyLog extends DataClass implements Insertable<LocalDailyLog> {
     map['id'] = Variable<int>(id);
     map['user_id'] = Variable<String>(userId);
     map['log_date'] = Variable<String>(logDate);
-    map['pain'] = Variable<int>(pain);
+    if (!nullToAbsent || pain != null) {
+      map['pain'] = Variable<int>(pain);
+    }
     if (!nullToAbsent || mood != null) {
       map['mood'] = Variable<String>(mood);
     }
@@ -1404,7 +1405,7 @@ class LocalDailyLog extends DataClass implements Insertable<LocalDailyLog> {
       id: Value(id),
       userId: Value(userId),
       logDate: Value(logDate),
-      pain: Value(pain),
+      pain: pain == null && nullToAbsent ? const Value.absent() : Value(pain),
       mood: mood == null && nullToAbsent ? const Value.absent() : Value(mood),
       flow: flow == null && nullToAbsent ? const Value.absent() : Value(flow),
       discharge: discharge == null && nullToAbsent
@@ -1427,7 +1428,7 @@ class LocalDailyLog extends DataClass implements Insertable<LocalDailyLog> {
       id: serializer.fromJson<int>(json['id']),
       userId: serializer.fromJson<String>(json['userId']),
       logDate: serializer.fromJson<String>(json['logDate']),
-      pain: serializer.fromJson<int>(json['pain']),
+      pain: serializer.fromJson<int?>(json['pain']),
       mood: serializer.fromJson<String?>(json['mood']),
       flow: serializer.fromJson<String?>(json['flow']),
       discharge: serializer.fromJson<String?>(json['discharge']),
@@ -1445,7 +1446,7 @@ class LocalDailyLog extends DataClass implements Insertable<LocalDailyLog> {
       'id': serializer.toJson<int>(id),
       'userId': serializer.toJson<String>(userId),
       'logDate': serializer.toJson<String>(logDate),
-      'pain': serializer.toJson<int>(pain),
+      'pain': serializer.toJson<int?>(pain),
       'mood': serializer.toJson<String?>(mood),
       'flow': serializer.toJson<String?>(flow),
       'discharge': serializer.toJson<String?>(discharge),
@@ -1461,7 +1462,7 @@ class LocalDailyLog extends DataClass implements Insertable<LocalDailyLog> {
     int? id,
     String? userId,
     String? logDate,
-    int? pain,
+    Value<int?> pain = const Value.absent(),
     Value<String?> mood = const Value.absent(),
     Value<String?> flow = const Value.absent(),
     Value<String?> discharge = const Value.absent(),
@@ -1472,7 +1473,7 @@ class LocalDailyLog extends DataClass implements Insertable<LocalDailyLog> {
     id: id ?? this.id,
     userId: userId ?? this.userId,
     logDate: logDate ?? this.logDate,
-    pain: pain ?? this.pain,
+    pain: pain.present ? pain.value : this.pain,
     mood: mood.present ? mood.value : this.mood,
     flow: flow.present ? flow.value : this.flow,
     discharge: discharge.present ? discharge.value : this.discharge,
@@ -1545,7 +1546,7 @@ class LocalDailyLogsCompanion extends UpdateCompanion<LocalDailyLog> {
   final Value<int> id;
   final Value<String> userId;
   final Value<String> logDate;
-  final Value<int> pain;
+  final Value<int?> pain;
   final Value<String?> mood;
   final Value<String?> flow;
   final Value<String?> discharge;
@@ -1607,7 +1608,7 @@ class LocalDailyLogsCompanion extends UpdateCompanion<LocalDailyLog> {
     Value<int>? id,
     Value<String>? userId,
     Value<String>? logDate,
-    Value<int>? pain,
+    Value<int?>? pain,
     Value<String?>? mood,
     Value<String?>? flow,
     Value<String?>? discharge,
@@ -3248,7 +3249,7 @@ typedef $$LocalDailyLogsTableCreateCompanionBuilder =
       Value<int> id,
       required String userId,
       required String logDate,
-      Value<int> pain,
+      Value<int?> pain,
       Value<String?> mood,
       Value<String?> flow,
       Value<String?> discharge,
@@ -3261,7 +3262,7 @@ typedef $$LocalDailyLogsTableUpdateCompanionBuilder =
       Value<int> id,
       Value<String> userId,
       Value<String> logDate,
-      Value<int> pain,
+      Value<int?> pain,
       Value<String?> mood,
       Value<String?> flow,
       Value<String?> discharge,
@@ -3467,7 +3468,7 @@ class $$LocalDailyLogsTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<String> userId = const Value.absent(),
                 Value<String> logDate = const Value.absent(),
-                Value<int> pain = const Value.absent(),
+                Value<int?> pain = const Value.absent(),
                 Value<String?> mood = const Value.absent(),
                 Value<String?> flow = const Value.absent(),
                 Value<String?> discharge = const Value.absent(),
@@ -3491,7 +3492,7 @@ class $$LocalDailyLogsTableTableManager
                 Value<int> id = const Value.absent(),
                 required String userId,
                 required String logDate,
-                Value<int> pain = const Value.absent(),
+                Value<int?> pain = const Value.absent(),
                 Value<String?> mood = const Value.absent(),
                 Value<String?> flow = const Value.absent(),
                 Value<String?> discharge = const Value.absent(),

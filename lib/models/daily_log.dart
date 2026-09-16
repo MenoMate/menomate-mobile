@@ -2,7 +2,7 @@ class SymptomItem {
   final String symptomType;
   final int severity;
 
-  SymptomItem({
+  const SymptomItem({
     required this.symptomType,
     this.severity = 0,
   });
@@ -22,9 +22,40 @@ class SymptomItem {
   }
 }
 
+/// Canonical loggable symptoms, mirroring the backend catalog
+/// (`GET /api/v1/symptoms`; `SUPPORTED_SYMPTOMS` in
+/// `MenoMate_core/app/schemas/daily_log.py`).
+///
+/// The backend is the canonical source: ids must match exactly or the
+/// server rejects the row with 422. A backend test pins
+/// `EXPECTED_SYMPTOM_IDS`, so any catalog change there must update this
+/// list in the same change. No mobile-only symptom ids may be added here.
+class LoggableSymptom {
+  final String id;
+  final String label;
+
+  const LoggableSymptom(this.id, this.label);
+}
+
+const List<LoggableSymptom> kLoggableSymptoms = [
+  LoggableSymptom('cramps', 'Cramps'),
+  LoggableSymptom('headache', 'Headache'),
+  LoggableSymptom('back_pain', 'Lower Back Pain'),
+  LoggableSymptom('nausea', 'Nausea'),
+  LoggableSymptom('bloating', 'Bloating'),
+  LoggableSymptom('low_energy', 'Low Energy / Fatigue'),
+  LoggableSymptom('breast_tenderness', 'Breast Tenderness'),
+  LoggableSymptom('acne', 'Acne / Skin Breakouts'),
+  LoggableSymptom('sleep_difficulty', 'Sleep Difficulty'),
+  LoggableSymptom('appetite_change', 'Appetite Changes'),
+  LoggableSymptom('dizziness', 'Dizziness / Lightheadedness'),
+];
+
 class DailyLogCreate {
   final String? logDate;
-  final int pain;
+
+  /// Null = pain not provided; 0 = explicitly logged no pain.
+  final int? pain;
   final String? mood;
   final String? discharge;
   final String? flow;
@@ -33,7 +64,7 @@ class DailyLogCreate {
 
   DailyLogCreate({
     this.logDate,
-    this.pain = 0,
+    this.pain,
     this.mood,
     this.discharge,
     this.flow,
@@ -44,7 +75,7 @@ class DailyLogCreate {
   Map<String, dynamic> toJson() {
     return {
       if (logDate != null) 'log_date': logDate,
-      'pain': pain,
+      if (pain != null) 'pain': pain,
       if (mood != null) 'mood': mood,
       if (discharge != null) 'discharge': discharge,
       if (flow != null) 'flow': flow,
@@ -58,7 +89,9 @@ class DailyLogResponse {
   final int id;
   final String userId;
   final String logDate;
-  final int pain;
+
+  /// Null = pain not provided; 0 = explicitly logged no pain.
+  final int? pain;
   final String? mood;
   final String? discharge;
   final String? flow;
@@ -69,7 +102,7 @@ class DailyLogResponse {
     required this.id,
     required this.userId,
     required this.logDate,
-    required this.pain,
+    this.pain,
     this.mood,
     this.discharge,
     this.flow,
@@ -82,7 +115,7 @@ class DailyLogResponse {
       id: json['id'] as int,
       userId: json['user_id'] as String,
       logDate: json['log_date'] as String,
-      pain: json['pain'] as int,
+      pain: json['pain'] as int?,
       mood: json['mood'] as String?,
       discharge: json['discharge'] as String?,
       flow: json['flow'] as String?,

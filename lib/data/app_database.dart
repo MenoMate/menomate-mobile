@@ -58,7 +58,9 @@ class LocalDailyLogs extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get userId => text()();
   TextColumn get logDate => text()();
-  IntColumn get pain => integer().withDefault(const Constant(0))();
+  // Nullable pain: null = not provided; 0 = explicitly logged no pain.
+  // (v3 migration from non-null default-0; historical 0s preserved as-is.)
+  IntColumn get pain => integer().nullable()();
   TextColumn get mood => text().nullable()();
   TextColumn get flow => text().nullable()();
   TextColumn get discharge => text().nullable()();
@@ -125,7 +127,7 @@ class AppDatabase extends _$AppDatabase {
   static AppDatabase memory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -134,6 +136,20 @@ class AppDatabase extends _$AppDatabase {
           // existing rows keep NULL until the device syncs its zone).
           if (from < 2) {
             await m.addColumn(localProfiles, localProfiles.timezone);
+          }
+          // v2 -> v3: daily-log pain becomes nullable so "not provided"
+          // (NULL) is distinct from "explicitly logged no pain" (0).
+          // Historical 0s are preserved untouched (never reinterpreted).
+          if (from < 3) {
+            await m.alterTable(TableMigration(
+              localDailyLogs,
+              newColumns: [localDailyLogs.pain],
+              // v2 rows are all non-null by the old constraint, so a
+              // plain cast preserves every value into the nullable column.
+              columnTransformer: {
+                localDailyLogs.pain: localDailyLogs.pain.cast<int>(),
+              },
+            ));
           }
         },
       );
