@@ -456,6 +456,46 @@ class CycleRepository {
 
   // -------------------------------------------------- writes
 
+  /// Records the onboarding first period locally as a synced row, matched
+  /// by server id then by start date — never duplicated. Same storage as
+  /// every other cycle row, so the first period survives restart and
+  /// offline use immediately after onboarding. No second cache.
+  Future<void> storeOnboardedCycle(
+    String userId, {
+    required int serverId,
+    required String periodStart,
+    String? periodEnd,
+  }) async {
+    final rows = await _localRows(userId);
+    LocalCycle? match;
+    for (final r in rows) {
+      if (r.serverId == serverId) {
+        match = r;
+        break;
+      }
+    }
+    match ??= _findByStart(rows, periodStart);
+    if (match == null) {
+      await db.into(db.localCycles).insert(LocalCyclesCompanion.insert(
+            localId: _newLocalId(),
+            userId: userId,
+            serverId: Value(serverId),
+            periodStart: periodStart,
+            periodEnd: Value(periodEnd),
+            syncState: const Value(SyncState.synced),
+          ));
+    } else {
+      await (db.update(db.localCycles)..where((t) => t.id.equals(match!.id)))
+          .write(LocalCyclesCompanion(
+        serverId: Value(serverId),
+        periodStart: Value(periodStart),
+        periodEnd: Value(periodEnd),
+        syncState: const Value(SyncState.synced),
+        updatedAt: Value(DateTime.now()),
+      ));
+    }
+  }
+
   /// Local-first period start. Never duplicates: an existing local ongoing
   /// row is returned as-is; retry re-sends the same row.
   Future<DataState<CurrentCycleResponse?>> startPeriod(

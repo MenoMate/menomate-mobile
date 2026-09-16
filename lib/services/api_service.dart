@@ -49,16 +49,26 @@ class ApiService {
     }
   }
 
-  Future<Profile?> completeOnboarding(OnboardingRequest payload) async {
+  /// Completes onboarding and returns the persisted profile plus the
+  /// first-period identity so callers can cache both rows locally.
+  /// Throws typed [ApiError] (network / validation / conflict / server):
+  /// `null` is never used to signal failure — a missing profile in the
+  /// response is a server contract violation ([ServerError]).
+  Future<OnboardingResult> completeOnboarding(OnboardingRequest payload) async {
     try {
       final response = await _dio.post('/api/v1/onboarding/complete', data: payload.toJson());
-      if (response.data != null && response.data['profile'] != null) {
-        return Profile.fromJson(response.data['profile']);
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['profile'] != null) {
+        return OnboardingResult.fromJson(data);
       }
-      return null;
+      throw const ServerError('Onboarding did not return a profile.');
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } on ApiError {
+      rethrow;
     } catch (e) {
       debugPrint('Error completing onboarding: $e');
-      rethrow;
+      throw ServerError('Onboarding failed: $e');
     }
   }
 

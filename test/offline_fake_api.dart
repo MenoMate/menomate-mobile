@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:menomate_mobile/data/sync_policy.dart';
 import 'package:menomate_mobile/models/cycle.dart';
 import 'package:menomate_mobile/models/daily_log.dart';
+import 'package:menomate_mobile/models/onboarding.dart';
 import 'package:menomate_mobile/models/profile.dart';
 import 'package:menomate_mobile/models/summary.dart';
 import 'package:menomate_mobile/services/api_service.dart';
@@ -28,6 +29,18 @@ class FakeApiService extends ApiService {
   int patchCycleCalls = 0;
   int upsertLogCalls = 0;
   int patchProfileCalls = 0;
+  int completeOnboardingCalls = 0;
+
+  /// When non-null, completeOnboarding throws this instead of succeeding.
+  ApiError? onboardingFailure;
+
+  /// Last onboarding payload received (for timezone/passthrough asserts).
+  OnboardingRequest? lastOnboardingRequest;
+
+  /// When true, a second distinct onboarding start throws Conflict (already
+  /// onboarded), mirroring the backend one-time contract.
+  bool enforceOnboardingOneTime = false;
+  final Set<String> _onboardedStarts = {};
 
   /// Forces [Conflict] from createCycle for these period_start values.
   final Set<String> conflictStarts = {};
@@ -71,6 +84,55 @@ class FakeApiService extends ApiService {
           : serverProfile.timezone,
     );
     return serverProfile;
+  }
+
+  @override
+  Future<OnboardingResult> completeOnboarding(OnboardingRequest payload) async {
+    _guard();
+    completeOnboardingCalls++;
+    lastOnboardingRequest = payload;
+    if (onboardingFailure != null) throw onboardingFailure!;
+    if (payload.name.trim().isEmpty) {
+      throw const ValidationError('name must not be blank');
+    }
+    if (enforceOnboardingOneTime &&
+        _onboardedStarts.isNotEmpty &&
+        !_onboardedStarts.contains(payload.lastPeriodStart)) {
+      throw const Conflict(
+          'Onboarding has already been completed for this account. '
+          'To add or correct period dates, use History.');
+    }
+    _onboardedStarts.add(payload.lastPeriodStart);
+    final now = DateTime.now();
+    serverProfile = Profile(
+      userId: serverProfile.userId,
+      name: payload.name.trim(),
+      usualCycleDays: payload.usualCycleDays,
+      usualPeriodDays: payload.usualPeriodDays,
+      theme: serverProfile.theme,
+      units: serverProfile.units,
+      timezone: payload.timezone ?? serverProfile.timezone,
+    );
+    final row = CycleResponse(
+      id: _nextCycleId++,
+      userId: serverProfile.userId,
+      periodStart: DateTime.parse(payload.lastPeriodStart),
+      periodEnd: payload.lastPeriodEnd == null
+          ? null
+          : DateTime.parse(payload.lastPeriodEnd!),
+      periodLengthDays: null,
+      createdAt: now,
+      updatedAt: now,
+    );
+    serverCycles.removeWhere(
+        (c) => _iso(c.periodStart) == payload.lastPeriodStart);
+    serverCycles.add(row);
+    return OnboardingResult(
+      profile: serverProfile,
+      periodId: row.id,
+      periodStart: payload.lastPeriodStart,
+      periodEnd: payload.lastPeriodEnd,
+    );
   }
 
   @override

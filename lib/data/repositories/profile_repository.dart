@@ -110,6 +110,14 @@ class ProfileRepository {
     }
   }
 
+  /// Persists a successfully completed onboarding profile as the canonical
+  /// local row (synced — the server just acknowledged it). No second cache:
+  /// this is the same row [loadProfile]/[saveProfile] read and write, so the
+  /// profile survives restart and offline use immediately after onboarding.
+  Future<void> storeOnboardedProfile(Profile profile) {
+    return _store(profile, SyncState.synced);
+  }
+
   Profile _applyPayload(
     String userId,
     Profile? base,

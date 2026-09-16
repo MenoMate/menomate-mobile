@@ -78,6 +78,15 @@ class Conflict extends ApiError {
   String get message => detail;
 }
 
+/// 422: payload failed server validation. Surfaced like [Conflict]
+/// (retrying an identical payload can never succeed); never retried blindly.
+class ValidationError extends ApiError {
+  const ValidationError([this.detail = 'Some entries need attention.']);
+  final String detail;
+  @override
+  String get message => detail;
+}
+
 /// 5xx or unexpected status: keep row pending, retry later.
 class ServerError extends ApiError {
   const ServerError([this.detail = 'Server error. Will retry later.']);
@@ -93,6 +102,9 @@ ApiError mapDioException(DioException e) {
     final status = e.response!.statusCode ?? 0;
     final detail = _responseDetail(e.response!.data);
     if (status == 401) return AuthFailure(detail ?? 'Session expired.');
+    if (status == 422) {
+      return ValidationError(detail ?? 'Some entries need attention.');
+    }
     if (status == 400 || status == 409) {
       return Conflict(detail ?? 'Server rejected this entry.');
     }
@@ -125,7 +137,7 @@ enum SyncOutcome {  /// 2xx: mark row synced, reconcile server IDs.
 
 SyncOutcome classifySyncError(ApiError e) {
   return switch (e) {
-    Conflict() => SyncOutcome.conflict,
+    Conflict() || ValidationError() => SyncOutcome.conflict,
     NetworkUnavailable() || ServerError() => SyncOutcome.retryLater,
     AuthFailure() => SyncOutcome.authError,
   };
