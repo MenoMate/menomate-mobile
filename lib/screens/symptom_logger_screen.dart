@@ -32,9 +32,14 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
   /// Whether a saved log existed when this screen opened. A save that
   /// creates the record resets the form; a save that edits keeps values.
   bool _existedAtOpen = false;
-  
+
+  /// Null = not logged (no fake selection is ever displayed).
   int? _pain;
-  String? _mood;
+
+  /// Multi-select moods (canonical ids). Empty = not logged.
+  final Set<String> _moods = {};
+
+  /// Single-select, nullable. Tapping the selected option deselects it.
   String? _flow;
   String? _discharge;
 
@@ -43,20 +48,16 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
   final Set<String> _symptoms = {};
   final Map<String, int> _severities = {};
 
-  // Backend Enums
-  final List<String> _moodOptions = [
+  /// Canonical mood vocabulary (backend MoodEnum). Order is display order.
+  static const List<String> _moodOptions = [
     'happy', 'calm', 'neutral', 'sad', 'irritable', 'anxious', 'tired'
   ];
 
-  final List<String> _flowOptions = [
-    'light', 'medium', 'heavy', 'spotting', 'none'
+  /// Single-selection flow (backend FlowEnum minus the retired `none`:
+  /// unselected now means "not recorded").
+  static const List<String> _flowOptions = [
+    'spotting', 'light', 'medium', 'heavy'
   ];
-
-  final List<String> _dischargeOptions = [
-    'none', 'light', 'moderate', 'heavy'
-  ];
-
-  final List<int> _painOptions = List.generate(11, (index) => index);
 
   late String _dateString;
 
@@ -93,9 +94,17 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
       _existedAtOpen = log != null;
       if (log != null) {
         _pain = log.pain;
-        _mood = log.mood;
-        _flow = log.flow;
-        _discharge = log.discharge;
+        _moods
+          ..clear()
+          ..addAll((log.mood ?? []).where(_moodOptions.contains));
+        // Legacy flow `none` (retired) reads as unselected: unselected
+        // now means "not recorded", which is exactly what `none` meant.
+        _flow = _flowOptions.contains(log.flow) ? log.flow : null;
+        // Legacy discharge values outside the qualitative vocabulary
+        // render as unselected — never reinterpreted, never crashed on.
+        _discharge = kDischargeOptions.any((d) => d.id == log.discharge)
+            ? log.discharge
+            : null;
         _symptoms
           ..clear()
           ..addAll(log.symptoms.map((s) => s.symptomType));
@@ -111,7 +120,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
 
   void _resetForm() {
     _pain = null;
-    _mood = null;
+    _moods.clear();
     _flow = null;
     _discharge = null;
     _symptoms.clear();
@@ -142,7 +151,10 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     final payload = DailyLogCreate(
       logDate: _dateString,
       pain: _pain,
-      mood: _mood,
+      // Canonical order keeps the stored array deterministic.
+      mood: _moods.isEmpty
+          ? null
+          : [for (final m in _moodOptions) if (_moods.contains(m)) m],
       flow: _flow,
       discharge: _discharge,
       notes: _notesController.text.isNotEmpty ? _notesController.text : null,
@@ -220,142 +232,164 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
       );
     }
 
+    final colorScheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // One coherent selection language: indigo interaction treatment in
+    // both modes. Category meaning lives in the section icon, not in
+    // per-category selection colors.
+    final selectedFill = MenoMateTheme.interactionColor(isDark);
+    final cycleAccent =
+        isDark ? MenoMateTheme.starryPrimary : MenoMateTheme.sakuraPrimaryDark;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: Theme.of(context).colorScheme.onSurface),
+          icon: Icon(Icons.arrow_back, color: colorScheme.onSurface),
           onPressed: () => context.pop(),
         ),
         title: Text(
-          'Daily Wellness Log',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurface, fontWeight: FontWeight.bold),
+          'Daily Check-In',
+          style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold),
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (_loadState != null) SyncStatusChip(state: _loadState!),
             Text(
-              _prettyDate(),
+              _existedAtOpen
+                  ? '${_prettyDate()} · editing saved log'
+                  : '${_prettyDate()} · how are you feeling today?',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.secondary,
+                color: colorScheme.secondary,
               ),
             ),
-            const SizedBox(height: 4),
-            Text(
-              _existedAtOpen
-                  ? 'Editing your saved log'
-                  : 'How are you feeling today?',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.onSurface,
-              ),
-            ),
-            const SizedBox(height: 24),
-            
-            _buildSectionTitle('Mood', context),
+            const SizedBox(height: 20),
+
+            _buildGroupLabel('Cycle', context),
             const SizedBox(height: 12),
-            _buildBubbleGrid<String>(
-              items: _moodOptions,
-              isSelected: (val) => val == _mood,
-              // Tapping the selected value clears it (null = not logged).
-              onSelected: (val) => setState(() => _mood = _mood == val ? null : val),
-              labelBuilder: (val) => val[0].toUpperCase() + val.substring(1),
-              activeColor: MenoMateTheme.sakuraInteraction,
+            _buildFieldLabel(context, Icons.water_drop_outlined, 'Menstrual flow', cycleAccent),
+            const SizedBox(height: 8),
+            _buildChipWrap<String>(
+              values: _flowOptions,
+              isSelected: (v) => v == _flow,
+              // Tapping the selected option deselects it; tapping another
+              // moves the single selection. Never multi-select.
+              onTap: (v) => setState(() => _flow = _flow == v ? null : v),
+              labelOf: _capitalize,
+              selectedFill: selectedFill,
             ),
-
-            const SizedBox(height: 32),
-
-            _buildSectionTitle('Flow', context),
-            const SizedBox(height: 12),
-            _buildBubbleGrid<String>(
-              items: _flowOptions,
-              isSelected: (val) => val == _flow,
-              onSelected: (val) => setState(() => _flow = _flow == val ? null : val),
-              labelBuilder: (val) => val[0].toUpperCase() + val.substring(1),
-              // Blood logging shares the menstrual rose token.
-              activeColor: MenoMateTheme.sakuraPrimaryDark,
+            const SizedBox(height: 16),
+            _buildFieldLabel(context, Icons.opacity_outlined, 'Discharge', cycleAccent),
+            const SizedBox(height: 8),
+            _buildChipWrap<DischargeOption>(
+              values: kDischargeOptions,
+              isSelected: (d) => d.id == _discharge,
+              onTap: (d) =>
+                  setState(() => _discharge = _discharge == d.id ? null : d.id),
+              labelOf: (d) => d.label,
+              selectedFill: selectedFill,
             ),
+            const SizedBox(height: 20),
 
-            const SizedBox(height: 32),
-
-            _buildSectionTitle('Discharge', context),
+            _buildGroupLabel('Wellbeing', context),
             const SizedBox(height: 12),
-            _buildBubbleGrid<String>(
-              items: _dischargeOptions,
-              isSelected: (val) => val == _discharge,
-              onSelected: (val) =>
-                  setState(() => _discharge = _discharge == val ? null : val),
-              labelBuilder: (val) => val[0].toUpperCase() + val.substring(1),
-              activeColor: MenoMateTheme.sakuraInteraction,
+            _buildFieldLabel(context, Icons.sentiment_satisfied_outlined, 'Mood', null),
+            const SizedBox(height: 8),
+            _buildChipWrap<String>(
+              values: _moodOptions,
+              isSelected: (v) => _moods.contains(v),
+              // Independent toggles: zero, one, or several moods are valid.
+              onTap: (v) => setState(() {
+                if (!_moods.remove(v)) _moods.add(v);
+              }),
+              labelOf: _capitalize,
+              selectedFill: selectedFill,
             ),
-
-            const SizedBox(height: 32),
-
-            _buildSectionTitle('Symptoms', context),
-            const SizedBox(height: 12),
-            _buildBubbleGrid<LoggableSymptom>(
-              items: kLoggableSymptoms,
-              isSelected: (sym) => _symptoms.contains(sym.id),
-              onSelected: (sym) => setState(() {
-                if (_symptoms.remove(sym.id)) {
-                  _severities.remove(sym.id);
+            const SizedBox(height: 16),
+            _buildFieldLabel(context, Icons.healing_outlined, 'Symptoms', null),
+            const SizedBox(height: 8),
+            _buildChipWrap<LoggableSymptom>(
+              values: kLoggableSymptoms,
+              isSelected: (s) => _symptoms.contains(s.id),
+              onTap: (s) => setState(() {
+                if (_symptoms.remove(s.id)) {
+                  _severities.remove(s.id);
                 } else {
-                  _symptoms.add(sym.id);
-                  _severities[sym.id] = 0;
+                  _symptoms.add(s.id);
+                  _severities[s.id] = 0;
                 }
               }),
-              labelBuilder: (sym) => sym.label,
-              activeColor: MenoMateTheme.sakuraPrimaryDark,
+              labelOf: (s) => s.label,
+              selectedFill: selectedFill,
             ),
             if (_symptoms.isNotEmpty) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
               for (final sym in kLoggableSymptoms.where((s) => _symptoms.contains(s.id)))
-                _buildSeverityRow(sym, context),
+                _buildSeverityRow(sym, context, selectedFill),
             ],
-
-            const SizedBox(height: 32),
-
-            _buildSectionTitle('Pain Severity (0-10)', context),
-            const SizedBox(height: 4),
-            Text(
-              'Leave unselected if you prefer not to log pain.',
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.secondary,
-              ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                _buildFieldLabel(context, Icons.speed_outlined, 'Pain', null),
+                const Spacer(),
+                if (_pain != null)
+                  Text(
+                    _pain.toString(),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  )
+                else
+                  Text(
+                    'Not logged',
+                    style: TextStyle(fontSize: 12, color: colorScheme.secondary),
+                  ),
+                if (_pain != null)
+                  TextButton(
+                    onPressed: () => setState(() => _pain = null),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                    child: const Text('Clear', style: TextStyle(fontSize: 12)),
+                  ),
+              ],
             ),
-            const SizedBox(height: 12),
-            _buildBubbleGrid<int>(
-              items: _painOptions,
-              isSelected: (val) => val == _pain,
-              onSelected: (val) => setState(() => _pain = _pain == val ? null : val),
-              labelBuilder: (val) => val.toString(),
-              activeColor: MenoMateTheme.sakuraAmber,
-              crossAxisCount: 6,
+            Slider(
+              value: (_pain ?? 0).toDouble(),
+              min: 0,
+              max: 10,
+              divisions: 10,
+              label: _pain?.toString(),
+              activeColor: selectedFill,
+              inactiveColor: colorScheme.outline,
+              onChanged: (v) => setState(() => _pain = v.round()),
             ),
+            const SizedBox(height: 20),
 
-            const SizedBox(height: 32),
-            
-            _buildSectionTitle('Notes', context),
+            _buildGroupLabel('Optional', context),
             const SizedBox(height: 12),
+            _buildFieldLabel(context, Icons.edit_note_outlined, 'Notes', null),
+            const SizedBox(height: 8),
             TextField(
               controller: _notesController,
-              maxLines: 4,
+              maxLines: 3,
               decoration: InputDecoration(
-                // Option A: notes stay personal history only — the hint no
-                // longer invites symptom content Care cannot use.
+                // Notes stay personal history only — the hint no longer
+                // invites symptom content Care cannot use.
                 hintText: 'Personal notes for your own records',
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surface,
+                fillColor: colorScheme.surface,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide(color: Colors.grey.shade300),
@@ -366,11 +400,10 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 40),
-            
+            const SizedBox(height: 24),
+
             SizedBox(
               width: double.infinity,
-              // Theme elevated style: rose primary action, no custom purple.
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _saveLog,
                 child: _isSaving
@@ -384,18 +417,96 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String title, BuildContext context) {
+  static String _capitalize(String value) =>
+      value.isEmpty ? value : value[0].toUpperCase() + value.substring(1);
+
+  Widget _buildGroupLabel(String label, BuildContext context) {
     return Text(
-      title,
+      label.toUpperCase(),
       style: TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.w600,
-        color: Theme.of(context).colorScheme.onSurface,
+        fontSize: 13,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.8,
+        color: Theme.of(context).colorScheme.secondary,
       ),
     );
   }
 
-  Widget _buildSeverityRow(LoggableSymptom symptom, BuildContext context) {
+  Widget _buildFieldLabel(
+    BuildContext context,
+    IconData icon,
+    String label,
+    Color? iconColor,
+  ) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 18, color: iconColor ?? colorScheme.secondary),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+            color: colorScheme.onSurface,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Compact toggle chip row: one selection language everywhere.
+  /// Unselected = theme surface + warm-neutral outline + normal text.
+  /// Selected = indigo interaction fill + white text.
+  Widget _buildChipWrap<T>({
+    required List<T> values,
+    required bool Function(T) isSelected,
+    required void Function(T) onTap,
+    required String Function(T) labelOf,
+    required Color selectedFill,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final value in values)
+          Builder(builder: (context) {
+            final selected = isSelected(value);
+            return GestureDetector(
+              onTap: () => onTap(value),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: selected ? selectedFill : colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: selected ? selectedFill : colorScheme.outline,
+                    width: selected ? 1.5 : 1,
+                  ),
+                ),
+                child: Text(
+                  labelOf(value),
+                  style: TextStyle(
+                    color: selected ? Colors.white : colorScheme.onSurface,
+                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+
+  Widget _buildSeverityRow(
+    LoggableSymptom symptom,
+    BuildContext context,
+    Color accent,
+  ) {
     final severity = _severities[symptom.id] ?? 0;
     final colorScheme = Theme.of(context).colorScheme;
     Widget stepper(IconData icon, VoidCallback? onPressed) {
@@ -408,13 +519,13 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
           Expanded(
             child: Text(
-              symptom.label,
-              style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
+              '${symptom.label} severity',
+              style: TextStyle(fontSize: 13, color: colorScheme.onSurface),
             ),
           ),
           stepper(
@@ -439,65 +550,6 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildBubbleGrid<T>({
-    required List<T> items,
-    required bool Function(T) isSelected,
-    required Function(T) onSelected,
-    required String Function(T) labelBuilder,
-    required Color activeColor,
-    int crossAxisCount = 4,
-  }) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        final selected = isSelected(item);
-
-        return GestureDetector(
-          onTap: () => onSelected(item),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            decoration: BoxDecoration(
-              color: selected ? activeColor : Theme.of(context).colorScheme.surface,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: selected ? activeColor : Colors.grey.shade300,
-                width: 2,
-              ),
-              boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: activeColor.withAlpha(70),
-                      blurRadius: 8,
-                      offset: const Offset(0, 4),
-                    )
-                  ]
-                : [],
-            ),
-            child: Center(
-              child: Text(
-                labelBuilder(item),
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: selected ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                  fontSize: crossAxisCount > 4 ? 14 : 12,
-                ),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }

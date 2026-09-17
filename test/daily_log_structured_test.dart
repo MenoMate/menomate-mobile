@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:menomate_mobile/data/app_database.dart';
 import 'package:menomate_mobile/data/repositories/daily_log_repository.dart';
 import 'package:menomate_mobile/data/sync_policy.dart';
@@ -38,22 +39,54 @@ void main() {
     });
 
     test('unset pain is omitted from the payload; explicit 0 is sent', () {
-      final unset = DailyLogCreate(logDate: '2026-09-10', mood: 'calm');
+      final unset = DailyLogCreate(logDate: '2026-09-10', mood: ['calm']);
       expect(unset.toJson().containsKey('pain'), isFalse);
 
       final zero = DailyLogCreate(logDate: '2026-09-10', pain: 0);
       expect(zero.toJson()['pain'], 0);
     });
 
+    test('fully empty create serializes to date + empty symptoms only', () {
+      final json = DailyLogCreate(logDate: '2026-09-10').toJson();
+      expect(json.keys, unorderedEquals(['log_date', 'symptoms']));
+      expect(json['symptoms'], isEmpty);
+    });
+
+    test('mood serializes as a list; empty means omitted', () {
+      expect(
+        DailyLogCreate(logDate: '2026-09-10', mood: ['happy', 'calm']).toJson()['mood'],
+        ['happy', 'calm'],
+      );
+      expect(
+        DailyLogCreate(logDate: '2026-09-10', mood: []).toJson().containsKey('mood'),
+        isFalse,
+      );
+      expect(
+        DailyLogCreate(logDate: '2026-09-10').toJson().containsKey('mood'),
+        isFalse,
+      );
+    });
+
+    test('mood codec tolerates legacy bare strings', () {
+      expect(parseMoods(null), isNull);
+      expect(parseMoods(''), isNull);
+      expect(parseMoods('happy'), ['happy']);
+      expect(parseMoods('["happy", "calm"]'), ['happy', 'calm']);
+      expect(parseMoods(['tired']), ['tired']);
+      expect(encodeMoods(null), isNull);
+      expect(encodeMoods([]), isNull);
+      expect(encodeMoods(['sad']), '["sad"]');
+    });
+
     test('symptoms and discharge serialize', () {
       final payload = DailyLogCreate(
         logDate: '2026-09-10',
         pain: 6,
-        discharge: 'light',
+        discharge: 'creamy',
         symptoms: const [SymptomItem(symptomType: 'cramps', severity: 6)],
       );
       final json = payload.toJson();
-      expect(json['discharge'], 'light');
+      expect(json['discharge'], 'creamy');
       expect(json['symptoms'], [
         {'symptom_type': 'cramps', 'severity': 6}
       ]);
@@ -85,9 +118,9 @@ void main() {
         'user-a',
         DailyLogCreate(
           logDate: '2026-09-10',
-          mood: 'tired',
+          mood: ['tired'],
           flow: 'light',
-          discharge: 'light',
+          discharge: 'creamy',
           symptoms: const [
             SymptomItem(symptomType: 'cramps', severity: 6),
             SymptomItem(symptomType: 'headache', severity: 3),
@@ -99,7 +132,8 @@ void main() {
       final loaded = await repo.loadLog('user-a', '2026-09-10');
       final log = loaded.dataOrNull!;
       expect(log.pain, isNull);
-      expect(log.discharge, 'light');
+      expect(log.discharge, 'creamy');
+      expect(log.mood, ['tired']);
       expect(
         {for (final s in log.symptoms) s.symptomType: s.severity},
         {'cramps': 6, 'headache': 3},
@@ -162,35 +196,56 @@ void main() {
         'user-a',
         DailyLogCreate(
           logDate: '2026-09-10',
-          discharge: 'moderate',
+          discharge: 'creamy',
           symptoms: const [SymptomItem(symptomType: 'bloating', severity: 5)],
         ),
       );
       expect(state, isA<PendingSync<DailyLogResponse>>());
       final local = state.dataOrNull!;
-      expect(local.discharge, 'moderate');
+      expect(local.discharge, 'creamy');
       expect(local.symptoms.single.symptomType, 'bloating');
     });
 
-    test('mood/flow set, clear, and none round-trip', () async {
+    test('mood/flow multi set, clear round-trip (no synthetic none)', () async {
       final db = AppDatabase.memory();
       addTearDown(db.close);
       final api = FakeApiService();
       final repo = DailyLogRepository(db, api);
 
       await repo.saveLog(
-          'user-a', DailyLogCreate(logDate: '2026-09-10', mood: 'happy', flow: 'none'));
+          'user-a',
+          DailyLogCreate(
+              logDate: '2026-09-10', mood: ['happy', 'calm'], flow: 'light'));
       var loaded = await repo.loadLog('user-a', '2026-09-10');
-      expect(loaded.dataOrNull!.mood, 'happy');
-      expect(loaded.dataOrNull!.flow, 'none');
+      expect(loaded.dataOrNull!.mood, ['happy', 'calm']);
+      expect(loaded.dataOrNull!.flow, 'light');
 
       await repo.saveLog(
           'user-a', DailyLogCreate(logDate: '2026-09-10', pain: 2));
       loaded = await repo.loadLog('user-a', '2026-09-10');
-      // Full-replace upsert: omitted optionals clear.
+      // Full-replace upsert: omitted optionals clear to unset (null),
+      // never to a synthetic "none" value.
       expect(loaded.dataOrNull!.mood, isNull);
       expect(loaded.dataOrNull!.flow, isNull);
       expect(loaded.dataOrNull!.pain, 2);
+    });
+
+    test('legacy bare-string mood row decodes to a single selection', () async {
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      final api = FakeApiService();
+      final repo = DailyLogRepository(db, api);
+
+      // Simulate a pre-list row written by an older client.
+      await db.into(db.localDailyLogs).insert(
+            LocalDailyLogsCompanion.insert(
+              userId: 'user-a',
+              logDate: '2026-09-10',
+              mood: const Value('happy'),
+            ),
+          );
+      final loaded = await repo.loadLog('user-a', '2026-09-10');
+      expect(loaded.dataOrNull!.mood, ['happy']);
     });
   });
 
@@ -229,43 +284,129 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('mood tap selects, second tap clears', (tester) async {
+    testWidgets('mood multi-select toggles independently; empty is valid',
+        (tester) async {
       final db = AppDatabase.memory();
       addTearDown(db.close);
       await pumpLogger(tester, db, FakeApiService());
 
       await tapVisible(tester, find.text('Happy'));
+      await tapVisible(tester, find.text('Calm'));
       await tapSave(tester);
 
       var row = await (db.select(db.localDailyLogs)).getSingle();
-      expect(row.mood, 'happy');
+      expect(parseMoods(row.mood), ['happy', 'calm']);
 
-      // Form reset after create: select again, then tapping the
-      // selected value clears it.
+      // Form reset after create: select Happy+Calm again, then tapping
+      // Happy alone deselects just it (multi-select toggles), then
+      // deselecting Calm too leaves zero moods (valid empty state).
       await tapVisible(tester, find.text('Happy'));
+      await tapVisible(tester, find.text('Calm'));
       await tapVisible(tester, find.text('Happy'));
+      await tapVisible(tester, find.text('Calm'));
       await tapSave(tester);
 
       row = await (db.select(db.localDailyLogs)).getSingle();
-      expect(row.mood, isNull);
+      expect(parseMoods(row.mood), isNull);
     });
 
-    testWidgets('flow none is selectable; pain toggles to unset', (tester) async {
+    testWidgets('flow single-select replaces; reselect deselects; no None',
+        (tester) async {
       final db = AppDatabase.memory();
       addTearDown(db.close);
       await pumpLogger(tester, db, FakeApiService());
 
-      // 'None' exists in both Flow and Discharge sections; Flow comes
-      // first, so .first is the flow option.
-      await tapVisible(tester, find.text('None').first);
-      // Select then immediately deselect pain: unset, not zero.
-      await tapVisible(tester, find.text('5'));
-      await tapVisible(tester, find.text('5'));
+      // No "None" option exists anywhere on the reworked screen.
+      expect(find.text('None'), findsNothing);
+
+      await tapVisible(tester, find.text('Light'));
+      await tapVisible(tester, find.text('Heavy'));
       await tapSave(tester);
 
-      final row = await (db.select(db.localDailyLogs)).getSingle();
-      expect(row.flow, 'none');
+      var row = await (db.select(db.localDailyLogs)).getSingle();
+      // Heavy replaced Light: multiple flow values impossible.
+      expect(row.flow, 'heavy');
+      // Zero symptoms selected serializes to an empty list.
+      expect(await db.select(db.localSymptoms).get(), isEmpty);
+
+      // Form reset after create: select Heavy, then reselecting the
+      // selected option deselects it (empty = unset).
+      await tapVisible(tester, find.text('Heavy'));
+      await tapVisible(tester, find.text('Heavy'));
+      await tapSave(tester);
+
+      row = await (db.select(db.localDailyLogs)).getSingle();
+      expect(row.flow, isNull);
+    });
+
+    testWidgets('discharge single-select uses qualitative vocabulary',
+        (tester) async {
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      await pumpLogger(tester, db, FakeApiService());
+
+      for (final label in ['Sticky', 'Creamy', 'Watery', 'Slippery / Stretchy']) {
+        expect(find.text(label), findsOneWidget);
+      }
+      // Old amount vocabulary is gone, and no None option exists.
+      expect(find.text('Moderate'), findsNothing);
+      expect(find.text('None'), findsNothing);
+
+      await tapVisible(tester, find.text('Creamy'));
+      await tapVisible(tester, find.text('Watery'));
+      await tapSave(tester);
+
+      var row = await (db.select(db.localDailyLogs)).getSingle();
+      expect(row.discharge, 'watery');
+
+      await tapVisible(tester, find.text('Watery'));
+      await tapVisible(tester, find.text('Watery'));
+      await tapSave(tester);
+
+      row = await (db.select(db.localDailyLogs)).getSingle();
+      expect(row.discharge, isNull);
+    });
+
+    testWidgets('pain slider sets exact value; Clear returns to unset',
+        (tester) async {
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      await pumpLogger(tester, db, FakeApiService());
+
+      expect(find.text('Not logged'), findsOneWidget);
+      expect(find.text('Clear'), findsNothing);
+
+      final slider = find.byType(Slider);
+      expect(slider, findsOneWidget);
+      // Tap at 60% of the track width (recomputed after scrolling into
+      // view): value 6 on the 0–10 scale.
+      await tester.ensureVisible(slider);
+      await tester.pumpAndSettle();
+      Future<void> tapSliderAtSix() async {
+        final sliderSize = tester.getSize(slider);
+        final sliderCenter = tester.getCenter(slider);
+        await tester.tapAt(Offset(
+          sliderCenter.dx - sliderSize.width / 2 + sliderSize.width * 0.6,
+          sliderCenter.dy,
+        ));
+        await tester.pump();
+      }
+
+      await tapSliderAtSix();
+      await tapSave(tester);
+
+      var row = await (db.select(db.localDailyLogs)).getSingle();
+      expect(row.pain, 6);
+
+      // Form reset after create: log 6 again so the Clear control exists,
+      // then Clear returns to unset (badge back to "Not logged").
+      await tapSliderAtSix();
+      await tapVisible(tester, find.text('Clear'));
+      await tapSave(tester);
+
+      row = await (db.select(db.localDailyLogs)).getSingle();
       expect(row.pain, isNull);
+      expect(find.text('Not logged'), findsOneWidget);
     });
 
     testWidgets('symptom select + severity stepper + discharge persist',
@@ -276,11 +417,13 @@ void main() {
       await pumpLogger(tester, db, api);
 
       await tapVisible(tester, find.text('Cramps'));
+      await tapVisible(tester, find.text('Headache'));
+      // Deselect Headache again: multi-select toggles independently.
+      await tapVisible(tester, find.text('Headache'));
       // Severity stepper appears for the selected symptom.
       await tapVisible(tester, find.byIcon(Icons.add_circle_outline).first);
       await tapVisible(tester, find.byIcon(Icons.add_circle_outline).first);
-      // 'Moderate' is unique to the Discharge section.
-      await tapVisible(tester, find.text('Moderate'));
+      await tapVisible(tester, find.text('Creamy'));
       await tapSave(tester);
 
       final symptoms = await db.select(db.localSymptoms).get();
@@ -289,7 +432,39 @@ void main() {
       expect(symptoms.single.severity, 2);
       expect(api.serverLogs.values.single.symptoms.single.severity, 2);
       final row = await (db.select(db.localDailyLogs)).getSingle();
-      expect(row.discharge, 'moderate');
+      expect(row.discharge, 'creamy');
+    });
+
+    testWidgets('narrow layout: no overflow, chips wrap, save reachable',
+        (tester) async {
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      tester.view.physicalSize = const Size(360, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDatabaseProvider.overrideWithValue(db),
+            apiServiceProvider.overrideWithValue(FakeApiService()),
+            currentUserIdProvider.overrideWithValue('user-a'),
+            profileProvider.overrideWith(() => _QuietProfileNotifier()),
+          ],
+          child: const MaterialApp(home: SymptomLoggerScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+
+      // Long labels wrap without overflow; every section is present.
+      expect(find.text('Slippery / Stretchy'), findsOneWidget);
+      expect(find.text('Daily Check-In'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Save Log'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Save Log'), findsOneWidget);
     });
   });
 }

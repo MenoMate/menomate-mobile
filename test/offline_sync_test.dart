@@ -108,7 +108,7 @@ void main() {
     final repo = DailyLogRepository(db, api);
     final state = await repo.saveLog(
       _userA,
-      DailyLogCreate(logDate: '2026-08-10', pain: 5, mood: 'tired'),
+      DailyLogCreate(logDate: '2026-08-10', pain: 5, mood: ['tired']),
     );
 
     expect(state, isA<PendingSync>());

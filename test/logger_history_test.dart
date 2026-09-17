@@ -54,7 +54,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('How are you feeling today?'), findsOneWidget);
+    expect(find.textContaining('how are you feeling today?'), findsOneWidget);
     await tester.enterText(
         find.byType(TextField).first, 'mild headache');
     _tallViewport(tester);
@@ -71,8 +71,8 @@ void main() {
     // ...form reset to defaults (notes cleared) with the record now
     // existing, so the header reflects edit mode for the saved date...
     expect(find.text('mild headache'), findsNothing);
-    expect(find.text('Editing your saved log'), findsOneWidget);
-    expect(find.text('How are you feeling today?'), findsNothing);
+    expect(find.textContaining('editing saved log'), findsOneWidget);
+    expect(find.textContaining('how are you feeling today?'), findsNothing);
     // ...and exactly one server record exists.
     expect(api.serverLogs.length, 1);
     expect(api.serverLogs[_todayIso()]!.notes, 'mild headache');
@@ -106,9 +106,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Editing your saved log'), findsOneWidget);
+    expect(find.textContaining('editing saved log'), findsOneWidget);
     expect(find.text('bad cramps'), findsOneWidget);
-    expect(find.text('How are you feeling today?'), findsNothing);
+    expect(find.textContaining('how are you feeling today?'), findsNothing);
   });
 
   // Offline save says where the data went and shows not-synced state.

@@ -516,12 +516,12 @@ void main() {
     });
   });
 
-  group('logger selectors use dusty categorical tokens', () {
-    Future<void> pumpLogger(WidgetTester tester) async {
+  group('logger selectors use one interaction selection language', () {
+    Future<void> pumpLogger(WidgetTester tester, {ThemeData? theme}) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
-            theme: MenoMateTheme.sakuraTheme,
+            theme: theme ?? MenoMateTheme.sakuraTheme,
             home: const SymptomLoggerScreen(),
           ),
         ),
@@ -530,7 +530,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     }
 
-    Finder selectedBubble(Color color) => find.byWidgetPredicate(
+    Finder selectedChip(Color color) => find.byWidgetPredicate(
           (w) =>
               w is AnimatedContainer &&
               (w.decoration as BoxDecoration?)?.color == color,
@@ -541,31 +541,44 @@ void main() {
       await tester.tap(find.text('Happy'));
       await tester.pump();
 
-      expect(selectedBubble(MenoMateTheme.sakuraInteraction), findsOneWidget);
+      expect(selectedChip(MenoMateTheme.sakuraInteraction), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('flow selection shares the menstrual rose', (tester) async {
+    // Daily Log rework: every category shares the indigo interaction
+    // treatment (category meaning lives in the section icon, not the
+    // selection color). Rose/amber selections are intentionally gone.
+    testWidgets('flow selection uses interaction indigo, not rose', (tester) async {
       await pumpLogger(tester);
       // 'Light' labels both the Flow and Discharge options; the Flow
-      // section precedes Discharge, so .first is the flow bubble.
+      // section precedes Discharge, so .first is the flow chip.
       await tester.ensureVisible(find.text('Light').first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Light').first);
       await tester.pump();
 
-      expect(selectedBubble(MenoMateTheme.sakuraPrimaryDark), findsOneWidget);
+      expect(selectedChip(MenoMateTheme.sakuraInteraction), findsOneWidget);
+      expect(selectedChip(MenoMateTheme.sakuraPrimaryDark), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('pain selection is dusty amber', (tester) async {
+    testWidgets('pain slider uses interaction indigo, not amber', (tester) async {
       await pumpLogger(tester);
-      await tester.ensureVisible(find.text('5'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('5'));
+      final slider = find.byType(Slider);
+      expect(slider, findsOneWidget);
+      expect(tester.widget<Slider>(slider).activeColor,
+          MenoMateTheme.sakuraInteraction);
+      expect(selectedChip(MenoMateTheme.sakuraAmber), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('dark mode selection uses starry interaction indigo',
+        (tester) async {
+      await pumpLogger(tester, theme: MenoMateTheme.starryNightTheme);
+      await tester.tap(find.text('Happy'));
       await tester.pump();
 
-      expect(selectedBubble(MenoMateTheme.sakuraAmber), findsOneWidget);
+      expect(selectedChip(MenoMateTheme.starryInteraction), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   });

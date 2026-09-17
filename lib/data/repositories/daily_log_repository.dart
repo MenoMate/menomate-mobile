@@ -38,7 +38,7 @@ class DailyLogRepository {
       userId: row.userId,
       logDate: row.logDate,
       pain: row.pain,
-      mood: row.mood,
+      mood: parseMoods(row.mood),
       discharge: row.discharge,
       flow: row.flow,
       notes: row.notes,
@@ -57,13 +57,16 @@ class DailyLogRepository {
     final isoDate = payload.logDate ?? todayIso();
     await db.transaction(() async {
       final existing = await _localRow(userId, isoDate);
+      // Mood is stored encoded (JSON array string); decode tolerates
+      // legacy bare-string rows.
+      final encodedMood = encodeMoods(payload.mood);
       if (existing == null) {
         await db.into(db.localDailyLogs).insert(
               LocalDailyLogsCompanion.insert(
                 userId: userId,
                 logDate: isoDate,
                 pain: Value(payload.pain),
-                mood: Value(payload.mood),
+                mood: Value(encodedMood),
                 flow: Value(payload.flow),
                 discharge: Value(payload.discharge),
                 notes: Value(payload.notes),
@@ -76,7 +79,7 @@ class DailyLogRepository {
                   t.userId.equals(userId) & t.logDate.equals(isoDate)))
             .write(LocalDailyLogsCompanion(
           pain: Value(payload.pain),
-          mood: Value(payload.mood),
+          mood: Value(encodedMood),
           flow: Value(payload.flow),
           discharge: Value(payload.discharge),
           notes: Value(payload.notes),
@@ -221,7 +224,7 @@ class DailyLogRepository {
         final remote = await api.upsertDailyLog(DailyLogCreate(
           logDate: row.logDate,
           pain: row.pain,
-          mood: row.mood,
+          mood: parseMoods(row.mood),
           discharge: row.discharge,
           flow: row.flow,
           symptoms: [

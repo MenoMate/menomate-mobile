@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 class SymptomItem {
   final String symptomType;
   final int severity;
@@ -51,12 +53,32 @@ const List<LoggableSymptom> kLoggableSymptoms = [
   LoggableSymptom('dizziness', 'Dizziness / Lightheadedness'),
 ];
 
+/// Qualitative discharge characteristics (not amount), mirroring the
+/// backend `DischargeEnum`. Stored legacy values outside this set (from
+/// before the vocabulary change) render as unselected — never reinterpreted.
+class DischargeOption {
+  final String id;
+  final String label;
+
+  const DischargeOption(this.id, this.label);
+}
+
+const List<DischargeOption> kDischargeOptions = [
+  DischargeOption('sticky', 'Sticky'),
+  DischargeOption('creamy', 'Creamy'),
+  DischargeOption('watery', 'Watery'),
+  DischargeOption('slippery', 'Slippery / Stretchy'),
+];
+
 class DailyLogCreate {
   final String? logDate;
 
   /// Null = pain not provided; 0 = explicitly logged no pain.
   final int? pain;
-  final String? mood;
+
+  /// Null/empty = no mood logged. Serialized as a JSON array string
+  /// server-side; the repository encodes/decodes transparently.
+  final List<String>? mood;
   final String? discharge;
   final String? flow;
   final List<SymptomItem> symptoms;
@@ -76,7 +98,7 @@ class DailyLogCreate {
     return {
       if (logDate != null) 'log_date': logDate,
       if (pain != null) 'pain': pain,
-      if (mood != null) 'mood': mood,
+      if (mood != null && mood!.isNotEmpty) 'mood': mood,
       if (discharge != null) 'discharge': discharge,
       if (flow != null) 'flow': flow,
       'symptoms': symptoms.map((e) => e.toJson()).toList(),
@@ -92,7 +114,9 @@ class DailyLogResponse {
 
   /// Null = pain not provided; 0 = explicitly logged no pain.
   final int? pain;
-  final String? mood;
+
+  /// Null/empty = no mood logged.
+  final List<String>? mood;
   final String? discharge;
   final String? flow;
   final String? notes;
@@ -116,7 +140,7 @@ class DailyLogResponse {
       userId: json['user_id'] as String,
       logDate: json['log_date'] as String,
       pain: json['pain'] as int?,
-      mood: json['mood'] as String?,
+      mood: parseMoods(json['mood']),
       discharge: json['discharge'] as String?,
       flow: json['flow'] as String?,
       notes: json['notes'] as String?,
@@ -126,4 +150,36 @@ class DailyLogResponse {
           [],
     );
   }
+}
+
+/// Encode a mood selection for local TEXT storage (mirrors the server
+/// JSON-array convention). Null/empty stores NULL.
+String? encodeMoods(List<String>? moods) {
+  if (moods == null || moods.isEmpty) return null;
+  return jsonEncode(moods);
+}
+
+/// Tolerant mood reader: JSON arrays, legacy bare strings ("happy" ->
+/// ["happy"]), and null all decode without ever throwing.
+List<String>? parseMoods(dynamic value) {
+  if (value == null) return null;
+  if (value is List) {
+    final items =
+        value.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
+    return items.isEmpty ? null : items;
+  }
+  if (value is String) {
+    final text = value.trim();
+    if (text.isEmpty) return null;
+    if (text.startsWith('[')) {
+      try {
+        final decoded = jsonDecode(text);
+        if (decoded is List) return parseMoods(decoded);
+      } catch (_) {
+        // Fall through to bare-string handling below.
+      }
+    }
+    return [text];
+  }
+  return null;
 }
