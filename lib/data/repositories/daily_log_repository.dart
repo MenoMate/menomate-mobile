@@ -17,19 +17,14 @@ class DailyLogRepository {
 
   Future<LocalDailyLog?> _localRow(String userId, String isoDate) {
     return (db.select(db.localDailyLogs)
-          ..where((t) =>
-              t.userId.equals(userId) & t.logDate.equals(isoDate)))
+          ..where((t) => t.userId.equals(userId) & t.logDate.equals(isoDate)))
         .getSingleOrNull();
   }
 
-  Future<List<LocalSymptom>> _localSymptoms(
-    String userId,
-    String isoDate,
-  ) {
-    return (db.select(db.localSymptoms)
-          ..where((t) =>
-              t.userId.equals(userId) & t.logDate.equals(isoDate)))
-        .get();
+  Future<List<LocalSymptom>> _localSymptoms(String userId, String isoDate) {
+    return (db.select(
+      db.localSymptoms,
+    )..where((t) => t.userId.equals(userId) & t.logDate.equals(isoDate))).get();
   }
 
   DailyLogResponse _assemble(LocalDailyLog row, List<LocalSymptom> symptoms) {
@@ -61,7 +56,9 @@ class DailyLogRepository {
       // legacy bare-string rows.
       final encodedMood = encodeMoods(payload.mood);
       if (existing == null) {
-        await db.into(db.localDailyLogs).insert(
+        await db
+            .into(db.localDailyLogs)
+            .insert(
               LocalDailyLogsCompanion.insert(
                 userId: userId,
                 logDate: isoDate,
@@ -74,25 +71,28 @@ class DailyLogRepository {
               ),
             );
       } else {
-        await (db.update(db.localDailyLogs)
-              ..where((t) =>
-                  t.userId.equals(userId) & t.logDate.equals(isoDate)))
-            .write(LocalDailyLogsCompanion(
-          pain: Value(payload.pain),
-          mood: Value(encodedMood),
-          flow: Value(payload.flow),
-          discharge: Value(payload.discharge),
-          notes: Value(payload.notes),
-          syncState: Value(state),
-          updatedAt: Value(DateTime.now()),
-        ));
+        await (db.update(db.localDailyLogs)..where(
+              (t) => t.userId.equals(userId) & t.logDate.equals(isoDate),
+            ))
+            .write(
+              LocalDailyLogsCompanion(
+                pain: Value(payload.pain),
+                mood: Value(encodedMood),
+                flow: Value(payload.flow),
+                discharge: Value(payload.discharge),
+                notes: Value(payload.notes),
+                syncState: Value(state),
+                updatedAt: Value(DateTime.now()),
+              ),
+            );
       }
       await (db.delete(db.localSymptoms)
-            ..where((t) =>
-                t.userId.equals(userId) & t.logDate.equals(isoDate)))
+            ..where((t) => t.userId.equals(userId) & t.logDate.equals(isoDate)))
           .go();
       for (final s in payload.symptoms) {
-        await db.into(db.localSymptoms).insert(
+        await db
+            .into(db.localSymptoms)
+            .insert(
               LocalSymptomsCompanion.insert(
                 userId: userId,
                 logDate: isoDate,
@@ -105,13 +105,14 @@ class DailyLogRepository {
   }
 
   Future<void> _markState(String userId, String isoDate, SyncState state) {
-    return (db.update(db.localDailyLogs)
-          ..where(
-              (t) => t.userId.equals(userId) & t.logDate.equals(isoDate)))
-        .write(LocalDailyLogsCompanion(
-      syncState: Value(state),
-      updatedAt: Value(DateTime.now()),
-    ));
+    return (db.update(
+      db.localDailyLogs,
+    )..where((t) => t.userId.equals(userId) & t.logDate.equals(isoDate))).write(
+      LocalDailyLogsCompanion(
+        syncState: Value(state),
+        updatedAt: Value(DateTime.now()),
+      ),
+    );
   }
 
   /// Local-first read: local row renders immediately; remote refresh
@@ -183,15 +184,37 @@ class DailyLogRepository {
     );
   }
 
+  /// Local-only read for offline tracking: serves the local row without
+  /// any network attempt. Missing row is [NoData], never an error.
+  Future<DataState<DailyLogResponse?>> loadLogLocal(
+    String userId,
+    String isoDate,
+  ) async {
+    final local = await _localRow(userId, isoDate);
+    if (local == null) return const NoData();
+    final view = _assemble(local, await _localSymptoms(userId, isoDate));
+    if (local.syncState == SyncState.conflict) {
+      return ConflictState(view, 'This entry needs review.');
+    }
+    if (local.syncState == SyncState.pending) return PendingSync(view);
+    return Fresh(view);
+  }
+
   /// Local-first save: persists locally (pending) before any network
   /// attempt, so the entry survives offline + restart. On 2xx the row is
   /// marked synced; on conflict only this date is flagged.
   Future<DataState<DailyLogResponse>> saveLog(
     String userId,
-    DailyLogCreate payload,
-  ) async {
+    DailyLogCreate payload, {
+    bool localOnly = false,
+  }) async {
     final isoDate = payload.logDate ?? todayIso();
     await _storeLocal(userId, payload, SyncState.pending);
+    if (localOnly) {
+      final row = await _localRow(userId, isoDate);
+      final view = _assemble(row!, await _localSymptoms(userId, isoDate));
+      return PendingSync(view);
+    }
     try {
       final remote = await api.upsertDailyLog(payload);
       await _storeFromResponse(userId, remote, SyncState.synced);
@@ -212,27 +235,32 @@ class DailyLogRepository {
   /// Pushes pending dates oldest-first. Upsert-by-date is idempotent, so
   /// repeats converge. Continues past conflicts; stops on network/5xx/auth.
   Future<void> syncPending(String userId) async {
-    final pending = await (db.select(db.localDailyLogs)
-          ..where((t) =>
-              t.userId.equals(userId) &
-              t.syncState.equals(SyncState.pending.index))
-          ..orderBy([(t) => OrderingTerm.asc(t.logDate)]))
-        .get();
+    final pending =
+        await (db.select(db.localDailyLogs)
+              ..where(
+                (t) =>
+                    t.userId.equals(userId) &
+                    t.syncState.equals(SyncState.pending.index),
+              )
+              ..orderBy([(t) => OrderingTerm.asc(t.logDate)]))
+            .get();
     for (final row in pending) {
       final symptoms = await _localSymptoms(userId, row.logDate);
       try {
-        final remote = await api.upsertDailyLog(DailyLogCreate(
-          logDate: row.logDate,
-          pain: row.pain,
-          mood: parseMoods(row.mood),
-          discharge: row.discharge,
-          flow: row.flow,
-          symptoms: [
-            for (final s in symptoms)
-              SymptomItem(symptomType: s.symptomType, severity: s.severity),
-          ],
-          notes: row.notes,
-        ));
+        final remote = await api.upsertDailyLog(
+          DailyLogCreate(
+            logDate: row.logDate,
+            pain: row.pain,
+            mood: parseMoods(row.mood),
+            discharge: row.discharge,
+            flow: row.flow,
+            symptoms: [
+              for (final s in symptoms)
+                SymptomItem(symptomType: s.symptomType, severity: s.severity),
+            ],
+            notes: row.notes,
+          ),
+        );
         await _storeFromResponse(userId, remote, SyncState.synced);
       } on ApiError catch (e) {
         final outcome = classifySyncError(e);

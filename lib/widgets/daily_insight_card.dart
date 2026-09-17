@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../content/insight_library.dart';
-import '../core/theme.dart';
 import '../data/sync_policy.dart';
 import '../models/cycle.dart';
 import '../providers/cycle_provider.dart';
@@ -51,8 +51,7 @@ class DailyInsightNotifier extends Notifier<AsyncValue<InsightPair?>> {
     return InsightInput(
       hasData: data?.hasData ?? false,
       phase: data?.phase ?? 'unknown',
-      menstrualDay:
-          (data?.isBleeding ?? false) ? data?.currentCycleDay : null,
+      menstrualDay: (data?.isBleeding ?? false) ? data?.currentCycleDay : null,
     );
   }
 
@@ -61,11 +60,10 @@ class DailyInsightNotifier extends Notifier<AsyncValue<InsightPair?>> {
   /// short-lived listener — never by awaiting the provider future,
   /// which does not complete when the provider is in error.
   Future<AsyncValue<DataState<CurrentCycleResponse?>>>
-      _firstSettledCycle() async {
+  _firstSettledCycle() async {
     final current = ref.read(currentCycleProvider);
     if (current.hasValue || current.hasError) return current;
-    final completer =
-        Completer<AsyncValue<DataState<CurrentCycleResponse?>>>();
+    final completer = Completer<AsyncValue<DataState<CurrentCycleResponse?>>>();
     final sub = ref.listen<AsyncValue<DataState<CurrentCycleResponse?>>>(
       currentCycleProvider,
       (previous, next) {
@@ -84,8 +82,8 @@ class DailyInsightNotifier extends Notifier<AsyncValue<InsightPair?>> {
 
 final dailyInsightProvider =
     NotifierProvider<DailyInsightNotifier, AsyncValue<InsightPair?>>(
-  DailyInsightNotifier.new,
-);
+      DailyInsightNotifier.new,
+    );
 
 class DailyInsightCard extends ConsumerStatefulWidget {
   const DailyInsightCard({super.key});
@@ -96,14 +94,6 @@ class DailyInsightCard extends ConsumerStatefulWidget {
 
 class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
   bool _isDismissed = false;
-  late final PageController _pages = PageController();
-  int _page = 0;
-
-  @override
-  void dispose() {
-    _pages.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -125,74 +115,37 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
       child: Card(
         elevation: 0,
         margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         color: colorScheme.surface,
         child: Padding(
           // Tight vertical padding; the card height is driven by the
           // content, with only enough room to breathe.
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: insightAsync.when(
+            // Stacked, not swiped: the personalized piece reads first at
+            // full weight, the complementary action follows quieter. No
+            // fixed heights — the card sizes to its content on any device
+            // or text scale.
             data: (pair) {
-              final slides = pair == null
-                  ? const [
-                      _InsightSlide(
-                        title: 'Daily insight',
-                        piece: InsightPiece(
-                          body: 'Listen to your body today and take it easy.',
-                        ),
-                      ),
-                    ]
-                  : [
-                      _InsightSlide(
-                          title: 'Today’s insight', piece: pair.insight),
-                      _InsightSlide(
-                          title: 'Helpful today', piece: pair.action),
-                    ];
+              final insight =
+                  pair?.insight ??
+                  const InsightPiece(
+                    body: 'Listen to your body today and take it easy.',
+                  );
+              final action = pair?.action;
               return Column(
                 key: const Key('daily_insight_content'),
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Manual swipe only: no autoplay, no timers.
-                  // Compact by design: the ring stays the primary surface.
-                  // Fits a 3-line body plus the tiny attribution at phone
-                  // widths; em-dash phrasing can wrap to three lines.
-                  // Sized to the tallest slide — no empty rectangle.
-                  SizedBox(
-                    height: 100,
-                    child: PageView.builder(
-                      controller: _pages,
-                      itemCount: slides.length,
-                      onPageChanged: (i) => setState(() => _page = i),
-                      itemBuilder: (context, i) => slides[i],
-                    ),
-                  ),
-                  if (slides.length > 1) ...[
+                  const _InsightSectionLabel(text: 'For you today'),
+                  const SizedBox(height: 4),
+                  _InsightBody(piece: insight),
+                  if (action != null) ...[
+                    const SizedBox(height: 12),
+                    const _InsightSectionLabel(text: 'Something to try'),
                     const SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        for (var i = 0; i < slides.length; i++)
-                          Container(
-                            width: 5,
-                            height: 5,
-                            margin:
-                                const EdgeInsets.symmetric(horizontal: 2),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: i == _page
-                                  // Position indicator: interaction indigo,
-                                  // not menstrual rose (no meaning here).
-                                  ? MenoMateTheme.interactionColor(
-                                      Theme.of(context).brightness ==
-                                          Brightness.dark)
-                                  : colorScheme.outline,
-                            ),
-                          ),
-                      ],
-                    ),
+                    _InsightBody(piece: action, quiet: true),
                   ],
                 ],
               );
@@ -206,11 +159,10 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
             error: (_, _) => Text(
               'Could not fetch your daily insight. Please try again later.',
               style: TextStyle(
-                  fontSize: 14,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.7)),
+                fontSize: 14,
+                color: Theme.of(context).colorScheme.onSurface
+                    .withValues(alpha: 0.7),
+              ),
             ),
           ),
         ),
@@ -219,13 +171,34 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
   }
 }
 
-/// One compact slide: short title, 1–2 sentence body, and a tiny source
-/// label only when the piece opts into visible attribution.
-class _InsightSlide extends StatelessWidget {
-  final String title;
-  final InsightPiece piece;
+/// Small-caps section label: quiet metadata, never competing with body.
+class _InsightSectionLabel extends StatelessWidget {
+  final String text;
 
-  const _InsightSlide({required this.title, required this.piece});
+  const _InsightSectionLabel({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.toUpperCase(),
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.bold,
+        letterSpacing: 0.8,
+        color: Theme.of(context).colorScheme.secondary,
+      ),
+    );
+  }
+}
+
+/// One compact piece: 1–2 sentence body, and a tiny source label only
+/// when the piece opts into visible attribution. The complementary action
+/// renders quieter so the personalized insight stays dominant.
+class _InsightBody extends StatelessWidget {
+  final InsightPiece piece;
+  final bool quiet;
+
+  const _InsightBody({required this.piece, this.quiet = false});
 
   @override
   Widget build(BuildContext context) {
@@ -234,20 +207,14 @@ class _InsightSlide extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          title,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.bold,
-            color: colorScheme.onSurface,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
           piece.body,
           style: TextStyle(
-              fontSize: 14,
-              color: colorScheme.onSurface,
-              height: 1.35),
+            fontSize: 14,
+            color: quiet
+                ? colorScheme.onSurface.withValues(alpha: 0.75)
+                : colorScheme.onSurface,
+            height: 1.35,
+          ),
         ),
         if (piece.showAttribution && piece.attributionLabel != null) ...[
           const SizedBox(height: 4),

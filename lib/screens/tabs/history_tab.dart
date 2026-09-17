@@ -83,7 +83,10 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
           slivers: [
             SliverToBoxAdapter(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -126,7 +129,9 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
 
                       // Calendar Legend (concise single prediction line)
                       _buildCalendarLegend(
-                          currentCycleAsync.value?.dataOrNull, context),
+                        currentCycleAsync.value?.dataOrNull,
+                        context,
+                      ),
 
                       // Selected Date Detail Card
                       if (_selectedDay != null) ...[
@@ -150,8 +155,9 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
                                 child: Text(
                                   'Couldn\'t load history. Check your connection and pull to refresh.',
                                   textAlign: TextAlign.center,
-                                  style:
-                                      TextStyle(color: colorScheme.secondary),
+                                  style: TextStyle(
+                                    color: colorScheme.secondary,
+                                  ),
                                 ),
                               ),
                             );
@@ -199,48 +205,51 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
             // Past Cycles List (Cycles pane only)
             if (_pane == _HistoryPane.cycles)
               summaryAsync.when(
-              data: (summaryState) {
-                if (summaryState is Unavailable) {
-                  return SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: Text(
-                          'Couldn\'t load history. Check your connection and pull to refresh.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: colorScheme.secondary),
+                data: (summaryState) {
+                  if (summaryState is Unavailable) {
+                    return SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text(
+                            'Couldn\'t load history. Check your connection and pull to refresh.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: colorScheme.secondary),
+                          ),
                         ),
+                      ),
+                    );
+                  }
+                  final summary = summaryState.dataOrNull;
+                  if (summary == null || summary.history.isEmpty) {
+                    return SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Center(
+                          child: Text(
+                            'No completed cycles logged yet.',
+                            style: TextStyle(color: colorScheme.secondary),
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  return SliverPadding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) =>
+                            _buildCycleTile(summary.history[index], context),
+                        childCount: summary.history.length,
                       ),
                     ),
                   );
-                }
-                final summary = summaryState.dataOrNull;
-                if (summary == null || summary.history.isEmpty) {
-                  return SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: Text(
-                          'No completed cycles logged yet.',
-                          style: TextStyle(color: colorScheme.secondary),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-                return SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) => _buildCycleTile(summary.history[index], context),
-                      childCount: summary.history.length,
-                    ),
-                  ),
-                );
-              },
-              loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
-              error: (_, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
-            ),
+                },
+                loading: () =>
+                    const SliverToBoxAdapter(child: SizedBox.shrink()),
+                error: (_, _) =>
+                    const SliverToBoxAdapter(child: SizedBox.shrink()),
+              ),
 
             const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
           ],
@@ -283,7 +292,8 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
         firstDay: DateTime.utc(2020, 1, 1),
         lastDay: DateTime.utc(2030, 12, 31),
         focusedDay: _focusedDay,
-        selectedDayPredicate: (day) => _selectedDay != null && isSameDay(_selectedDay, day),
+        selectedDayPredicate: (day) =>
+            _selectedDay != null && isSameDay(_selectedDay, day),
         onDaySelected: (selectedDay, focusedDay) {
           setState(() {
             _selectedDay = selectedDay;
@@ -298,8 +308,14 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
             fontWeight: FontWeight.bold,
             color: colorScheme.onSurface,
           ),
-          leftChevronIcon: Icon(Icons.chevron_left, color: colorScheme.onSurface),
-          rightChevronIcon: Icon(Icons.chevron_right, color: colorScheme.onSurface),
+          leftChevronIcon: Icon(
+            Icons.chevron_left,
+            color: colorScheme.onSurface,
+          ),
+          rightChevronIcon: Icon(
+            Icons.chevron_right,
+            color: colorScheme.onSurface,
+          ),
         ),
         onPageChanged: (focusedDay) {
           setState(() {
@@ -308,10 +324,21 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
         },
         calendarBuilders: CalendarBuilders(
           defaultBuilder: (context, day, focusedDay) {
-            return _buildCalendarCell(day, cycles, currentCycle, isOutside: false);
+            return _buildCalendarCell(
+              day,
+              cycles,
+              currentCycle,
+              isOutside: false,
+            );
           },
           todayBuilder: (context, day, focusedDay) {
-            return _buildCalendarCell(day, cycles, currentCycle, isToday: true, isOutside: false);
+            return _buildCalendarCell(
+              day,
+              cycles,
+              currentCycle,
+              isToday: true,
+              isOutside: false,
+            );
           },
           // Explicit selected styling in MenoMate tokens. Without this,
           // table_calendar falls back to its package-default indigo
@@ -327,7 +354,12 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
             );
           },
           outsideBuilder: (context, day, focusedDay) {
-            return _buildCalendarCell(day, cycles, currentCycle, isOutside: true);
+            return _buildCalendarCell(
+              day,
+              cycles,
+              currentCycle,
+              isOutside: true,
+            );
           },
         ),
       ),
@@ -350,9 +382,17 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     bool isLoggedPeriod = false;
     if (cycles != null) {
       for (var cycle in cycles) {
-        final start = DateTime(cycle.periodStart.year, cycle.periodStart.month, cycle.periodStart.day);
+        final start = DateTime(
+          cycle.periodStart.year,
+          cycle.periodStart.month,
+          cycle.periodStart.day,
+        );
         final end = cycle.periodEnd != null
-            ? DateTime(cycle.periodEnd!.year, cycle.periodEnd!.month, cycle.periodEnd!.day)
+            ? DateTime(
+                cycle.periodEnd!.year,
+                cycle.periodEnd!.month,
+                cycle.periodEnd!.day,
+              )
             : (currentCycle?.isBleeding == true ? DateTime.now() : start);
 
         if (!checkDay.isBefore(start) && !checkDay.isAfter(end)) {
@@ -362,16 +402,22 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
       }
     }
 
-    // 2. Check predicted future period across month boundary
+    // 2. Check predicted future period across month boundary.
+    // No fallback length: without a known average period length there is
+    // no honest span to paint, so no predicted marking is shown.
     bool isPredictedPeriod = false;
-    if (!isLoggedPeriod && currentCycle != null && currentCycle.predictedNextPeriod != null) {
+    if (!isLoggedPeriod &&
+        currentCycle != null &&
+        currentCycle.predictedNextPeriod != null) {
       final pStart = currentCycle.predictedNextPeriod!;
       final start = DateTime(pStart.year, pStart.month, pStart.day);
-      final avgLen = currentCycle.averagePeriodLength ?? 5;
-      final end = start.add(Duration(days: avgLen - 1));
+      final avgLen = currentCycle.averagePeriodLength;
+      if (avgLen != null) {
+        final end = start.add(Duration(days: avgLen - 1));
 
-      if (!checkDay.isBefore(start) && !checkDay.isAfter(end)) {
-        isPredictedPeriod = true;
+        if (!checkDay.isBefore(start) && !checkDay.isAfter(end)) {
+          isPredictedPeriod = true;
+        }
       }
     }
 
@@ -443,7 +489,8 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
         '${day.day}',
         style: TextStyle(
           color: textColor,
-          fontWeight: (isLoggedPeriod || isPredictedPeriod || isToday || isSelected)
+          fontWeight:
+              (isLoggedPeriod || isPredictedPeriod || isToday || isSelected)
               ? FontWeight.bold
               : FontWeight.normal,
           fontSize: 13,
@@ -452,7 +499,10 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     );
   }
 
-  Widget _buildCalendarLegend(CurrentCycleResponse? currentCycle, BuildContext context) {
+  Widget _buildCalendarLegend(
+    CurrentCycleResponse? currentCycle,
+    BuildContext context,
+  ) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final nextPredicted = currentCycle?.predictedNextPeriod;
@@ -485,16 +535,25 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildLegendDot('Logged period', colorScheme,
-                  fill: colorScheme.primary),
-              _buildLegendDot('Predicted span', colorScheme,
-                  fill: colorScheme.tertiary.withValues(alpha: 0.25),
-                  rim: colorScheme.tertiary),
+              _buildLegendDot(
+                'Logged period',
+                colorScheme,
+                fill: colorScheme.primary,
+              ),
+              _buildLegendDot(
+                'Predicted span',
+                colorScheme,
+                fill: colorScheme.tertiary.withValues(alpha: 0.25),
+                rim: colorScheme.tertiary,
+              ),
               // Neutral Today marker: the exact fill + rim of today cells,
               // so the three meanings separate without relying on the rim.
-              _buildLegendDot('Today', colorScheme,
-                  fill: todayNeutralFill(colorScheme),
-                  rim: colorScheme.onSurface),
+              _buildLegendDot(
+                'Today',
+                colorScheme,
+                fill: todayNeutralFill(colorScheme),
+                rim: colorScheme.onSurface,
+              ),
             ],
           ),
           Divider(height: 16, color: colorScheme.outline),
@@ -502,8 +561,11 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
             children: [
               // Prediction line carries the prediction violet, matching the
               // predicted-span legend dot and cells — never menstrual rose.
-              Icon(Icons.auto_awesome_outlined,
-                  size: 16, color: colorScheme.tertiary),
+              Icon(
+                Icons.auto_awesome_outlined,
+                size: 16,
+                color: colorScheme.tertiary,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -522,8 +584,13 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     );
   }
 
-  Widget _buildLegendDot(String label, ColorScheme colorScheme,
-      {required Color fill, Color? rim, double rimWidth = 1.5}) {
+  Widget _buildLegendDot(
+    String label,
+    ColorScheme colorScheme, {
+    required Color fill,
+    Color? rim,
+    double rimWidth = 1.5,
+  }) {
     return Row(
       children: [
         Container(
@@ -532,8 +599,9 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
           decoration: BoxDecoration(
             color: fill,
             shape: BoxShape.circle,
-            border:
-                rim != null ? Border.all(color: rim, width: rimWidth) : null,
+            border: rim != null
+                ? Border.all(color: rim, width: rimWidth)
+                : null,
           ),
         ),
         const SizedBox(width: 6),
@@ -560,7 +628,11 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     bool isPeriod = false;
     if (cycles != null) {
       for (var c in cycles) {
-        final start = DateTime(c.periodStart.year, c.periodStart.month, c.periodStart.day);
+        final start = DateTime(
+          c.periodStart.year,
+          c.periodStart.month,
+          c.periodStart.day,
+        );
         final end = c.periodEnd != null
             ? DateTime(c.periodEnd!.year, c.periodEnd!.month, c.periodEnd!.day)
             : (currentCycle?.isBleeding == true ? DateTime.now() : start);
@@ -572,24 +644,34 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     }
 
     bool isPredicted = false;
-    if (!isPeriod && currentCycle != null && currentCycle.predictedNextPeriod != null) {
+    if (!isPeriod &&
+        currentCycle != null &&
+        currentCycle.predictedNextPeriod != null) {
       final pStart = currentCycle.predictedNextPeriod!;
       final start = DateTime(pStart.year, pStart.month, pStart.day);
-      final avgLen = currentCycle.averagePeriodLength ?? 5;
-      final end = start.add(Duration(days: avgLen - 1));
-      if (!checkDay.isBefore(start) && !checkDay.isAfter(end)) {
-        isPredicted = true;
+      final avgLen = currentCycle.averagePeriodLength;
+      if (avgLen != null) {
+        final end = start.add(Duration(days: avgLen - 1));
+        if (!checkDay.isBefore(start) && !checkDay.isAfter(end)) {
+          isPredicted = true;
+        }
       }
     }
 
     // Quiet status: short label + small icon in the semantic color. The
     // pill treatment is intentionally gone — the status must communicate
     // without dominating the date. Wording stays factual.
+    final now = DateTime.now();
+    final todayDay = DateTime(now.year, now.month, now.day);
     String statusText = 'Non-bleeding day';
     Color statusColor = colorScheme.secondary;
     IconData statusIcon = Icons.circle_outlined;
     if (isPeriod) {
-      statusText = 'Period active';
+      // A logged period lying entirely in the future is recorded, not
+      // currently active.
+      statusText = checkDay.isAfter(todayDay)
+          ? 'Logged period'
+          : 'Period active';
       statusColor = colorScheme.primary;
       statusIcon = Icons.water_drop_outlined;
     } else if (isPredicted) {
@@ -601,14 +683,15 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
     // Cycle context uses served today-values, and only when the selected
     // day IS today: day-index/phase for arbitrary past dates would require
     // inventing backend-owned phase semantics client-side, which is out of
-    // scope. Non-today meaning rides on the status row above.
+    // scope. Non-today meaning rides on the status row above. No fallback
+    // day number: an unknown day renders the phase label alone.
     String? contextText;
-    if (currentCycle != null && isSameDay(DateTime.now(), day)) {
-      final phase = currentCycle.phase;
-      final phaseLabel = phase.isEmpty
-          ? phase
-          : phase[0].toUpperCase() + phase.substring(1).toLowerCase();
-      contextText = 'Day ${currentCycle.currentCycleDay ?? 1} · $phaseLabel';
+    if (currentCycle != null && isSameDay(now, day)) {
+      final phaseLabel = formatPhaseLabel(currentCycle.phase);
+      final cycleDay = currentCycle.currentCycleDay;
+      contextText = cycleDay == null
+          ? phaseLabel
+          : 'Day $cycleDay · $phaseLabel';
     }
 
     return Container(
@@ -700,13 +783,17 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
             color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 4),
-          )
+          ),
         ],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _buildStatItem('Cycles Logged', summary.totalPeriodsLogged.toString(), colorScheme),
+          _buildStatItem(
+            'Cycles Logged',
+            summary.totalPeriodsLogged.toString(),
+            colorScheme,
+          ),
           _buildDivider(colorScheme),
           _buildStatItem('Avg Cycle', avgCycleText, colorScheme),
           _buildDivider(colorScheme),
@@ -717,11 +804,7 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
   }
 
   Widget _buildDivider(ColorScheme colorScheme) {
-    return Container(
-      height: 36,
-      width: 1,
-      color: colorScheme.outline,
-    );
+    return Container(height: 36, width: 1, color: colorScheme.outline);
   }
 
   Widget _buildStatItem(String label, String value, ColorScheme colorScheme) {

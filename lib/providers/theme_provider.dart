@@ -22,9 +22,9 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
       final userId = ref.read(currentUserIdProvider);
       if (userId == null) return;
       final db = ref.read(appDatabaseProvider);
-      final row = await (db.select(db.localProfiles)
-            ..where((t) => t.userId.equals(userId)))
-          .getSingleOrNull();
+      final row = await (db.select(
+        db.localProfiles,
+      )..where((t) => t.userId.equals(userId))).getSingleOrNull();
       final saved = row?.theme?.toLowerCase();
       if (saved == 'dark') {
         state = ThemeMode.dark;
@@ -41,19 +41,37 @@ class ThemeModeNotifier extends Notifier<ThemeMode> {
     unawaited(_persist(state == ThemeMode.dark ? 'dark' : 'light'));
   }
 
+  /// Targeted theme write: updates only the theme/sync bookkeeping
+  /// columns so display name, usual lengths, units, and timezone are never
+  /// clobbered. Falls back to a minimal insert only when no profile row
+  /// exists yet for this user.
   Future<void> _persist(String theme) async {
     try {
       final userId = ref.read(currentUserIdProvider);
       if (userId == null) return;
       final db = ref.read(appDatabaseProvider);
-      await db.into(db.localProfiles).insertOnConflictUpdate(
-            LocalProfilesCompanion.insert(
-              userId: userId,
+      final updated =
+          await (db.update(
+            db.localProfiles,
+          )..where((t) => t.userId.equals(userId))).write(
+            LocalProfilesCompanion(
               theme: Value(theme),
               syncState: const Value(SyncState.pending),
               updatedAt: Value(DateTime.now()),
             ),
           );
+      if (updated == 0) {
+        await db
+            .into(db.localProfiles)
+            .insert(
+              LocalProfilesCompanion.insert(
+                userId: userId,
+                theme: Value(theme),
+                syncState: const Value(SyncState.pending),
+                updatedAt: Value(DateTime.now()),
+              ),
+            );
+      }
     } catch (_) {
       // Local persist failed; in-memory state still applies this session.
     }

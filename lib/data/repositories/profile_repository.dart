@@ -17,9 +17,9 @@ class ProfileRepository {
   ProfileRepository(this.db, this.api);
 
   Future<LocalProfile?> _localRow(String userId) {
-    return (db.select(db.localProfiles)
-          ..where((t) => t.userId.equals(userId)))
-        .getSingleOrNull();
+    return (db.select(
+      db.localProfiles,
+    )..where((t) => t.userId.equals(userId))).getSingleOrNull();
   }
 
   Profile _assemble(LocalProfile row) {
@@ -31,11 +31,15 @@ class ProfileRepository {
       theme: row.theme,
       units: row.units,
       timezone: row.timezone,
+      birthYear: row.birthYear,
+      birthMonth: row.birthMonth,
     );
   }
 
   Future<void> _store(Profile profile, SyncState state) {
-    return db.into(db.localProfiles).insertOnConflictUpdate(
+    return db
+        .into(db.localProfiles)
+        .insertOnConflictUpdate(
           LocalProfilesCompanion.insert(
             userId: profile.userId,
             name: Value(profile.name),
@@ -44,6 +48,8 @@ class ProfileRepository {
             theme: Value(profile.theme),
             units: Value(profile.units),
             timezone: Value(profile.timezone),
+            birthYear: Value(profile.birthYear),
+            birthMonth: Value(profile.birthMonth),
             syncState: Value(state),
             updatedAt: Value(DateTime.now()),
           ),
@@ -83,12 +89,30 @@ class ProfileRepository {
     }
   }
 
+  /// Local-only read for offline tracking: serves the local row without
+  /// ever touching the network. Null row is [NoData] (onboarding not done),
+  /// never an error or an auth prompt. Sync-state mapping mirrors
+  /// [loadProfile] so offline rows honestly report as not-yet-synced.
+  Future<DataState<Profile?>> loadProfileLocal(String userId) async {
+    final local = await _localRow(userId);
+    if (local == null) return const NoData();
+    final view = _assemble(local);
+    if (local.syncState == SyncState.conflict) {
+      return ConflictState<Profile?>(view, 'Profile needs review.');
+    }
+    if (local.syncState == SyncState.pending) {
+      return PendingSync<Profile?>(view);
+    }
+    return Fresh<Profile?>(view);
+  }
+
   /// Applies [payload] locally first (keys present with null clear the
   /// field), then PATCHes remotely. Stays pending while offline.
   Future<DataState<Profile>> saveProfile(
     String userId,
-    Map<String, dynamic> payload,
-  ) async {
+    Map<String, dynamic> payload, {
+    bool localOnly = false,
+  }) async {
     final local = await _localRow(userId);
     final merged = _applyPayload(
       userId,
@@ -96,6 +120,7 @@ class ProfileRepository {
       payload,
     );
     await _store(merged, SyncState.pending);
+    if (localOnly) return PendingSync(merged);
     try {
       final remote = await api.patchProfile(payload);
       await _store(remote, SyncState.synced);
@@ -130,11 +155,12 @@ class ProfileRepository {
       userId: userId,
       name: pick('name', base?.name) as String?,
       usualCycleDays: asInt(pick('usual_cycle_days', base?.usualCycleDays)),
-      usualPeriodDays:
-          asInt(pick('usual_period_days', base?.usualPeriodDays)),
+      usualPeriodDays: asInt(pick('usual_period_days', base?.usualPeriodDays)),
       theme: pick('theme', base?.theme) as String?,
       units: pick('units', base?.units) as String?,
       timezone: pick('timezone', base?.timezone) as String?,
+      birthYear: asInt(pick('birth_year', base?.birthYear)),
+      birthMonth: asInt(pick('birth_month', base?.birthMonth)),
     );
   }
 
@@ -177,6 +203,8 @@ class ProfileRepository {
       'usual_period_days': view.usualPeriodDays,
       'theme': view.theme,
       'units': view.units,
+      'birth_year': view.birthYear,
+      'birth_month': view.birthMonth,
     };
     if (view.timezone != null) {
       payload['timezone'] = view.timezone;

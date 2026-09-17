@@ -8,6 +8,7 @@ import 'core/theme.dart';
 import 'data/app_database.dart';
 import 'providers/cycle_provider.dart';
 import 'providers/data_providers.dart';
+import 'providers/offline_mode_provider.dart';
 import 'providers/theme_provider.dart';
 
 Future<void> main() async {
@@ -26,9 +27,7 @@ Future<void> main() async {
   runApp(
     // Wrap the entire app in a ProviderScope to enable Riverpod
     ProviderScope(
-      overrides: [
-        appDatabaseProvider.overrideWithValue(db),
-      ],
+      overrides: [appDatabaseProvider.overrideWithValue(db)],
       child: const MenoMateApp(),
     ),
   );
@@ -44,6 +43,8 @@ class MenoMateApp extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     // Activates reconnect/app-start sync passes for the local-first stores.
     ref.watch(connectivitySyncProvider);
+    // Clears a stale offline flag once a real session exists.
+    ref.watch(offlineFlagJanitorProvider);
 
     return MaterialApp.router(
       title: 'MenoMate',

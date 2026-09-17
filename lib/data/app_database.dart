@@ -6,13 +6,28 @@ import 'package:path_provider/path_provider.dart';
 
 part 'app_database.g.dart';
 
+/// Stable identity for local-only tracking rows. Deliberately NOT a UUID:
+/// it can never collide with a Supabase user id, is never sent to Supabase
+/// Auth, and never creates an account of any kind. Lives here (not in a
+/// provider) so both the database helpers and the Riverpod layer can share
+/// it without an import cycle.
+const kOfflineUserId = 'offline-local';
+
+/// Adoptable offline data, counted inside the adoption transaction so an
+/// offer built from these numbers is reliable — never an estimate.
+/// `healthContext` is true when the offline singleton carries any
+/// user-provided field.
+typedef OfflineAdoptionCounts = ({
+  int cycles,
+  int logs,
+  int conditions,
+  int medications,
+  bool healthContext,
+});
+
 /// Record-level sync state stored on each user-data row.
 /// No separate outbox table: every queued operation maps 1:1 to a row.
-enum SyncState {
-  synced,
-  pending,
-  conflict,
-}
+enum SyncState { synced, pending, conflict }
 
 /// Local profile/preferences. One row per user.
 /// Mirrors only the fields the offline Settings screen reads/writes.
@@ -26,12 +41,71 @@ class LocalProfiles extends Table {
   // Canonical IANA timezone, synced to the server profile. Null until the
   // device reports it; offline-safe (pending rows flush via syncPending).
   TextColumn get timezone => text().nullable()();
+  // Month/year precision only — no birth day is ever asked for or stored.
+  // Null pair means "not provided" (mirrors the backend pair contract).
+  IntColumn get birthYear => integer().nullable()();
+  IntColumn get birthMonth => integer().nullable()();
   IntColumn get syncState =>
       intEnum<SyncState>().withDefault(Constant(SyncState.synced.index))();
   DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 
   @override
   Set<Column> get primaryKey => {userId};
+}
+
+/// Singleton health context per user: contraception / pregnancy selections
+/// plus free-text notes. All content columns optional; the row merely
+/// records what the user chose to provide. Replaced wholesale on sync
+/// (PUT), never merged with server inference — there is none.
+class LocalHealthContext extends Table {
+  TextColumn get userId => text()();
+  TextColumn get contraceptionMethod => text().nullable()();
+  TextColumn get contraceptionNote => text().nullable()();
+  TextColumn get pregnancyContext => text().nullable()();
+  TextColumn get healthNotes => text().nullable()();
+  IntColumn get syncState =>
+      intEnum<SyncState>().withDefault(Constant(SyncState.synced.index))();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {userId};
+}
+
+/// User-reported health conditions. Presence in this table is the user's
+/// own statement — never a detection or diagnosis. `localId` is the safe
+/// temporary identity for offline-created rows; `serverId` is filled when
+/// the backend create succeeds. `isDeleted` is a sync tombstone: deletes
+/// apply locally immediately and are pushed as DELETE on the next pass.
+class LocalConditions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get localId => text().unique()();
+  TextColumn get userId => text()();
+  IntColumn get serverId => integer().nullable()();
+  TextColumn get code => text()();
+  TextColumn get customLabel => text().nullable()();
+  TextColumn get note => text().nullable()();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
+  IntColumn get syncState =>
+      intEnum<SyncState>().withDefault(Constant(SyncState.synced.index))();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// User-recorded medications/treatments. Names are free text and duplicates
+/// are allowed by backend design; nothing is ever inferred from them.
+/// Sync mechanics mirror [LocalConditions].
+class LocalMedications extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get localId => text().unique()();
+  TextColumn get userId => text()();
+  IntColumn get serverId => integer().nullable()();
+  TextColumn get name => text()();
+  TextColumn get note => text().nullable()();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
+  IntColumn get syncState =>
+      intEnum<SyncState>().withDefault(Constant(SyncState.synced.index))();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
 }
 
 /// Local cycles. Dates stored as ISO `yyyy-MM-dd` text for date-only
@@ -71,8 +145,8 @@ class LocalDailyLogs extends Table {
 
   @override
   List<Set<Column>> get uniqueKeys => [
-        {userId, logDate},
-      ];
+    {userId, logDate},
+  ];
 }
 
 /// Symptom children of a local daily log. Synced together with the parent
@@ -110,6 +184,9 @@ class PredictionCache extends Table {
     LocalDailyLogs,
     LocalSymptoms,
     PredictionCache,
+    LocalHealthContext,
+    LocalConditions,
+    LocalMedications,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -127,35 +204,241 @@ class AppDatabase extends _$AppDatabase {
   static AppDatabase memory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onUpgrade: (m, from, to) async {
-          // v1 -> v2: nullable profile timezone column (offline-safe;
-          // existing rows keep NULL until the device syncs its zone).
-          if (from < 2) {
-            await m.addColumn(localProfiles, localProfiles.timezone);
-          }
-          // v2 -> v3: daily-log pain becomes nullable so "not provided"
-          // (NULL) is distinct from "explicitly logged no pain" (0).
-          // Historical 0s are preserved untouched (never reinterpreted).
-          if (from < 3) {
-            await m.alterTable(TableMigration(
-              localDailyLogs,
-              newColumns: [localDailyLogs.pain],
-              // v2 rows are all non-null by the old constraint, so a
-              // plain cast preserves every value into the nullable column.
-              columnTransformer: {
-                localDailyLogs.pain: localDailyLogs.pain.cast<int>(),
-              },
-            ));
-          }
-        },
+    onUpgrade: (m, from, to) async {
+      // v1 -> v2: nullable profile timezone column (offline-safe;
+      // existing rows keep NULL until the device syncs its zone).
+      if (from < 2) {
+        await m.addColumn(localProfiles, localProfiles.timezone);
+      }
+      // v2 -> v3: daily-log pain becomes nullable so "not provided"
+      // (NULL) is distinct from "explicitly logged no pain" (0).
+      // Historical 0s are preserved untouched (never reinterpreted).
+      if (from < 3) {
+        await m.alterTable(
+          TableMigration(
+            localDailyLogs,
+            newColumns: [localDailyLogs.pain],
+            // v2 rows are all non-null by the old constraint, so a
+            // plain cast preserves every value into the nullable column.
+            columnTransformer: {
+              localDailyLogs.pain: localDailyLogs.pain.cast<int>(),
+            },
+          ),
+        );
+      }
+      // v3 -> v4: V1 Health Context foundation. New nullable profile DOB
+      // columns (existing rows keep NULL = "not provided") plus three new
+      // tables; no existing table is altered beyond the additive columns.
+      if (from < 4) {
+        await m.addColumn(localProfiles, localProfiles.birthYear);
+        await m.addColumn(localProfiles, localProfiles.birthMonth);
+        await m.createTable(localHealthContext);
+        await m.createTable(localConditions);
+        await m.createTable(localMedications);
+      }
+    },
+  );
+
+  /// Whether any local user-data row is still awaiting sync (or was
+  /// rejected and needs review). Used to warn before destructive wipes
+  /// such as sign-out. Symptom rows and the prediction cache carry no
+  /// independent sync state: symptoms flush with their parent log, and
+  /// the cache is server-derived display data that is safe to rebuild.
+  /// Health context rows (including delete tombstones) do carry sync
+  /// state, so they participate here like every other user-data row.
+  Future<bool> hasUnsyncedData() async {
+    final pending = SyncState.pending.index;
+    final conflict = SyncState.conflict.index;
+    final profileHit =
+        await (selectOnly(localProfiles)
+              ..addColumns([localProfiles.userId])
+              ..where(
+                localProfiles.syncState.equals(pending) |
+                    localProfiles.syncState.equals(conflict),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    if (profileHit != null) return true;
+    final cycleHit =
+        await (selectOnly(localCycles)
+              ..addColumns([localCycles.id])
+              ..where(
+                localCycles.syncState.equals(pending) |
+                    localCycles.syncState.equals(conflict),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    if (cycleHit != null) return true;
+    final logHit =
+        await (selectOnly(localDailyLogs)
+              ..addColumns([localDailyLogs.id])
+              ..where(
+                localDailyLogs.syncState.equals(pending) |
+                    localDailyLogs.syncState.equals(conflict),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    if (logHit != null) return true;
+    final contextHit =
+        await (selectOnly(localHealthContext)
+              ..addColumns([localHealthContext.userId])
+              ..where(
+                localHealthContext.syncState.equals(pending) |
+                    localHealthContext.syncState.equals(conflict),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    if (contextHit != null) return true;
+    final conditionHit =
+        await (selectOnly(localConditions)
+              ..addColumns([localConditions.id])
+              ..where(
+                localConditions.syncState.equals(pending) |
+                    localConditions.syncState.equals(conflict),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    if (conditionHit != null) return true;
+    final medicationHit =
+        await (selectOnly(localMedications)
+              ..addColumns([localMedications.id])
+              ..where(
+                localMedications.syncState.equals(pending) |
+                    localMedications.syncState.equals(conflict),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    return medicationHit != null;
+  }
+
+  /// How much offline-created data could move into an account. Counts are
+  /// taken inside the adoption transaction, so an offer built from these
+  /// numbers is reliable — never an estimate. `healthContext` is true when
+  /// the offline singleton carries any user-provided field.
+  Future<OfflineAdoptionCounts> offlineAdoptableCounts() async {
+    final cycles =
+        await (selectOnly(localCycles)
+              ..addColumns([localCycles.id])
+              ..where(localCycles.userId.equals(kOfflineUserId)))
+            .get();
+    final logs =
+        await (selectOnly(localDailyLogs)
+              ..addColumns([localDailyLogs.id])
+              ..where(localDailyLogs.userId.equals(kOfflineUserId)))
+            .get();
+    final conditions =
+        await (selectOnly(localConditions)
+              ..addColumns([localConditions.id])
+              ..where(localConditions.userId.equals(kOfflineUserId)))
+            .get();
+    final medications =
+        await (selectOnly(localMedications)
+              ..addColumns([localMedications.id])
+              ..where(localMedications.userId.equals(kOfflineUserId)))
+            .get();
+    final context = await (select(
+      localHealthContext,
+    )..where((t) => t.userId.equals(kOfflineUserId))).getSingleOrNull();
+    return (
+      cycles: cycles.length,
+      logs: logs.length,
+      conditions: conditions.length,
+      medications: medications.length,
+      healthContext:
+          context != null &&
+          (context.contraceptionMethod != null ||
+              context.contraceptionNote != null ||
+              context.pregnancyContext != null ||
+              context.healthNotes != null),
+    );
+  }
+
+  /// Moves offline-created tracking rows (cycles, daily logs + their
+  /// symptoms, health conditions, medications, and the health context
+  /// singleton) into [newUserId] after explicit user consent. Invariant:
+  /// rows under [kOfflineUserId] never carry a `serverId` (sync only ever
+  /// runs for authenticated ids), so adoption only ever creates fresh
+  /// server records or hits the existing per-row conflict path — it can
+  /// never PATCH over another record. Values, timestamps, and sync states
+  /// are preserved untouched. The offline profile and prediction rows do
+  /// NOT move: the account profile stays authoritative (callers disclose
+  /// that display preferences reset). Returns the adopted row counts.
+  Future<OfflineAdoptionCounts> adoptOfflineData(String newUserId) async {
+    return transaction(() async {
+      final cycles = await (select(
+        localCycles,
+      )..where((t) => t.userId.equals(kOfflineUserId))).get();
+      final logs = await (select(
+        localDailyLogs,
+      )..where((t) => t.userId.equals(kOfflineUserId))).get();
+      final conditions = await (select(
+        localConditions,
+      )..where((t) => t.userId.equals(kOfflineUserId))).get();
+      final medications = await (select(
+        localMedications,
+      )..where((t) => t.userId.equals(kOfflineUserId))).get();
+      final context = await (select(
+        localHealthContext,
+      )..where((t) => t.userId.equals(kOfflineUserId))).getSingleOrNull();
+      final hasContext =
+          context != null &&
+          (context.contraceptionMethod != null ||
+              context.contraceptionNote != null ||
+              context.pregnancyContext != null ||
+              context.healthNotes != null);
+      if (cycles.isEmpty &&
+          logs.isEmpty &&
+          conditions.isEmpty &&
+          medications.isEmpty &&
+          !hasContext) {
+        return (
+          cycles: 0,
+          logs: 0,
+          conditions: 0,
+          medications: 0,
+          healthContext: false,
+        );
+      }
+      await (update(localCycles)..where((t) => t.userId.equals(kOfflineUserId)))
+          .write(LocalCyclesCompanion(userId: Value(newUserId)));
+      await (update(localDailyLogs)
+            ..where((t) => t.userId.equals(kOfflineUserId)))
+          .write(LocalDailyLogsCompanion(userId: Value(newUserId)));
+      await (update(localSymptoms)
+            ..where((t) => t.userId.equals(kOfflineUserId)))
+          .write(LocalSymptomsCompanion(userId: Value(newUserId)));
+      await (update(localConditions)
+            ..where((t) => t.userId.equals(kOfflineUserId)))
+          .write(LocalConditionsCompanion(userId: Value(newUserId)));
+      await (update(localMedications)
+            ..where((t) => t.userId.equals(kOfflineUserId)))
+          .write(LocalMedicationsCompanion(userId: Value(newUserId)));
+      await (update(localHealthContext)
+            ..where((t) => t.userId.equals(kOfflineUserId)))
+          .write(LocalHealthContextCompanion(userId: Value(newUserId)));
+      await (delete(
+        localProfiles,
+      )..where((t) => t.userId.equals(kOfflineUserId))).go();
+      await (delete(
+        predictionCache,
+      )..where((t) => t.userId.equals(kOfflineUserId))).go();
+      return (
+        cycles: cycles.length,
+        logs: logs.length,
+        conditions: conditions.length,
+        medications: medications.length,
+        healthContext: hasContext,
       );
+    });
+  }
 
   /// Removes every user-scoped row. Called on sign-out so User B can never
-  /// see User A's local records or cached prediction.
+  /// see User A's local records or cached prediction. Health context rows
+  /// are user-scoped health data and are wiped exactly like everything else.
   Future<void> clearAllUserData() async {
     await transaction(() async {
       await delete(localProfiles).go();
@@ -163,6 +446,9 @@ class AppDatabase extends _$AppDatabase {
       await delete(localDailyLogs).go();
       await delete(localSymptoms).go();
       await delete(predictionCache).go();
+      await delete(localHealthContext).go();
+      await delete(localConditions).go();
+      await delete(localMedications).go();
     });
   }
 }

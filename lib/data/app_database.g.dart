@@ -78,6 +78,28 @@ class $LocalProfilesTable extends LocalProfiles
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _birthYearMeta = const VerificationMeta(
+    'birthYear',
+  );
+  @override
+  late final GeneratedColumn<int> birthYear = GeneratedColumn<int>(
+    'birth_year',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _birthMonthMeta = const VerificationMeta(
+    'birthMonth',
+  );
+  @override
+  late final GeneratedColumn<int> birthMonth = GeneratedColumn<int>(
+    'birth_month',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   late final GeneratedColumnWithTypeConverter<SyncState, int> syncState =
       GeneratedColumn<int>(
@@ -109,6 +131,8 @@ class $LocalProfilesTable extends LocalProfiles
     theme,
     units,
     timezone,
+    birthYear,
+    birthMonth,
     syncState,
     updatedAt,
   ];
@@ -174,6 +198,18 @@ class $LocalProfilesTable extends LocalProfiles
         timezone.isAcceptableOrUnknown(data['timezone']!, _timezoneMeta),
       );
     }
+    if (data.containsKey('birth_year')) {
+      context.handle(
+        _birthYearMeta,
+        birthYear.isAcceptableOrUnknown(data['birth_year']!, _birthYearMeta),
+      );
+    }
+    if (data.containsKey('birth_month')) {
+      context.handle(
+        _birthMonthMeta,
+        birthMonth.isAcceptableOrUnknown(data['birth_month']!, _birthMonthMeta),
+      );
+    }
     if (data.containsKey('updated_at')) {
       context.handle(
         _updatedAtMeta,
@@ -217,6 +253,14 @@ class $LocalProfilesTable extends LocalProfiles
         DriftSqlType.string,
         data['${effectivePrefix}timezone'],
       ),
+      birthYear: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}birth_year'],
+      ),
+      birthMonth: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}birth_month'],
+      ),
       syncState: $LocalProfilesTable.$convertersyncState.fromSql(
         attachedDatabase.typeMapping.read(
           DriftSqlType.int,
@@ -247,6 +291,8 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
   final String? theme;
   final String? units;
   final String? timezone;
+  final int? birthYear;
+  final int? birthMonth;
   final SyncState syncState;
   final DateTime updatedAt;
   const LocalProfile({
@@ -257,6 +303,8 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
     this.theme,
     this.units,
     this.timezone,
+    this.birthYear,
+    this.birthMonth,
     required this.syncState,
     required this.updatedAt,
   });
@@ -281,6 +329,12 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
     }
     if (!nullToAbsent || timezone != null) {
       map['timezone'] = Variable<String>(timezone);
+    }
+    if (!nullToAbsent || birthYear != null) {
+      map['birth_year'] = Variable<int>(birthYear);
+    }
+    if (!nullToAbsent || birthMonth != null) {
+      map['birth_month'] = Variable<int>(birthMonth);
     }
     {
       map['sync_state'] = Variable<int>(
@@ -310,6 +364,12 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
       timezone: timezone == null && nullToAbsent
           ? const Value.absent()
           : Value(timezone),
+      birthYear: birthYear == null && nullToAbsent
+          ? const Value.absent()
+          : Value(birthYear),
+      birthMonth: birthMonth == null && nullToAbsent
+          ? const Value.absent()
+          : Value(birthMonth),
       syncState: Value(syncState),
       updatedAt: Value(updatedAt),
     );
@@ -328,6 +388,8 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
       theme: serializer.fromJson<String?>(json['theme']),
       units: serializer.fromJson<String?>(json['units']),
       timezone: serializer.fromJson<String?>(json['timezone']),
+      birthYear: serializer.fromJson<int?>(json['birthYear']),
+      birthMonth: serializer.fromJson<int?>(json['birthMonth']),
       syncState: $LocalProfilesTable.$convertersyncState.fromJson(
         serializer.fromJson<int>(json['syncState']),
       ),
@@ -345,6 +407,8 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
       'theme': serializer.toJson<String?>(theme),
       'units': serializer.toJson<String?>(units),
       'timezone': serializer.toJson<String?>(timezone),
+      'birthYear': serializer.toJson<int?>(birthYear),
+      'birthMonth': serializer.toJson<int?>(birthMonth),
       'syncState': serializer.toJson<int>(
         $LocalProfilesTable.$convertersyncState.toJson(syncState),
       ),
@@ -360,6 +424,8 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
     Value<String?> theme = const Value.absent(),
     Value<String?> units = const Value.absent(),
     Value<String?> timezone = const Value.absent(),
+    Value<int?> birthYear = const Value.absent(),
+    Value<int?> birthMonth = const Value.absent(),
     SyncState? syncState,
     DateTime? updatedAt,
   }) => LocalProfile(
@@ -374,6 +440,8 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
     theme: theme.present ? theme.value : this.theme,
     units: units.present ? units.value : this.units,
     timezone: timezone.present ? timezone.value : this.timezone,
+    birthYear: birthYear.present ? birthYear.value : this.birthYear,
+    birthMonth: birthMonth.present ? birthMonth.value : this.birthMonth,
     syncState: syncState ?? this.syncState,
     updatedAt: updatedAt ?? this.updatedAt,
   );
@@ -390,6 +458,10 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
       theme: data.theme.present ? data.theme.value : this.theme,
       units: data.units.present ? data.units.value : this.units,
       timezone: data.timezone.present ? data.timezone.value : this.timezone,
+      birthYear: data.birthYear.present ? data.birthYear.value : this.birthYear,
+      birthMonth: data.birthMonth.present
+          ? data.birthMonth.value
+          : this.birthMonth,
       syncState: data.syncState.present ? data.syncState.value : this.syncState,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
@@ -405,6 +477,8 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
           ..write('theme: $theme, ')
           ..write('units: $units, ')
           ..write('timezone: $timezone, ')
+          ..write('birthYear: $birthYear, ')
+          ..write('birthMonth: $birthMonth, ')
           ..write('syncState: $syncState, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
@@ -420,6 +494,8 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
     theme,
     units,
     timezone,
+    birthYear,
+    birthMonth,
     syncState,
     updatedAt,
   );
@@ -434,6 +510,8 @@ class LocalProfile extends DataClass implements Insertable<LocalProfile> {
           other.theme == this.theme &&
           other.units == this.units &&
           other.timezone == this.timezone &&
+          other.birthYear == this.birthYear &&
+          other.birthMonth == this.birthMonth &&
           other.syncState == this.syncState &&
           other.updatedAt == this.updatedAt);
 }
@@ -446,6 +524,8 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
   final Value<String?> theme;
   final Value<String?> units;
   final Value<String?> timezone;
+  final Value<int?> birthYear;
+  final Value<int?> birthMonth;
   final Value<SyncState> syncState;
   final Value<DateTime> updatedAt;
   final Value<int> rowid;
@@ -457,6 +537,8 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
     this.theme = const Value.absent(),
     this.units = const Value.absent(),
     this.timezone = const Value.absent(),
+    this.birthYear = const Value.absent(),
+    this.birthMonth = const Value.absent(),
     this.syncState = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -469,6 +551,8 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
     this.theme = const Value.absent(),
     this.units = const Value.absent(),
     this.timezone = const Value.absent(),
+    this.birthYear = const Value.absent(),
+    this.birthMonth = const Value.absent(),
     this.syncState = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -481,6 +565,8 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
     Expression<String>? theme,
     Expression<String>? units,
     Expression<String>? timezone,
+    Expression<int>? birthYear,
+    Expression<int>? birthMonth,
     Expression<int>? syncState,
     Expression<DateTime>? updatedAt,
     Expression<int>? rowid,
@@ -493,6 +579,8 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
       if (theme != null) 'theme': theme,
       if (units != null) 'units': units,
       if (timezone != null) 'timezone': timezone,
+      if (birthYear != null) 'birth_year': birthYear,
+      if (birthMonth != null) 'birth_month': birthMonth,
       if (syncState != null) 'sync_state': syncState,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (rowid != null) 'rowid': rowid,
@@ -507,6 +595,8 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
     Value<String?>? theme,
     Value<String?>? units,
     Value<String?>? timezone,
+    Value<int?>? birthYear,
+    Value<int?>? birthMonth,
     Value<SyncState>? syncState,
     Value<DateTime>? updatedAt,
     Value<int>? rowid,
@@ -519,6 +609,8 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
       theme: theme ?? this.theme,
       units: units ?? this.units,
       timezone: timezone ?? this.timezone,
+      birthYear: birthYear ?? this.birthYear,
+      birthMonth: birthMonth ?? this.birthMonth,
       syncState: syncState ?? this.syncState,
       updatedAt: updatedAt ?? this.updatedAt,
       rowid: rowid ?? this.rowid,
@@ -549,6 +641,12 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
     if (timezone.present) {
       map['timezone'] = Variable<String>(timezone.value);
     }
+    if (birthYear.present) {
+      map['birth_year'] = Variable<int>(birthYear.value);
+    }
+    if (birthMonth.present) {
+      map['birth_month'] = Variable<int>(birthMonth.value);
+    }
     if (syncState.present) {
       map['sync_state'] = Variable<int>(
         $LocalProfilesTable.$convertersyncState.toSql(syncState.value),
@@ -573,6 +671,8 @@ class LocalProfilesCompanion extends UpdateCompanion<LocalProfile> {
           ..write('theme: $theme, ')
           ..write('units: $units, ')
           ..write('timezone: $timezone, ')
+          ..write('birthYear: $birthYear, ')
+          ..write('birthMonth: $birthMonth, ')
           ..write('syncState: $syncState, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('rowid: $rowid')
@@ -2668,6 +2768,1764 @@ class PredictionCacheCompanion extends UpdateCompanion<PredictionCacheData> {
   }
 }
 
+class $LocalHealthContextTable extends LocalHealthContext
+    with TableInfo<$LocalHealthContextTable, LocalHealthContextData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LocalHealthContextTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contraceptionMethodMeta =
+      const VerificationMeta('contraceptionMethod');
+  @override
+  late final GeneratedColumn<String> contraceptionMethod =
+      GeneratedColumn<String>(
+        'contraception_method',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _contraceptionNoteMeta = const VerificationMeta(
+    'contraceptionNote',
+  );
+  @override
+  late final GeneratedColumn<String> contraceptionNote =
+      GeneratedColumn<String>(
+        'contraception_note',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _pregnancyContextMeta = const VerificationMeta(
+    'pregnancyContext',
+  );
+  @override
+  late final GeneratedColumn<String> pregnancyContext = GeneratedColumn<String>(
+    'pregnancy_context',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _healthNotesMeta = const VerificationMeta(
+    'healthNotes',
+  );
+  @override
+  late final GeneratedColumn<String> healthNotes = GeneratedColumn<String>(
+    'health_notes',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<SyncState, int> syncState =
+      GeneratedColumn<int>(
+        'sync_state',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: Constant(SyncState.synced.index),
+      ).withConverter<SyncState>($LocalHealthContextTable.$convertersyncState);
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    userId,
+    contraceptionMethod,
+    contraceptionNote,
+    pregnancyContext,
+    healthNotes,
+    syncState,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'local_health_context';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalHealthContextData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('contraception_method')) {
+      context.handle(
+        _contraceptionMethodMeta,
+        contraceptionMethod.isAcceptableOrUnknown(
+          data['contraception_method']!,
+          _contraceptionMethodMeta,
+        ),
+      );
+    }
+    if (data.containsKey('contraception_note')) {
+      context.handle(
+        _contraceptionNoteMeta,
+        contraceptionNote.isAcceptableOrUnknown(
+          data['contraception_note']!,
+          _contraceptionNoteMeta,
+        ),
+      );
+    }
+    if (data.containsKey('pregnancy_context')) {
+      context.handle(
+        _pregnancyContextMeta,
+        pregnancyContext.isAcceptableOrUnknown(
+          data['pregnancy_context']!,
+          _pregnancyContextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('health_notes')) {
+      context.handle(
+        _healthNotesMeta,
+        healthNotes.isAcceptableOrUnknown(
+          data['health_notes']!,
+          _healthNotesMeta,
+        ),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {userId};
+  @override
+  LocalHealthContextData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalHealthContextData(
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      contraceptionMethod: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contraception_method'],
+      ),
+      contraceptionNote: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}contraception_note'],
+      ),
+      pregnancyContext: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}pregnancy_context'],
+      ),
+      healthNotes: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}health_notes'],
+      ),
+      syncState: $LocalHealthContextTable.$convertersyncState.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}sync_state'],
+        )!,
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LocalHealthContextTable createAlias(String alias) {
+    return $LocalHealthContextTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<SyncState, int, int> $convertersyncState =
+      const EnumIndexConverter<SyncState>(SyncState.values);
+}
+
+class LocalHealthContextData extends DataClass
+    implements Insertable<LocalHealthContextData> {
+  final String userId;
+  final String? contraceptionMethod;
+  final String? contraceptionNote;
+  final String? pregnancyContext;
+  final String? healthNotes;
+  final SyncState syncState;
+  final DateTime updatedAt;
+  const LocalHealthContextData({
+    required this.userId,
+    this.contraceptionMethod,
+    this.contraceptionNote,
+    this.pregnancyContext,
+    this.healthNotes,
+    required this.syncState,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['user_id'] = Variable<String>(userId);
+    if (!nullToAbsent || contraceptionMethod != null) {
+      map['contraception_method'] = Variable<String>(contraceptionMethod);
+    }
+    if (!nullToAbsent || contraceptionNote != null) {
+      map['contraception_note'] = Variable<String>(contraceptionNote);
+    }
+    if (!nullToAbsent || pregnancyContext != null) {
+      map['pregnancy_context'] = Variable<String>(pregnancyContext);
+    }
+    if (!nullToAbsent || healthNotes != null) {
+      map['health_notes'] = Variable<String>(healthNotes);
+    }
+    {
+      map['sync_state'] = Variable<int>(
+        $LocalHealthContextTable.$convertersyncState.toSql(syncState),
+      );
+    }
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LocalHealthContextCompanion toCompanion(bool nullToAbsent) {
+    return LocalHealthContextCompanion(
+      userId: Value(userId),
+      contraceptionMethod: contraceptionMethod == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contraceptionMethod),
+      contraceptionNote: contraceptionNote == null && nullToAbsent
+          ? const Value.absent()
+          : Value(contraceptionNote),
+      pregnancyContext: pregnancyContext == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pregnancyContext),
+      healthNotes: healthNotes == null && nullToAbsent
+          ? const Value.absent()
+          : Value(healthNotes),
+      syncState: Value(syncState),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LocalHealthContextData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalHealthContextData(
+      userId: serializer.fromJson<String>(json['userId']),
+      contraceptionMethod: serializer.fromJson<String?>(
+        json['contraceptionMethod'],
+      ),
+      contraceptionNote: serializer.fromJson<String?>(
+        json['contraceptionNote'],
+      ),
+      pregnancyContext: serializer.fromJson<String?>(json['pregnancyContext']),
+      healthNotes: serializer.fromJson<String?>(json['healthNotes']),
+      syncState: $LocalHealthContextTable.$convertersyncState.fromJson(
+        serializer.fromJson<int>(json['syncState']),
+      ),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'userId': serializer.toJson<String>(userId),
+      'contraceptionMethod': serializer.toJson<String?>(contraceptionMethod),
+      'contraceptionNote': serializer.toJson<String?>(contraceptionNote),
+      'pregnancyContext': serializer.toJson<String?>(pregnancyContext),
+      'healthNotes': serializer.toJson<String?>(healthNotes),
+      'syncState': serializer.toJson<int>(
+        $LocalHealthContextTable.$convertersyncState.toJson(syncState),
+      ),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LocalHealthContextData copyWith({
+    String? userId,
+    Value<String?> contraceptionMethod = const Value.absent(),
+    Value<String?> contraceptionNote = const Value.absent(),
+    Value<String?> pregnancyContext = const Value.absent(),
+    Value<String?> healthNotes = const Value.absent(),
+    SyncState? syncState,
+    DateTime? updatedAt,
+  }) => LocalHealthContextData(
+    userId: userId ?? this.userId,
+    contraceptionMethod: contraceptionMethod.present
+        ? contraceptionMethod.value
+        : this.contraceptionMethod,
+    contraceptionNote: contraceptionNote.present
+        ? contraceptionNote.value
+        : this.contraceptionNote,
+    pregnancyContext: pregnancyContext.present
+        ? pregnancyContext.value
+        : this.pregnancyContext,
+    healthNotes: healthNotes.present ? healthNotes.value : this.healthNotes,
+    syncState: syncState ?? this.syncState,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LocalHealthContextData copyWithCompanion(LocalHealthContextCompanion data) {
+    return LocalHealthContextData(
+      userId: data.userId.present ? data.userId.value : this.userId,
+      contraceptionMethod: data.contraceptionMethod.present
+          ? data.contraceptionMethod.value
+          : this.contraceptionMethod,
+      contraceptionNote: data.contraceptionNote.present
+          ? data.contraceptionNote.value
+          : this.contraceptionNote,
+      pregnancyContext: data.pregnancyContext.present
+          ? data.pregnancyContext.value
+          : this.pregnancyContext,
+      healthNotes: data.healthNotes.present
+          ? data.healthNotes.value
+          : this.healthNotes,
+      syncState: data.syncState.present ? data.syncState.value : this.syncState,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalHealthContextData(')
+          ..write('userId: $userId, ')
+          ..write('contraceptionMethod: $contraceptionMethod, ')
+          ..write('contraceptionNote: $contraceptionNote, ')
+          ..write('pregnancyContext: $pregnancyContext, ')
+          ..write('healthNotes: $healthNotes, ')
+          ..write('syncState: $syncState, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    userId,
+    contraceptionMethod,
+    contraceptionNote,
+    pregnancyContext,
+    healthNotes,
+    syncState,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalHealthContextData &&
+          other.userId == this.userId &&
+          other.contraceptionMethod == this.contraceptionMethod &&
+          other.contraceptionNote == this.contraceptionNote &&
+          other.pregnancyContext == this.pregnancyContext &&
+          other.healthNotes == this.healthNotes &&
+          other.syncState == this.syncState &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LocalHealthContextCompanion
+    extends UpdateCompanion<LocalHealthContextData> {
+  final Value<String> userId;
+  final Value<String?> contraceptionMethod;
+  final Value<String?> contraceptionNote;
+  final Value<String?> pregnancyContext;
+  final Value<String?> healthNotes;
+  final Value<SyncState> syncState;
+  final Value<DateTime> updatedAt;
+  final Value<int> rowid;
+  const LocalHealthContextCompanion({
+    this.userId = const Value.absent(),
+    this.contraceptionMethod = const Value.absent(),
+    this.contraceptionNote = const Value.absent(),
+    this.pregnancyContext = const Value.absent(),
+    this.healthNotes = const Value.absent(),
+    this.syncState = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LocalHealthContextCompanion.insert({
+    required String userId,
+    this.contraceptionMethod = const Value.absent(),
+    this.contraceptionNote = const Value.absent(),
+    this.pregnancyContext = const Value.absent(),
+    this.healthNotes = const Value.absent(),
+    this.syncState = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : userId = Value(userId);
+  static Insertable<LocalHealthContextData> custom({
+    Expression<String>? userId,
+    Expression<String>? contraceptionMethod,
+    Expression<String>? contraceptionNote,
+    Expression<String>? pregnancyContext,
+    Expression<String>? healthNotes,
+    Expression<int>? syncState,
+    Expression<DateTime>? updatedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (userId != null) 'user_id': userId,
+      if (contraceptionMethod != null)
+        'contraception_method': contraceptionMethod,
+      if (contraceptionNote != null) 'contraception_note': contraceptionNote,
+      if (pregnancyContext != null) 'pregnancy_context': pregnancyContext,
+      if (healthNotes != null) 'health_notes': healthNotes,
+      if (syncState != null) 'sync_state': syncState,
+      if (updatedAt != null) 'updated_at': updatedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LocalHealthContextCompanion copyWith({
+    Value<String>? userId,
+    Value<String?>? contraceptionMethod,
+    Value<String?>? contraceptionNote,
+    Value<String?>? pregnancyContext,
+    Value<String?>? healthNotes,
+    Value<SyncState>? syncState,
+    Value<DateTime>? updatedAt,
+    Value<int>? rowid,
+  }) {
+    return LocalHealthContextCompanion(
+      userId: userId ?? this.userId,
+      contraceptionMethod: contraceptionMethod ?? this.contraceptionMethod,
+      contraceptionNote: contraceptionNote ?? this.contraceptionNote,
+      pregnancyContext: pregnancyContext ?? this.pregnancyContext,
+      healthNotes: healthNotes ?? this.healthNotes,
+      syncState: syncState ?? this.syncState,
+      updatedAt: updatedAt ?? this.updatedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (contraceptionMethod.present) {
+      map['contraception_method'] = Variable<String>(contraceptionMethod.value);
+    }
+    if (contraceptionNote.present) {
+      map['contraception_note'] = Variable<String>(contraceptionNote.value);
+    }
+    if (pregnancyContext.present) {
+      map['pregnancy_context'] = Variable<String>(pregnancyContext.value);
+    }
+    if (healthNotes.present) {
+      map['health_notes'] = Variable<String>(healthNotes.value);
+    }
+    if (syncState.present) {
+      map['sync_state'] = Variable<int>(
+        $LocalHealthContextTable.$convertersyncState.toSql(syncState.value),
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalHealthContextCompanion(')
+          ..write('userId: $userId, ')
+          ..write('contraceptionMethod: $contraceptionMethod, ')
+          ..write('contraceptionNote: $contraceptionNote, ')
+          ..write('pregnancyContext: $pregnancyContext, ')
+          ..write('healthNotes: $healthNotes, ')
+          ..write('syncState: $syncState, ')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LocalConditionsTable extends LocalConditions
+    with TableInfo<$LocalConditionsTable, LocalCondition> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LocalConditionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _localIdMeta = const VerificationMeta(
+    'localId',
+  );
+  @override
+  late final GeneratedColumn<String> localId = GeneratedColumn<String>(
+    'local_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _codeMeta = const VerificationMeta('code');
+  @override
+  late final GeneratedColumn<String> code = GeneratedColumn<String>(
+    'code',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _customLabelMeta = const VerificationMeta(
+    'customLabel',
+  );
+  @override
+  late final GeneratedColumn<String> customLabel = GeneratedColumn<String>(
+    'custom_label',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isActiveMeta = const VerificationMeta(
+    'isActive',
+  );
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+    'is_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<SyncState, int> syncState =
+      GeneratedColumn<int>(
+        'sync_state',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: Constant(SyncState.synced.index),
+      ).withConverter<SyncState>($LocalConditionsTable.$convertersyncState);
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    localId,
+    userId,
+    serverId,
+    code,
+    customLabel,
+    note,
+    isActive,
+    isDeleted,
+    syncState,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'local_conditions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalCondition> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('local_id')) {
+      context.handle(
+        _localIdMeta,
+        localId.isAcceptableOrUnknown(data['local_id']!, _localIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_localIdMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    }
+    if (data.containsKey('code')) {
+      context.handle(
+        _codeMeta,
+        code.isAcceptableOrUnknown(data['code']!, _codeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_codeMeta);
+    }
+    if (data.containsKey('custom_label')) {
+      context.handle(
+        _customLabelMeta,
+        customLabel.isAcceptableOrUnknown(
+          data['custom_label']!,
+          _customLabelMeta,
+        ),
+      );
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('is_active')) {
+      context.handle(
+        _isActiveMeta,
+        isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
+      );
+    }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LocalCondition map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalCondition(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      localId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      ),
+      code: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}code'],
+      )!,
+      customLabel: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}custom_label'],
+      ),
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      isActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_active'],
+      )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+      syncState: $LocalConditionsTable.$convertersyncState.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}sync_state'],
+        )!,
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LocalConditionsTable createAlias(String alias) {
+    return $LocalConditionsTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<SyncState, int, int> $convertersyncState =
+      const EnumIndexConverter<SyncState>(SyncState.values);
+}
+
+class LocalCondition extends DataClass implements Insertable<LocalCondition> {
+  final int id;
+  final String localId;
+  final String userId;
+  final int? serverId;
+  final String code;
+  final String? customLabel;
+  final String? note;
+  final bool isActive;
+  final bool isDeleted;
+  final SyncState syncState;
+  final DateTime updatedAt;
+  const LocalCondition({
+    required this.id,
+    required this.localId,
+    required this.userId,
+    this.serverId,
+    required this.code,
+    this.customLabel,
+    this.note,
+    required this.isActive,
+    required this.isDeleted,
+    required this.syncState,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['local_id'] = Variable<String>(localId);
+    map['user_id'] = Variable<String>(userId);
+    if (!nullToAbsent || serverId != null) {
+      map['server_id'] = Variable<int>(serverId);
+    }
+    map['code'] = Variable<String>(code);
+    if (!nullToAbsent || customLabel != null) {
+      map['custom_label'] = Variable<String>(customLabel);
+    }
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['is_active'] = Variable<bool>(isActive);
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    {
+      map['sync_state'] = Variable<int>(
+        $LocalConditionsTable.$convertersyncState.toSql(syncState),
+      );
+    }
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LocalConditionsCompanion toCompanion(bool nullToAbsent) {
+    return LocalConditionsCompanion(
+      id: Value(id),
+      localId: Value(localId),
+      userId: Value(userId),
+      serverId: serverId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverId),
+      code: Value(code),
+      customLabel: customLabel == null && nullToAbsent
+          ? const Value.absent()
+          : Value(customLabel),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      isActive: Value(isActive),
+      isDeleted: Value(isDeleted),
+      syncState: Value(syncState),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LocalCondition.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalCondition(
+      id: serializer.fromJson<int>(json['id']),
+      localId: serializer.fromJson<String>(json['localId']),
+      userId: serializer.fromJson<String>(json['userId']),
+      serverId: serializer.fromJson<int?>(json['serverId']),
+      code: serializer.fromJson<String>(json['code']),
+      customLabel: serializer.fromJson<String?>(json['customLabel']),
+      note: serializer.fromJson<String?>(json['note']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      syncState: $LocalConditionsTable.$convertersyncState.fromJson(
+        serializer.fromJson<int>(json['syncState']),
+      ),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'localId': serializer.toJson<String>(localId),
+      'userId': serializer.toJson<String>(userId),
+      'serverId': serializer.toJson<int?>(serverId),
+      'code': serializer.toJson<String>(code),
+      'customLabel': serializer.toJson<String?>(customLabel),
+      'note': serializer.toJson<String?>(note),
+      'isActive': serializer.toJson<bool>(isActive),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+      'syncState': serializer.toJson<int>(
+        $LocalConditionsTable.$convertersyncState.toJson(syncState),
+      ),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LocalCondition copyWith({
+    int? id,
+    String? localId,
+    String? userId,
+    Value<int?> serverId = const Value.absent(),
+    String? code,
+    Value<String?> customLabel = const Value.absent(),
+    Value<String?> note = const Value.absent(),
+    bool? isActive,
+    bool? isDeleted,
+    SyncState? syncState,
+    DateTime? updatedAt,
+  }) => LocalCondition(
+    id: id ?? this.id,
+    localId: localId ?? this.localId,
+    userId: userId ?? this.userId,
+    serverId: serverId.present ? serverId.value : this.serverId,
+    code: code ?? this.code,
+    customLabel: customLabel.present ? customLabel.value : this.customLabel,
+    note: note.present ? note.value : this.note,
+    isActive: isActive ?? this.isActive,
+    isDeleted: isDeleted ?? this.isDeleted,
+    syncState: syncState ?? this.syncState,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LocalCondition copyWithCompanion(LocalConditionsCompanion data) {
+    return LocalCondition(
+      id: data.id.present ? data.id.value : this.id,
+      localId: data.localId.present ? data.localId.value : this.localId,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      code: data.code.present ? data.code.value : this.code,
+      customLabel: data.customLabel.present
+          ? data.customLabel.value
+          : this.customLabel,
+      note: data.note.present ? data.note.value : this.note,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      syncState: data.syncState.present ? data.syncState.value : this.syncState,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalCondition(')
+          ..write('id: $id, ')
+          ..write('localId: $localId, ')
+          ..write('userId: $userId, ')
+          ..write('serverId: $serverId, ')
+          ..write('code: $code, ')
+          ..write('customLabel: $customLabel, ')
+          ..write('note: $note, ')
+          ..write('isActive: $isActive, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('syncState: $syncState, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    localId,
+    userId,
+    serverId,
+    code,
+    customLabel,
+    note,
+    isActive,
+    isDeleted,
+    syncState,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalCondition &&
+          other.id == this.id &&
+          other.localId == this.localId &&
+          other.userId == this.userId &&
+          other.serverId == this.serverId &&
+          other.code == this.code &&
+          other.customLabel == this.customLabel &&
+          other.note == this.note &&
+          other.isActive == this.isActive &&
+          other.isDeleted == this.isDeleted &&
+          other.syncState == this.syncState &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LocalConditionsCompanion extends UpdateCompanion<LocalCondition> {
+  final Value<int> id;
+  final Value<String> localId;
+  final Value<String> userId;
+  final Value<int?> serverId;
+  final Value<String> code;
+  final Value<String?> customLabel;
+  final Value<String?> note;
+  final Value<bool> isActive;
+  final Value<bool> isDeleted;
+  final Value<SyncState> syncState;
+  final Value<DateTime> updatedAt;
+  const LocalConditionsCompanion({
+    this.id = const Value.absent(),
+    this.localId = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.serverId = const Value.absent(),
+    this.code = const Value.absent(),
+    this.customLabel = const Value.absent(),
+    this.note = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.syncState = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  LocalConditionsCompanion.insert({
+    this.id = const Value.absent(),
+    required String localId,
+    required String userId,
+    this.serverId = const Value.absent(),
+    required String code,
+    this.customLabel = const Value.absent(),
+    this.note = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.syncState = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : localId = Value(localId),
+       userId = Value(userId),
+       code = Value(code);
+  static Insertable<LocalCondition> custom({
+    Expression<int>? id,
+    Expression<String>? localId,
+    Expression<String>? userId,
+    Expression<int>? serverId,
+    Expression<String>? code,
+    Expression<String>? customLabel,
+    Expression<String>? note,
+    Expression<bool>? isActive,
+    Expression<bool>? isDeleted,
+    Expression<int>? syncState,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (localId != null) 'local_id': localId,
+      if (userId != null) 'user_id': userId,
+      if (serverId != null) 'server_id': serverId,
+      if (code != null) 'code': code,
+      if (customLabel != null) 'custom_label': customLabel,
+      if (note != null) 'note': note,
+      if (isActive != null) 'is_active': isActive,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+      if (syncState != null) 'sync_state': syncState,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  LocalConditionsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? localId,
+    Value<String>? userId,
+    Value<int?>? serverId,
+    Value<String>? code,
+    Value<String?>? customLabel,
+    Value<String?>? note,
+    Value<bool>? isActive,
+    Value<bool>? isDeleted,
+    Value<SyncState>? syncState,
+    Value<DateTime>? updatedAt,
+  }) {
+    return LocalConditionsCompanion(
+      id: id ?? this.id,
+      localId: localId ?? this.localId,
+      userId: userId ?? this.userId,
+      serverId: serverId ?? this.serverId,
+      code: code ?? this.code,
+      customLabel: customLabel ?? this.customLabel,
+      note: note ?? this.note,
+      isActive: isActive ?? this.isActive,
+      isDeleted: isDeleted ?? this.isDeleted,
+      syncState: syncState ?? this.syncState,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (localId.present) {
+      map['local_id'] = Variable<String>(localId.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (code.present) {
+      map['code'] = Variable<String>(code.value);
+    }
+    if (customLabel.present) {
+      map['custom_label'] = Variable<String>(customLabel.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    if (syncState.present) {
+      map['sync_state'] = Variable<int>(
+        $LocalConditionsTable.$convertersyncState.toSql(syncState.value),
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalConditionsCompanion(')
+          ..write('id: $id, ')
+          ..write('localId: $localId, ')
+          ..write('userId: $userId, ')
+          ..write('serverId: $serverId, ')
+          ..write('code: $code, ')
+          ..write('customLabel: $customLabel, ')
+          ..write('note: $note, ')
+          ..write('isActive: $isActive, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('syncState: $syncState, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $LocalMedicationsTable extends LocalMedications
+    with TableInfo<$LocalMedicationsTable, LocalMedication> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LocalMedicationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _localIdMeta = const VerificationMeta(
+    'localId',
+  );
+  @override
+  late final GeneratedColumn<String> localId = GeneratedColumn<String>(
+    'local_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('UNIQUE'),
+  );
+  static const VerificationMeta _userIdMeta = const VerificationMeta('userId');
+  @override
+  late final GeneratedColumn<String> userId = GeneratedColumn<String>(
+    'user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<int> serverId = GeneratedColumn<int>(
+    'server_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _isActiveMeta = const VerificationMeta(
+    'isActive',
+  );
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+    'is_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
+  @override
+  late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<SyncState, int> syncState =
+      GeneratedColumn<int>(
+        'sync_state',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: Constant(SyncState.synced.index),
+      ).withConverter<SyncState>($LocalMedicationsTable.$convertersyncState);
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    localId,
+    userId,
+    serverId,
+    name,
+    note,
+    isActive,
+    isDeleted,
+    syncState,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'local_medications';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalMedication> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('local_id')) {
+      context.handle(
+        _localIdMeta,
+        localId.isAcceptableOrUnknown(data['local_id']!, _localIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_localIdMeta);
+    }
+    if (data.containsKey('user_id')) {
+      context.handle(
+        _userIdMeta,
+        userId.isAcceptableOrUnknown(data['user_id']!, _userIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_userIdMeta);
+    }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('is_active')) {
+      context.handle(
+        _isActiveMeta,
+        isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
+      );
+    }
+    if (data.containsKey('is_deleted')) {
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  LocalMedication map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalMedication(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      localId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_id'],
+      )!,
+      userId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}user_id'],
+      )!,
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}server_id'],
+      ),
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      isActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_active'],
+      )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
+      syncState: $LocalMedicationsTable.$convertersyncState.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}sync_state'],
+        )!,
+      ),
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LocalMedicationsTable createAlias(String alias) {
+    return $LocalMedicationsTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<SyncState, int, int> $convertersyncState =
+      const EnumIndexConverter<SyncState>(SyncState.values);
+}
+
+class LocalMedication extends DataClass implements Insertable<LocalMedication> {
+  final int id;
+  final String localId;
+  final String userId;
+  final int? serverId;
+  final String name;
+  final String? note;
+  final bool isActive;
+  final bool isDeleted;
+  final SyncState syncState;
+  final DateTime updatedAt;
+  const LocalMedication({
+    required this.id,
+    required this.localId,
+    required this.userId,
+    this.serverId,
+    required this.name,
+    this.note,
+    required this.isActive,
+    required this.isDeleted,
+    required this.syncState,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['local_id'] = Variable<String>(localId);
+    map['user_id'] = Variable<String>(userId);
+    if (!nullToAbsent || serverId != null) {
+      map['server_id'] = Variable<int>(serverId);
+    }
+    map['name'] = Variable<String>(name);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['is_active'] = Variable<bool>(isActive);
+    map['is_deleted'] = Variable<bool>(isDeleted);
+    {
+      map['sync_state'] = Variable<int>(
+        $LocalMedicationsTable.$convertersyncState.toSql(syncState),
+      );
+    }
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  LocalMedicationsCompanion toCompanion(bool nullToAbsent) {
+    return LocalMedicationsCompanion(
+      id: Value(id),
+      localId: Value(localId),
+      userId: Value(userId),
+      serverId: serverId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverId),
+      name: Value(name),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      isActive: Value(isActive),
+      isDeleted: Value(isDeleted),
+      syncState: Value(syncState),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory LocalMedication.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalMedication(
+      id: serializer.fromJson<int>(json['id']),
+      localId: serializer.fromJson<String>(json['localId']),
+      userId: serializer.fromJson<String>(json['userId']),
+      serverId: serializer.fromJson<int?>(json['serverId']),
+      name: serializer.fromJson<String>(json['name']),
+      note: serializer.fromJson<String?>(json['note']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
+      isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      syncState: $LocalMedicationsTable.$convertersyncState.fromJson(
+        serializer.fromJson<int>(json['syncState']),
+      ),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'localId': serializer.toJson<String>(localId),
+      'userId': serializer.toJson<String>(userId),
+      'serverId': serializer.toJson<int?>(serverId),
+      'name': serializer.toJson<String>(name),
+      'note': serializer.toJson<String?>(note),
+      'isActive': serializer.toJson<bool>(isActive),
+      'isDeleted': serializer.toJson<bool>(isDeleted),
+      'syncState': serializer.toJson<int>(
+        $LocalMedicationsTable.$convertersyncState.toJson(syncState),
+      ),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  LocalMedication copyWith({
+    int? id,
+    String? localId,
+    String? userId,
+    Value<int?> serverId = const Value.absent(),
+    String? name,
+    Value<String?> note = const Value.absent(),
+    bool? isActive,
+    bool? isDeleted,
+    SyncState? syncState,
+    DateTime? updatedAt,
+  }) => LocalMedication(
+    id: id ?? this.id,
+    localId: localId ?? this.localId,
+    userId: userId ?? this.userId,
+    serverId: serverId.present ? serverId.value : this.serverId,
+    name: name ?? this.name,
+    note: note.present ? note.value : this.note,
+    isActive: isActive ?? this.isActive,
+    isDeleted: isDeleted ?? this.isDeleted,
+    syncState: syncState ?? this.syncState,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  LocalMedication copyWithCompanion(LocalMedicationsCompanion data) {
+    return LocalMedication(
+      id: data.id.present ? data.id.value : this.id,
+      localId: data.localId.present ? data.localId.value : this.localId,
+      userId: data.userId.present ? data.userId.value : this.userId,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      name: data.name.present ? data.name.value : this.name,
+      note: data.note.present ? data.note.value : this.note,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      syncState: data.syncState.present ? data.syncState.value : this.syncState,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalMedication(')
+          ..write('id: $id, ')
+          ..write('localId: $localId, ')
+          ..write('userId: $userId, ')
+          ..write('serverId: $serverId, ')
+          ..write('name: $name, ')
+          ..write('note: $note, ')
+          ..write('isActive: $isActive, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('syncState: $syncState, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    localId,
+    userId,
+    serverId,
+    name,
+    note,
+    isActive,
+    isDeleted,
+    syncState,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalMedication &&
+          other.id == this.id &&
+          other.localId == this.localId &&
+          other.userId == this.userId &&
+          other.serverId == this.serverId &&
+          other.name == this.name &&
+          other.note == this.note &&
+          other.isActive == this.isActive &&
+          other.isDeleted == this.isDeleted &&
+          other.syncState == this.syncState &&
+          other.updatedAt == this.updatedAt);
+}
+
+class LocalMedicationsCompanion extends UpdateCompanion<LocalMedication> {
+  final Value<int> id;
+  final Value<String> localId;
+  final Value<String> userId;
+  final Value<int?> serverId;
+  final Value<String> name;
+  final Value<String?> note;
+  final Value<bool> isActive;
+  final Value<bool> isDeleted;
+  final Value<SyncState> syncState;
+  final Value<DateTime> updatedAt;
+  const LocalMedicationsCompanion({
+    this.id = const Value.absent(),
+    this.localId = const Value.absent(),
+    this.userId = const Value.absent(),
+    this.serverId = const Value.absent(),
+    this.name = const Value.absent(),
+    this.note = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.syncState = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  LocalMedicationsCompanion.insert({
+    this.id = const Value.absent(),
+    required String localId,
+    required String userId,
+    this.serverId = const Value.absent(),
+    required String name,
+    this.note = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.isDeleted = const Value.absent(),
+    this.syncState = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  }) : localId = Value(localId),
+       userId = Value(userId),
+       name = Value(name);
+  static Insertable<LocalMedication> custom({
+    Expression<int>? id,
+    Expression<String>? localId,
+    Expression<String>? userId,
+    Expression<int>? serverId,
+    Expression<String>? name,
+    Expression<String>? note,
+    Expression<bool>? isActive,
+    Expression<bool>? isDeleted,
+    Expression<int>? syncState,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (localId != null) 'local_id': localId,
+      if (userId != null) 'user_id': userId,
+      if (serverId != null) 'server_id': serverId,
+      if (name != null) 'name': name,
+      if (note != null) 'note': note,
+      if (isActive != null) 'is_active': isActive,
+      if (isDeleted != null) 'is_deleted': isDeleted,
+      if (syncState != null) 'sync_state': syncState,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  LocalMedicationsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? localId,
+    Value<String>? userId,
+    Value<int?>? serverId,
+    Value<String>? name,
+    Value<String?>? note,
+    Value<bool>? isActive,
+    Value<bool>? isDeleted,
+    Value<SyncState>? syncState,
+    Value<DateTime>? updatedAt,
+  }) {
+    return LocalMedicationsCompanion(
+      id: id ?? this.id,
+      localId: localId ?? this.localId,
+      userId: userId ?? this.userId,
+      serverId: serverId ?? this.serverId,
+      name: name ?? this.name,
+      note: note ?? this.note,
+      isActive: isActive ?? this.isActive,
+      isDeleted: isDeleted ?? this.isDeleted,
+      syncState: syncState ?? this.syncState,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (localId.present) {
+      map['local_id'] = Variable<String>(localId.value);
+    }
+    if (userId.present) {
+      map['user_id'] = Variable<String>(userId.value);
+    }
+    if (serverId.present) {
+      map['server_id'] = Variable<int>(serverId.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
+    if (isDeleted.present) {
+      map['is_deleted'] = Variable<bool>(isDeleted.value);
+    }
+    if (syncState.present) {
+      map['sync_state'] = Variable<int>(
+        $LocalMedicationsTable.$convertersyncState.toSql(syncState.value),
+      );
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalMedicationsCompanion(')
+          ..write('id: $id, ')
+          ..write('localId: $localId, ')
+          ..write('userId: $userId, ')
+          ..write('serverId: $serverId, ')
+          ..write('name: $name, ')
+          ..write('note: $note, ')
+          ..write('isActive: $isActive, ')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('syncState: $syncState, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2676,6 +4534,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $LocalDailyLogsTable localDailyLogs = $LocalDailyLogsTable(this);
   late final $LocalSymptomsTable localSymptoms = $LocalSymptomsTable(this);
   late final $PredictionCacheTable predictionCache = $PredictionCacheTable(
+    this,
+  );
+  late final $LocalHealthContextTable localHealthContext =
+      $LocalHealthContextTable(this);
+  late final $LocalConditionsTable localConditions = $LocalConditionsTable(
+    this,
+  );
+  late final $LocalMedicationsTable localMedications = $LocalMedicationsTable(
     this,
   );
   @override
@@ -2688,6 +4554,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     localDailyLogs,
     localSymptoms,
     predictionCache,
+    localHealthContext,
+    localConditions,
+    localMedications,
   ];
 }
 
@@ -2700,6 +4569,8 @@ typedef $$LocalProfilesTableCreateCompanionBuilder =
       Value<String?> theme,
       Value<String?> units,
       Value<String?> timezone,
+      Value<int?> birthYear,
+      Value<int?> birthMonth,
       Value<SyncState> syncState,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -2713,6 +4584,8 @@ typedef $$LocalProfilesTableUpdateCompanionBuilder =
       Value<String?> theme,
       Value<String?> units,
       Value<String?> timezone,
+      Value<int?> birthYear,
+      Value<int?> birthMonth,
       Value<SyncState> syncState,
       Value<DateTime> updatedAt,
       Value<int> rowid,
@@ -2759,6 +4632,16 @@ class $$LocalProfilesTableFilterComposer
 
   ColumnFilters<String> get timezone => $composableBuilder(
     column: $table.timezone,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get birthYear => $composableBuilder(
+    column: $table.birthYear,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get birthMonth => $composableBuilder(
+    column: $table.birthMonth,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2818,6 +4701,16 @@ class $$LocalProfilesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get birthYear => $composableBuilder(
+    column: $table.birthYear,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get birthMonth => $composableBuilder(
+    column: $table.birthMonth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get syncState => $composableBuilder(
     column: $table.syncState,
     builder: (column) => ColumnOrderings(column),
@@ -2862,6 +4755,14 @@ class $$LocalProfilesTableAnnotationComposer
 
   GeneratedColumn<String> get timezone =>
       $composableBuilder(column: $table.timezone, builder: (column) => column);
+
+  GeneratedColumn<int> get birthYear =>
+      $composableBuilder(column: $table.birthYear, builder: (column) => column);
+
+  GeneratedColumn<int> get birthMonth => $composableBuilder(
+    column: $table.birthMonth,
+    builder: (column) => column,
+  );
 
   GeneratedColumnWithTypeConverter<SyncState, int> get syncState =>
       $composableBuilder(column: $table.syncState, builder: (column) => column);
@@ -2908,6 +4809,8 @@ class $$LocalProfilesTableTableManager
                 Value<String?> theme = const Value.absent(),
                 Value<String?> units = const Value.absent(),
                 Value<String?> timezone = const Value.absent(),
+                Value<int?> birthYear = const Value.absent(),
+                Value<int?> birthMonth = const Value.absent(),
                 Value<SyncState> syncState = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -2919,6 +4822,8 @@ class $$LocalProfilesTableTableManager
                 theme: theme,
                 units: units,
                 timezone: timezone,
+                birthYear: birthYear,
+                birthMonth: birthMonth,
                 syncState: syncState,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -2932,6 +4837,8 @@ class $$LocalProfilesTableTableManager
                 Value<String?> theme = const Value.absent(),
                 Value<String?> units = const Value.absent(),
                 Value<String?> timezone = const Value.absent(),
+                Value<int?> birthYear = const Value.absent(),
+                Value<int?> birthMonth = const Value.absent(),
                 Value<SyncState> syncState = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -2943,6 +4850,8 @@ class $$LocalProfilesTableTableManager
                 theme: theme,
                 units: units,
                 timezone: timezone,
+                birthYear: birthYear,
+                birthMonth: birthMonth,
                 syncState: syncState,
                 updatedAt: updatedAt,
                 rowid: rowid,
@@ -4059,6 +5968,908 @@ typedef $$PredictionCacheTableProcessedTableManager =
       PredictionCacheData,
       PrefetchHooks Function()
     >;
+typedef $$LocalHealthContextTableCreateCompanionBuilder =
+    LocalHealthContextCompanion Function({
+      required String userId,
+      Value<String?> contraceptionMethod,
+      Value<String?> contraceptionNote,
+      Value<String?> pregnancyContext,
+      Value<String?> healthNotes,
+      Value<SyncState> syncState,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+typedef $$LocalHealthContextTableUpdateCompanionBuilder =
+    LocalHealthContextCompanion Function({
+      Value<String> userId,
+      Value<String?> contraceptionMethod,
+      Value<String?> contraceptionNote,
+      Value<String?> pregnancyContext,
+      Value<String?> healthNotes,
+      Value<SyncState> syncState,
+      Value<DateTime> updatedAt,
+      Value<int> rowid,
+    });
+
+class $$LocalHealthContextTableFilterComposer
+    extends Composer<_$AppDatabase, $LocalHealthContextTable> {
+  $$LocalHealthContextTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contraceptionMethod => $composableBuilder(
+    column: $table.contraceptionMethod,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get contraceptionNote => $composableBuilder(
+    column: $table.contraceptionNote,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get pregnancyContext => $composableBuilder(
+    column: $table.pregnancyContext,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get healthNotes => $composableBuilder(
+    column: $table.healthNotes,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<SyncState, SyncState, int> get syncState =>
+      $composableBuilder(
+        column: $table.syncState,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LocalHealthContextTableOrderingComposer
+    extends Composer<_$AppDatabase, $LocalHealthContextTable> {
+  $$LocalHealthContextTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contraceptionMethod => $composableBuilder(
+    column: $table.contraceptionMethod,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get contraceptionNote => $composableBuilder(
+    column: $table.contraceptionNote,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get pregnancyContext => $composableBuilder(
+    column: $table.pregnancyContext,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get healthNotes => $composableBuilder(
+    column: $table.healthNotes,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get syncState => $composableBuilder(
+    column: $table.syncState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LocalHealthContextTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LocalHealthContextTable> {
+  $$LocalHealthContextTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<String> get contraceptionMethod => $composableBuilder(
+    column: $table.contraceptionMethod,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get contraceptionNote => $composableBuilder(
+    column: $table.contraceptionNote,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get pregnancyContext => $composableBuilder(
+    column: $table.pregnancyContext,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get healthNotes => $composableBuilder(
+    column: $table.healthNotes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<SyncState, int> get syncState =>
+      $composableBuilder(column: $table.syncState, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$LocalHealthContextTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LocalHealthContextTable,
+          LocalHealthContextData,
+          $$LocalHealthContextTableFilterComposer,
+          $$LocalHealthContextTableOrderingComposer,
+          $$LocalHealthContextTableAnnotationComposer,
+          $$LocalHealthContextTableCreateCompanionBuilder,
+          $$LocalHealthContextTableUpdateCompanionBuilder,
+          (
+            LocalHealthContextData,
+            BaseReferences<
+              _$AppDatabase,
+              $LocalHealthContextTable,
+              LocalHealthContextData
+            >,
+          ),
+          LocalHealthContextData,
+          PrefetchHooks Function()
+        > {
+  $$LocalHealthContextTableTableManager(
+    _$AppDatabase db,
+    $LocalHealthContextTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LocalHealthContextTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LocalHealthContextTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LocalHealthContextTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> userId = const Value.absent(),
+                Value<String?> contraceptionMethod = const Value.absent(),
+                Value<String?> contraceptionNote = const Value.absent(),
+                Value<String?> pregnancyContext = const Value.absent(),
+                Value<String?> healthNotes = const Value.absent(),
+                Value<SyncState> syncState = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LocalHealthContextCompanion(
+                userId: userId,
+                contraceptionMethod: contraceptionMethod,
+                contraceptionNote: contraceptionNote,
+                pregnancyContext: pregnancyContext,
+                healthNotes: healthNotes,
+                syncState: syncState,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String userId,
+                Value<String?> contraceptionMethod = const Value.absent(),
+                Value<String?> contraceptionNote = const Value.absent(),
+                Value<String?> pregnancyContext = const Value.absent(),
+                Value<String?> healthNotes = const Value.absent(),
+                Value<SyncState> syncState = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LocalHealthContextCompanion.insert(
+                userId: userId,
+                contraceptionMethod: contraceptionMethod,
+                contraceptionNote: contraceptionNote,
+                pregnancyContext: pregnancyContext,
+                healthNotes: healthNotes,
+                syncState: syncState,
+                updatedAt: updatedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$LocalHealthContextTable, LocalHealthContextData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $LocalHealthContextTable,
+                    LocalHealthContextData
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LocalHealthContextTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LocalHealthContextTable,
+      LocalHealthContextData,
+      $$LocalHealthContextTableFilterComposer,
+      $$LocalHealthContextTableOrderingComposer,
+      $$LocalHealthContextTableAnnotationComposer,
+      $$LocalHealthContextTableCreateCompanionBuilder,
+      $$LocalHealthContextTableUpdateCompanionBuilder,
+      (
+        LocalHealthContextData,
+        BaseReferences<
+          _$AppDatabase,
+          $LocalHealthContextTable,
+          LocalHealthContextData
+        >,
+      ),
+      LocalHealthContextData,
+      PrefetchHooks Function()
+    >;
+typedef $$LocalConditionsTableCreateCompanionBuilder =
+    LocalConditionsCompanion Function({
+      Value<int> id,
+      required String localId,
+      required String userId,
+      Value<int?> serverId,
+      required String code,
+      Value<String?> customLabel,
+      Value<String?> note,
+      Value<bool> isActive,
+      Value<bool> isDeleted,
+      Value<SyncState> syncState,
+      Value<DateTime> updatedAt,
+    });
+typedef $$LocalConditionsTableUpdateCompanionBuilder =
+    LocalConditionsCompanion Function({
+      Value<int> id,
+      Value<String> localId,
+      Value<String> userId,
+      Value<int?> serverId,
+      Value<String> code,
+      Value<String?> customLabel,
+      Value<String?> note,
+      Value<bool> isActive,
+      Value<bool> isDeleted,
+      Value<SyncState> syncState,
+      Value<DateTime> updatedAt,
+    });
+
+class $$LocalConditionsTableFilterComposer
+    extends Composer<_$AppDatabase, $LocalConditionsTable> {
+  $$LocalConditionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get code => $composableBuilder(
+    column: $table.code,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get customLabel => $composableBuilder(
+    column: $table.customLabel,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<SyncState, SyncState, int> get syncState =>
+      $composableBuilder(
+        column: $table.syncState,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LocalConditionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $LocalConditionsTable> {
+  $$LocalConditionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get code => $composableBuilder(
+    column: $table.code,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get customLabel => $composableBuilder(
+    column: $table.customLabel,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get syncState => $composableBuilder(
+    column: $table.syncState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LocalConditionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LocalConditionsTable> {
+  $$LocalConditionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get localId =>
+      $composableBuilder(column: $table.localId, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<int> get serverId =>
+      $composableBuilder(column: $table.serverId, builder: (column) => column);
+
+  GeneratedColumn<String> get code =>
+      $composableBuilder(column: $table.code, builder: (column) => column);
+
+  GeneratedColumn<String> get customLabel => $composableBuilder(
+    column: $table.customLabel,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<SyncState, int> get syncState =>
+      $composableBuilder(column: $table.syncState, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$LocalConditionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LocalConditionsTable,
+          LocalCondition,
+          $$LocalConditionsTableFilterComposer,
+          $$LocalConditionsTableOrderingComposer,
+          $$LocalConditionsTableAnnotationComposer,
+          $$LocalConditionsTableCreateCompanionBuilder,
+          $$LocalConditionsTableUpdateCompanionBuilder,
+          (
+            LocalCondition,
+            BaseReferences<
+              _$AppDatabase,
+              $LocalConditionsTable,
+              LocalCondition
+            >,
+          ),
+          LocalCondition,
+          PrefetchHooks Function()
+        > {
+  $$LocalConditionsTableTableManager(
+    _$AppDatabase db,
+    $LocalConditionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LocalConditionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LocalConditionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LocalConditionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> localId = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<int?> serverId = const Value.absent(),
+                Value<String> code = const Value.absent(),
+                Value<String?> customLabel = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<SyncState> syncState = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LocalConditionsCompanion(
+                id: id,
+                localId: localId,
+                userId: userId,
+                serverId: serverId,
+                code: code,
+                customLabel: customLabel,
+                note: note,
+                isActive: isActive,
+                isDeleted: isDeleted,
+                syncState: syncState,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String localId,
+                required String userId,
+                Value<int?> serverId = const Value.absent(),
+                required String code,
+                Value<String?> customLabel = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<SyncState> syncState = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LocalConditionsCompanion.insert(
+                id: id,
+                localId: localId,
+                userId: userId,
+                serverId: serverId,
+                code: code,
+                customLabel: customLabel,
+                note: note,
+                isActive: isActive,
+                isDeleted: isDeleted,
+                syncState: syncState,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$LocalConditionsTable, LocalCondition>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $LocalConditionsTable,
+                    LocalCondition
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LocalConditionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LocalConditionsTable,
+      LocalCondition,
+      $$LocalConditionsTableFilterComposer,
+      $$LocalConditionsTableOrderingComposer,
+      $$LocalConditionsTableAnnotationComposer,
+      $$LocalConditionsTableCreateCompanionBuilder,
+      $$LocalConditionsTableUpdateCompanionBuilder,
+      (
+        LocalCondition,
+        BaseReferences<_$AppDatabase, $LocalConditionsTable, LocalCondition>,
+      ),
+      LocalCondition,
+      PrefetchHooks Function()
+    >;
+typedef $$LocalMedicationsTableCreateCompanionBuilder =
+    LocalMedicationsCompanion Function({
+      Value<int> id,
+      required String localId,
+      required String userId,
+      Value<int?> serverId,
+      required String name,
+      Value<String?> note,
+      Value<bool> isActive,
+      Value<bool> isDeleted,
+      Value<SyncState> syncState,
+      Value<DateTime> updatedAt,
+    });
+typedef $$LocalMedicationsTableUpdateCompanionBuilder =
+    LocalMedicationsCompanion Function({
+      Value<int> id,
+      Value<String> localId,
+      Value<String> userId,
+      Value<int?> serverId,
+      Value<String> name,
+      Value<String?> note,
+      Value<bool> isActive,
+      Value<bool> isDeleted,
+      Value<SyncState> syncState,
+      Value<DateTime> updatedAt,
+    });
+
+class $$LocalMedicationsTableFilterComposer
+    extends Composer<_$AppDatabase, $LocalMedicationsTable> {
+  $$LocalMedicationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<SyncState, SyncState, int> get syncState =>
+      $composableBuilder(
+        column: $table.syncState,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LocalMedicationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $LocalMedicationsTable> {
+  $$LocalMedicationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get userId => $composableBuilder(
+    column: $table.userId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get syncState => $composableBuilder(
+    column: $table.syncState,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LocalMedicationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LocalMedicationsTable> {
+  $$LocalMedicationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get localId =>
+      $composableBuilder(column: $table.localId, builder: (column) => column);
+
+  GeneratedColumn<String> get userId =>
+      $composableBuilder(column: $table.userId, builder: (column) => column);
+
+  GeneratedColumn<int> get serverId =>
+      $composableBuilder(column: $table.serverId, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<SyncState, int> get syncState =>
+      $composableBuilder(column: $table.syncState, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$LocalMedicationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LocalMedicationsTable,
+          LocalMedication,
+          $$LocalMedicationsTableFilterComposer,
+          $$LocalMedicationsTableOrderingComposer,
+          $$LocalMedicationsTableAnnotationComposer,
+          $$LocalMedicationsTableCreateCompanionBuilder,
+          $$LocalMedicationsTableUpdateCompanionBuilder,
+          (
+            LocalMedication,
+            BaseReferences<
+              _$AppDatabase,
+              $LocalMedicationsTable,
+              LocalMedication
+            >,
+          ),
+          LocalMedication,
+          PrefetchHooks Function()
+        > {
+  $$LocalMedicationsTableTableManager(
+    _$AppDatabase db,
+    $LocalMedicationsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LocalMedicationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LocalMedicationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LocalMedicationsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> localId = const Value.absent(),
+                Value<String> userId = const Value.absent(),
+                Value<int?> serverId = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<SyncState> syncState = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LocalMedicationsCompanion(
+                id: id,
+                localId: localId,
+                userId: userId,
+                serverId: serverId,
+                name: name,
+                note: note,
+                isActive: isActive,
+                isDeleted: isDeleted,
+                syncState: syncState,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String localId,
+                required String userId,
+                Value<int?> serverId = const Value.absent(),
+                required String name,
+                Value<String?> note = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<SyncState> syncState = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => LocalMedicationsCompanion.insert(
+                id: id,
+                localId: localId,
+                userId: userId,
+                serverId: serverId,
+                name: name,
+                note: note,
+                isActive: isActive,
+                isDeleted: isDeleted,
+                syncState: syncState,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$LocalMedicationsTable, LocalMedication>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $LocalMedicationsTable,
+                    LocalMedication
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LocalMedicationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LocalMedicationsTable,
+      LocalMedication,
+      $$LocalMedicationsTableFilterComposer,
+      $$LocalMedicationsTableOrderingComposer,
+      $$LocalMedicationsTableAnnotationComposer,
+      $$LocalMedicationsTableCreateCompanionBuilder,
+      $$LocalMedicationsTableUpdateCompanionBuilder,
+      (
+        LocalMedication,
+        BaseReferences<_$AppDatabase, $LocalMedicationsTable, LocalMedication>,
+      ),
+      LocalMedication,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4073,4 +6884,10 @@ class $AppDatabaseManager {
       $$LocalSymptomsTableTableManager(_db, _db.localSymptoms);
   $$PredictionCacheTableTableManager get predictionCache =>
       $$PredictionCacheTableTableManager(_db, _db.predictionCache);
+  $$LocalHealthContextTableTableManager get localHealthContext =>
+      $$LocalHealthContextTableTableManager(_db, _db.localHealthContext);
+  $$LocalConditionsTableTableManager get localConditions =>
+      $$LocalConditionsTableTableManager(_db, _db.localConditions);
+  $$LocalMedicationsTableTableManager get localMedications =>
+      $$LocalMedicationsTableTableManager(_db, _db.localMedications);
 }

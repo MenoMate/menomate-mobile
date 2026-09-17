@@ -59,11 +59,17 @@ class HomeTab extends ConsumerWidget {
           },
           loading: () => Text(
             'MenoMate',
-            style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
           ),
           error: (_, _) => Text(
             'MenoMate',
-            style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: colorScheme.onSurface,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
         actions: [
@@ -126,27 +132,55 @@ class HomeTab extends ConsumerWidget {
                   // Rule F: never show negative countdown.
                   // Hierarchy: one compact primary line; confidence is a
                   // subtle secondary suffix, never equal-weight text.
+                  // Confidence is server-provided and optional: unknown
+                  // sentinels render as no suffix rather than jargon such as
+                  // "None confidence".
+                  String? confidenceSuffix(String conf) {
+                    final c = conf.trim().toLowerCase();
+                    if (c.isEmpty ||
+                        c == 'none' ||
+                        c == 'unknown' ||
+                        c == 'insufficient_data') {
+                      return null;
+                    }
+                    return '${conf.trim()} confidence';
+                  }
+
                   String nextPeriodMain = 'Log cycles to calculate prediction';
                   String? nextPeriodSuffix;
-                  if (cycleData.predictedNextPeriod != null) {
-                    final nextDateStr = DateFormat('MMM d').format(cycleData.predictedNextPeriod!);
+                  if (cycleData.predictionSource == 'user_logged' &&
+                      cycleData.latestPeriodStart != null) {
+                    // Recorded user entry, not a forecast: plain recorded
+                    // wording with no confidence suffix.
+                    final loggedStr = DateFormat('MMM d')
+                        .format(cycleData.latestPeriodStart!);
+                    final daysLeft = cycleData.daysUntilNextPeriod;
+                    if (daysLeft == null || daysLeft <= 0) {
+                      nextPeriodMain = 'Logged period for $loggedStr';
+                    } else {
+                      nextPeriodMain =
+                          'Logged period starting $loggedStr (in ~$daysLeft days)';
+                    }
+                  } else if (cycleData.predictedNextPeriod != null) {
+                    final nextDateStr = DateFormat('MMM d')
+                        .format(cycleData.predictedNextPeriod!);
                     final daysLeft = cycleData.daysUntilNextPeriod;
                     final status = cycleData.predictionStatus;
                     final conf = cycleData.predictionConfidence;
                     if (daysLeft == null) {
                       nextPeriodMain = 'Expected around $nextDateStr';
-                      nextPeriodSuffix = '$conf confidence';
+                      nextPeriodSuffix = confidenceSuffix(conf);
                     } else if (status == 'awaiting_next_start') {
                       nextPeriodMain =
                           'Expected around $nextDateStr — Log your next period when it starts';
                     } else if (daysLeft <= 0 || status == 'today') {
                       // Backend clamps passed predictions to 0; treat as today/expected.
                       nextPeriodMain = 'Next period: $nextDateStr (today)';
-                      nextPeriodSuffix = '$conf confidence';
+                      nextPeriodSuffix = confidenceSuffix(conf);
                     } else {
                       nextPeriodMain =
                           'Next period: $nextDateStr (in ~$daysLeft days)';
-                      nextPeriodSuffix = '$conf confidence';
+                      nextPeriodSuffix = confidenceSuffix(conf);
                     }
                   }
 
@@ -163,8 +197,11 @@ class HomeTab extends ConsumerWidget {
                     } else if (cycleData.latestPeriodEnd != null) {
                       final start = cycleData.latestPeriodStart!;
                       final end = cycleData.latestPeriodEnd!;
-                      final startDay =
-                          DateTime(start.year, start.month, start.day);
+                      final startDay = DateTime(
+                        start.year,
+                        start.month,
+                        start.day,
+                      );
                       final endDay = DateTime(end.year, end.month, end.day);
                       final days = endDay.difference(startDay).inDays + 1;
                       periodStatus =
@@ -190,22 +227,86 @@ class HomeTab extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 20,
+                      horizontal: 16,
+                    ),
                     child: Column(
                       children: [
                         SyncStatusChip(state: cycleState),
                         // Cycle ring: Day N + server phase stay dominant.
-                        Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            InteractiveCycleRing(
-                              phase: cycleData.phase,
-                              currentDay: cycleData.currentCycleDay ?? 1,
-                              cycleLength: cycleData.averageCycleLength ??
-                                  cycleData.predictedCycleLength ??
-                                  28,
-                            ),
-                          ],
+                        // No fake 28-day default: the progress arc needs a
+                        // real length. A known day still renders its labels;
+                        // a fully unknown position renders an unknown state.
+                        Builder(
+                          builder: (context) {
+                            final cycleLength =
+                                cycleData.averageCycleLength ??
+                                cycleData.predictedCycleLength;
+                            final currentDay = cycleData.currentCycleDay;
+                            if (currentDay == null) {
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 24,
+                                  horizontal: 16,
+                                ),
+                                child: Text(
+                                  'Not enough data yet — log more periods to see your cycle ring.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: colorScheme.secondary,
+                                    height: 1.4,
+                                  ),
+                                ),
+                              );
+                            }
+                            if (cycleLength == null) {
+                              final phaseColor = MenoMateTheme.ringPhaseColor(
+                                isDark: theme.brightness == Brightness.dark,
+                                phase: cycleData.phase,
+                              );
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 20,
+                                ),
+                                child: Column(
+                                  children: [
+                                    Text(
+                                      'Day $currentDay',
+                                      style: TextStyle(
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.bold,
+                                        color: colorScheme.onSurface,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      formatPhaseLabel(cycleData.phase),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: phaseColor,
+                                        letterSpacing: 1.2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+                            return Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                InteractiveCycleRing(
+                                  phase: cycleData.phase,
+                                  currentDay: currentDay,
+                                  cycleLength: cycleLength,
+                                  onPhaseInfoTap: () =>
+                                      showPhaseInfoSheet(context),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                         const SizedBox(height: 12),
 
@@ -219,8 +320,9 @@ class HomeTab extends ConsumerWidget {
                                   text: ' · $nextPeriodSuffix',
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: colorScheme.secondary
-                                        .withValues(alpha: 0.75),
+                                    color: colorScheme.secondary.withValues(
+                                      alpha: 0.75,
+                                    ),
                                     fontWeight: FontWeight.w400,
                                   ),
                                 ),
@@ -242,8 +344,9 @@ class HomeTab extends ConsumerWidget {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 12,
-                              color: colorScheme.secondary
-                                  .withValues(alpha: 0.85),
+                              color: colorScheme.secondary.withValues(
+                                alpha: 0.85,
+                              ),
                               fontWeight: FontWeight.w400,
                             ),
                           ),
@@ -258,7 +361,9 @@ class HomeTab extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(8),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -266,24 +371,27 @@ class HomeTab extends ConsumerWidget {
                                   Icons.calendar_month_rounded,
                                   size: 15,
                                   color: MenoMateTheme.interactionColor(
-                                      theme.brightness == Brightness.dark),
+                                    theme.brightness == Brightness.dark,
+                                  ),
                                 ),
                                 const SizedBox(width: 6),
-                Text(
-                  'Calendar',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: MenoMateTheme.interactionColor(
-                        theme.brightness == Brightness.dark),
-                  ),
-                ),
+                                Text(
+                                  'Calendar',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: MenoMateTheme.interactionColor(
+                                      theme.brightness == Brightness.dark,
+                                    ),
+                                  ),
+                                ),
                                 const SizedBox(width: 2),
                                 Icon(
                                   Icons.chevron_right_rounded,
                                   size: 16,
                                   color: MenoMateTheme.interactionColor(
-                                      theme.brightness == Brightness.dark),
+                                    theme.brightness == Brightness.dark,
+                                  ),
                                 ),
                               ],
                             ),
@@ -296,7 +404,8 @@ class HomeTab extends ConsumerWidget {
                           builder: (context) {
                             // Source of truth: current cycle response from backend
                             // IF: current cycle exists AND period_start is set AND period_end is null
-                            final bool isPeriodOngoing = cycleData.hasData &&
+                            final bool isPeriodOngoing =
+                                cycleData.hasData &&
                                 cycleData.latestPeriodStart != null &&
                                 cycleData.latestPeriodEnd == null;
 
@@ -333,7 +442,17 @@ class HomeTab extends ConsumerWidget {
 
               const SizedBox(height: 20),
 
-              // Daily Insight Card
+              // Daily Insight: one glanceable section, matching the
+              // sibling section headers below.
+              Text(
+                'Today\'s Insight',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 12),
               const DailyInsightCard(),
 
               const SizedBox(height: 24),
@@ -371,4 +490,62 @@ class HomeTab extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Calm explainer for the cycle-phase label. States only what the app
+/// already communicates elsewhere (phases come from logged history via
+/// backend predictions, shown with hedging like "Expected around") —
+/// no new medical claims, no configuration, just context.
+Future<void> showPhaseInfoSheet(BuildContext context) {
+  final colorScheme = Theme.of(context).colorScheme;
+  return showModalBottomSheet<void>(
+    context: context,
+    builder: (context) => SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'About cycle phases',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Your phase is estimated from your logged history. '
+              'Phases can vary from cycle to cycle — treat them as '
+              'context, not a diagnosis.',
+              style: TextStyle(
+                fontSize: 14,
+                color: colorScheme.secondary,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'If something feels off, consider talking to a clinician you trust.',
+              style: TextStyle(
+                fontSize: 14,
+                color: colorScheme.secondary,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Got it'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

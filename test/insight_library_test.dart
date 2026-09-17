@@ -28,28 +28,40 @@ void main() {
       expect(
         selectInsightPair(
           const InsightInput(
-              hasData: true, phase: 'menstrual', menstrualDay: 1),
+            hasData: true,
+            phase: 'menstrual',
+            menstrualDay: 1,
+          ),
         ),
         same(insightPairs[InsightContext.menstrualEarly]),
       );
       expect(
         selectInsightPair(
           const InsightInput(
-              hasData: true, phase: 'menstrual', menstrualDay: 2),
+            hasData: true,
+            phase: 'menstrual',
+            menstrualDay: 2,
+          ),
         ),
         same(insightPairs[InsightContext.menstrualEarly]),
       );
       expect(
         selectInsightPair(
           const InsightInput(
-              hasData: true, phase: 'menstrual', menstrualDay: 3),
+            hasData: true,
+            phase: 'menstrual',
+            menstrualDay: 3,
+          ),
         ),
         same(insightPairs[InsightContext.menstrualLate]),
       );
       expect(
         selectInsightPair(
           const InsightInput(
-              hasData: true, phase: 'menstrual', menstrualDay: 9),
+            hasData: true,
+            phase: 'menstrual',
+            menstrualDay: 9,
+          ),
         ),
         same(insightPairs[InsightContext.menstrualLate]),
       );
@@ -58,7 +70,8 @@ void main() {
     test('menstrual without a day -> unknown pair', () {
       expect(
         selectInsightPair(
-            const InsightInput(hasData: true, phase: 'menstrual')),
+          const InsightInput(hasData: true, phase: 'menstrual'),
+        ),
         same(insightPairs[InsightContext.menstrualUnknown]),
       );
     });
@@ -66,17 +79,18 @@ void main() {
     test('phases map directly (case-insensitive)', () {
       expect(
         selectInsightPair(
-            const InsightInput(hasData: true, phase: 'follicular')),
+          const InsightInput(hasData: true, phase: 'follicular'),
+        ),
         same(insightPairs[InsightContext.follicular]),
       );
       expect(
         selectInsightPair(
-            const InsightInput(hasData: true, phase: 'Ovulation')),
+          const InsightInput(hasData: true, phase: 'Ovulation'),
+        ),
         same(insightPairs[InsightContext.ovulation]),
       );
       expect(
-        selectInsightPair(
-            const InsightInput(hasData: true, phase: 'LUTEAL')),
+        selectInsightPair(const InsightInput(hasData: true, phase: 'LUTEAL')),
         same(insightPairs[InsightContext.luteal]),
       );
     });
@@ -85,13 +99,15 @@ void main() {
       expect(
         selectInsightPair(
           const InsightInput(
-              hasData: false, phase: 'menstrual', menstrualDay: 2),
+            hasData: false,
+            phase: 'menstrual',
+            menstrualDay: 2,
+          ),
         ),
         same(insightPairs[InsightContext.noData]),
       );
       expect(
-        selectInsightPair(
-            const InsightInput(hasData: true, phase: 'mystery')),
+        selectInsightPair(const InsightInput(hasData: true, phase: 'mystery')),
         same(insightPairs[InsightContext.noData]),
       );
       expect(
@@ -108,31 +124,46 @@ void main() {
   group('complementarity + compactness', () {
     test('insight and action differ and stay glanceable', () {
       for (final entry in insightPairs.entries) {
-        expect(entry.value.insight.body.isNotEmpty, isTrue,
-            reason: '${entry.key} insight empty');
-        expect(entry.value.action.body.isNotEmpty, isTrue,
-            reason: '${entry.key} action empty');
-        expect(entry.value.insight.body, isNot(entry.value.action.body),
-            reason: '${entry.key} slides duplicate each other');
+        expect(
+          entry.value.insight.body.isNotEmpty,
+          isTrue,
+          reason: '${entry.key} insight empty',
+        );
+        expect(
+          entry.value.action.body.isNotEmpty,
+          isTrue,
+          reason: '${entry.key} action empty',
+        );
+        expect(
+          entry.value.insight.body,
+          isNot(entry.value.action.body),
+          reason: '${entry.key} slides duplicate each other',
+        );
         // Readable in seconds: no paragraph walls on a compact card.
-        expect(entry.value.insight.body.length, lessThanOrEqualTo(140),
-            reason: '${entry.key} insight too long');
-        expect(entry.value.action.body.length, lessThanOrEqualTo(140),
-            reason: '${entry.key} action too long');
+        expect(
+          entry.value.insight.body.length,
+          lessThanOrEqualTo(140),
+          reason: '${entry.key} insight too long',
+        );
+        expect(
+          entry.value.action.body.length,
+          lessThanOrEqualTo(140),
+          reason: '${entry.key} action too long',
+        );
       }
     });
 
     test('nutrition appears in context-appropriate actions', () {
       expect(
-        selectInsightPair(
-          const InsightInput(hasData: true, phase: 'luteal'),
-        ).action.body,
+        selectInsightPair(const InsightInput(hasData: true, phase: 'luteal'))
+            .action
+            .body,
         contains('magnesium-rich'),
       );
       expect(
-        selectInsightPair(
-          const InsightInput(hasData: true, phase: 'menstrual'),
-        ).action.body,
+        selectInsightPair(const InsightInput(hasData: true, phase: 'menstrual'))
+            .action
+            .body,
         contains('meals regular'),
       );
     });
@@ -173,7 +204,11 @@ void main() {
 
     test('no banned medical wording in any body', () {
       for (final body in allBodies()) {
-        expect(banned.hasMatch(body), isFalse, reason: 'banned wording in: $body');
+        expect(
+          banned.hasMatch(body),
+          isFalse,
+          reason: 'banned wording in: $body',
+        );
       }
     });
   });
@@ -190,15 +225,21 @@ void main() {
 
     test('no food-as-treatment claims in any body', () {
       for (final body in allBodies()) {
-        expect(treatmentClaim.hasMatch(body), isFalse,
-            reason: 'treatment claim in: $body');
+        expect(
+          treatmentClaim.hasMatch(body),
+          isFalse,
+          reason: 'treatment claim in: $body',
+        );
       }
     });
 
     test('chocolate is absent: not an established treatment', () {
       for (final body in allBodies()) {
-        expect(body.toLowerCase(), isNot(contains('chocolate')),
-            reason: 'chocolate in: $body');
+        expect(
+          body.toLowerCase(),
+          isNot(contains('chocolate')),
+          reason: 'chocolate in: $body',
+        );
       }
     });
 
@@ -214,11 +255,16 @@ void main() {
       // A little nutrition, not every card.
       expect(withFood.length, greaterThanOrEqualTo(1));
       expect(withFood.length, lessThanOrEqualTo(3));
-      final dosage = RegExp(r'\bmg\b|dosage|dose|supplement',
-          caseSensitive: false);
+      final dosage = RegExp(
+        r'\bmg\b|dosage|dose|supplement',
+        caseSensitive: false,
+      );
       for (final p in withFood) {
-        expect(dosage.hasMatch(p.action.body), isFalse,
-            reason: 'dosage talk in: ${p.action.body}');
+        expect(
+          dosage.hasMatch(p.action.body),
+          isFalse,
+          reason: 'dosage talk in: ${p.action.body}',
+        );
       }
     });
   });
@@ -226,21 +272,35 @@ void main() {
   group('evidence metadata', () {
     // Substantive medical claims carry real source metadata; display stays
     // quiet (only designated pieces show a tiny label).
-    final claimHints =
-        RegExp(r'cramp|pain|sleep|exercis|movement|walk|heat|relax|breath|bleed', caseSensitive: false);
+    final claimHints = RegExp(
+      r'cramp|pain|sleep|exercis|movement|walk|heat|relax|breath|bleed',
+      caseSensitive: false,
+    );
 
     test('claim-bearing pieces all carry real source metadata', () {
       for (final pair in allPairs()) {
         for (final piece in [pair.insight, pair.action]) {
           if (claimHints.hasMatch(piece.body)) {
-            expect(piece.sourceName, isNotNull,
-                reason: 'missing sourceName: ${piece.body}');
-            expect(piece.sourceType, isNotNull,
-                reason: 'missing sourceType: ${piece.body}');
-            expect(piece.sourceId, isNotNull,
-                reason: 'missing sourceId: ${piece.body}');
-            expect(piece.sourceId, isNot(contains('TODO')),
-                reason: 'placeholder source: ${piece.body}');
+            expect(
+              piece.sourceName,
+              isNotNull,
+              reason: 'missing sourceName: ${piece.body}',
+            );
+            expect(
+              piece.sourceType,
+              isNotNull,
+              reason: 'missing sourceType: ${piece.body}',
+            );
+            expect(
+              piece.sourceId,
+              isNotNull,
+              reason: 'missing sourceId: ${piece.body}',
+            );
+            expect(
+              piece.sourceId,
+              isNot(contains('TODO')),
+              reason: 'placeholder source: ${piece.body}',
+            );
           }
         }
       }
@@ -253,17 +313,18 @@ void main() {
             if (piece.showAttribution) piece,
       ];
       expect(shown.length, 3);
-      expect(
-        shown.map((p) => p.attributionLabel).toSet(),
-        {'ACOG', 'Systematic review', 'Cochrane review'},
-      );
+      expect(shown.map((p) => p.attributionLabel).toSet(), {
+        'ACOG',
+        'Systematic review',
+        'Cochrane review',
+      });
       for (final piece in shown) {
         expect(piece.sourceId, isNotNull);
       }
     });
   });
 
-  group('card two-slide UX', () {
+  group('card stacked sections UX', () {
     Future<void> pumpCard(
       WidgetTester tester, {
       required DataState<CurrentCycleResponse?> cycle,
@@ -280,7 +341,9 @@ void main() {
           // Center: loose constraints like the scrolling Home, so the
           // card shrink-wraps instead of stretching to the viewport.
           child: MaterialApp(
-              theme: theme, home: const Center(child: DailyInsightCard())),
+            theme: theme,
+            home: const Center(child: DailyInsightCard()),
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -300,42 +363,28 @@ void main() {
       );
     }
 
-    testWidgets('exactly two slides with fixed titles, swipe advances',
-        (tester) async {
+    testWidgets('both sections visible at once, no swipe needed', (
+      tester,
+    ) async {
       await pumpCard(
         tester,
         cycle: menstrualDay2(),
         theme: MenoMateTheme.sakuraTheme,
       );
 
-      expect(find.text('Today’s insight'), findsOneWidget);
-      expect(find.text('Helpful today'), findsNothing);
+      // Relevant first, exploratory second — simultaneously visible.
+      expect(find.text('FOR YOU TODAY'), findsOneWidget);
+      expect(find.text('SOMETHING TO TRY'), findsOneWidget);
       expect(
         find.textContaining('peak in the first day or two'),
         findsOneWidget,
       );
-      // Tiny attribution only on the attributed slide.
-      expect(find.text('ACOG'), findsOneWidget);
-
-      await tester.drag(find.byType(PageView), const Offset(-400, 0));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Today’s insight'), findsNothing);
-      expect(find.text('Helpful today'), findsOneWidget);
       expect(find.textContaining('Warmth on the lower belly'), findsOneWidget);
+      // Tiny attribution only on attributed pieces.
+      expect(find.text('ACOG'), findsOneWidget);
       expect(find.text('Systematic review'), findsOneWidget);
-    });
-
-    testWidgets('no autoplay: page holds without interaction', (tester) async {
-      await pumpCard(
-        tester,
-        cycle: menstrualDay2(),
-        theme: MenoMateTheme.sakuraTheme,
-      );
-
-      await tester.pump(const Duration(minutes: 5));
-      expect(find.text('Today’s insight'), findsOneWidget);
-      expect(find.text('Helpful today'), findsNothing);
+      // No swipe mechanics remain.
+      expect(find.byType(PageView), findsNothing);
     });
 
     testWidgets('dark mode renders the pair without overflow', (tester) async {
@@ -345,52 +394,48 @@ void main() {
         theme: MenoMateTheme.starryNightTheme,
       );
 
-      expect(find.text('Today’s insight'), findsOneWidget);
-      expect(find.textContaining('peak in the first day or two'),
-          findsOneWidget);
+      expect(find.text('FOR YOU TODAY'), findsOneWidget);
+      expect(
+        find.textContaining('peak in the first day or two'),
+        findsOneWidget,
+      );
     });
 
-    testWidgets('compact rendering: short card, small slide area',
-        (tester) async {
+    testWidgets('natural height: card sizes to content, hierarchy holds', (
+      tester,
+    ) async {
       await pumpCard(
         tester,
         cycle: menstrualDay2(),
         theme: MenoMateTheme.sakuraTheme,
       );
 
-      // Companion, not a section: content well under the old ~165px
-      // slide area + dots (old card totaled ~210px).
+      // Companion, not a section: stacked content with room to breathe,
+      // well under half the viewport — no fixed slide area, no dots.
       expect(
-        tester
-            .getSize(find.byKey(const Key('daily_insight_content')))
-            .height,
-        lessThan(120),
+        tester.getSize(find.byKey(const Key('daily_insight_content'))).height,
+        lessThan(320),
       );
-      expect(tester.getSize(find.byType(Card)).height, lessThan(160));
-      expect(tester.getSize(find.byType(PageView)).height,
-          lessThanOrEqualTo(100));
-      // Proportion lock: secondary title, Home-scale body, tiny source.
+      expect(tester.getSize(find.byType(Card)).height, lessThan(360));
+      // Proportion lock: quiet labels, Home-scale body, tiny source.
       expect(
-        tester.widget<Text>(find.text('Today’s insight')).style?.fontSize,
-        13.0,
+        tester.widget<Text>(find.text('FOR YOU TODAY')).style?.fontSize,
+        11.0,
       );
       expect(
         tester
-            .widget<Text>(
-                find.textContaining('peak in the first day or two'))
+            .widget<Text>(find.textContaining('peak in the first day or two'))
             .style
             ?.fontSize,
         14.0,
       );
-      expect(
-        tester.widget<Text>(find.text('ACOG')).style?.fontSize,
-        10.0,
-      );
+      expect(tester.widget<Text>(find.text('ACOG')).style?.fontSize, 10.0);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('phone width renders light and dark without overflow',
-        (tester) async {
+    testWidgets('phone width renders light and dark without overflow', (
+      tester,
+    ) async {
       for (final theme in [
         MenoMateTheme.sakuraTheme,
         MenoMateTheme.starryNightTheme,
@@ -405,21 +450,19 @@ void main() {
                 (ref) => Future.value(menstrualDay2()),
               ),
             ],
-            child: MaterialApp(
-              theme: theme,
-              home: const DailyInsightCard(),
-            ),
+            child: MaterialApp(theme: theme, home: const DailyInsightCard()),
           ),
         );
         await tester.pumpAndSettle();
 
-        expect(find.text('Today’s insight'), findsOneWidget);
+        expect(find.text('FOR YOU TODAY'), findsOneWidget);
         expect(tester.takeException(), isNull);
       }
     });
 
-    testWidgets('fallback pair renders when context is missing',
-        (tester) async {
+    testWidgets('fallback pair renders when context is missing', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 2000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -427,7 +470,8 @@ void main() {
         ProviderScope(
           overrides: [
             currentCycleProvider.overrideWith(
-              (ref) => Future<DataState<CurrentCycleResponse?>>.error('offline'),
+              (ref) =>
+                  Future<DataState<CurrentCycleResponse?>>.error('offline'),
             ),
           ],
           child: MaterialApp(
@@ -438,8 +482,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Today’s insight'), findsOneWidget);
+      expect(find.text('FOR YOU TODAY'), findsOneWidget);
+      expect(find.text('SOMETHING TO TRY'), findsOneWidget);
       expect(find.textContaining('learns your cycles'), findsOneWidget);
+      expect(find.textContaining('Log a period'), findsOneWidget);
     });
   });
 }

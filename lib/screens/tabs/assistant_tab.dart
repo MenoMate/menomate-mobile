@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../models/care.dart';
 import '../../providers/care_session_provider.dart';
+import '../../providers/offline_mode_provider.dart';
 import '../../widgets/care_message_bubble.dart';
 import '../../widgets/menomate_logo.dart';
 import '../../services/api_service.dart';
@@ -51,9 +52,33 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
     final topic = intent ?? 'wellness_help';
     // Active-session memory: the in-flight message travels as
     // user_message; retained prior turns travel as recent_turns.
-    final priorTurns =
-        List<CareTurn>.unmodifiable(ref.read(careSessionProvider));
+    final priorTurns = List<CareTurn>.unmodifiable(
+      ref.read(careSessionProvider),
+    );
     ref.read(careSessionProvider.notifier).addUserTurn(text, topic: topic);
+
+    // MenoMate Care needs an account as well as connectivity: local-only
+    // users get a clear sign-in explanation instead of a raw auth error.
+    if (ref.read(isOfflineTrackingProvider)) {
+      setState(() {
+        _messages.insert(0, {'isUser': true, 'text': text});
+      });
+      _scrollToBottom();
+      if (mounted) {
+        setState(() {
+          _messages.insert(0, {
+            'isUser': false,
+            'text':
+                'You\u2019re using MenoMate offline. Sign in to use MenoMate '
+                'Care, which needs an internet connection and an account. '
+                'Your history, logs, and calendar remain available offline.',
+            'isAi': false,
+          });
+        });
+        _scrollToBottom();
+      }
+      return;
+    }
 
     // Care is online-only: never spin forever or fabricate a reply offline.
     // A plugin failure counts as offline too (fail closed, never claim AI).
@@ -65,10 +90,7 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
       online = false;
     }
     setState(() {
-      _messages.insert(0, {
-        'isUser': true,
-        'text': text,
-      });
+      _messages.insert(0, {'isUser': true, 'text': text});
       _isLoading = online;
     });
     _scrollToBottom();
@@ -77,7 +99,8 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
         setState(() {
           _messages.insert(0, {
             'isUser': false,
-            'text': 'MenoMate Care needs an internet connection. '
+            'text':
+                'MenoMate Care needs an internet connection. '
                 'Your history, logs, and calendar remain available offline.',
             'isAi': false,
           });
@@ -98,14 +121,16 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
       final response = await api.postCareInteraction(request);
 
       if (mounted) {
-        ref.read(careSessionProvider.notifier).addCareTurn(
-          response.responseText,
-          topic: response.intent,
-          facts: {
-            if (response.therapyProfile != null)
-              'therapy_profile': response.therapyProfile!,
-          },
-        );
+        ref
+            .read(careSessionProvider.notifier)
+            .addCareTurn(
+              response.responseText,
+              topic: response.intent,
+              facts: {
+                if (response.therapyProfile != null)
+                  'therapy_profile': response.therapyProfile!,
+              },
+            );
         setState(() {
           _messages.insert(0, {
             'isUser': false,
@@ -115,6 +140,7 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
             'actions': response.actions,
             'therapyProfile': response.therapyProfile,
             'isAi': response.isAiGenerated,
+            'disclaimer': response.disclaimer,
           });
         });
         _scrollToBottom();
@@ -159,14 +185,18 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
         ref.read(homeTabIndexProvider.notifier).setIndex(0);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Use the MenoMate Wearable card on Home to scan and pair your device.'),
+            content: Text(
+              'Use the MenoMate Wearable card on Home to scan and pair your device.',
+            ),
             duration: Duration(seconds: 2),
           ),
         );
       case CareActionTarget.emergencyInfo:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Please contact emergency services or your doctor directly.'),
+            content: Text(
+              'Please contact emergency services or your doctor directly.',
+            ),
             duration: Duration(seconds: 3),
           ),
         );
@@ -179,15 +209,21 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
         if (!bleService.isConnected) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Wearable not connected. Pair your device to use the recommended setup.'),
+              content: Text(
+                'Wearable not connected. Pair your device to use the recommended setup.',
+              ),
               duration: Duration(seconds: 2),
             ),
           );
         } else {
-          debugPrint('Therapy start requested (${action.label}) — BLE control not yet implemented.');
+          debugPrint(
+            'Therapy start requested (${action.label}) — BLE control not yet implemented.',
+          );
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text("Therapy control isn't available yet — the approved setup will apply once BLE control lands."),
+              content: Text(
+                "Therapy control isn't available yet — the approved setup will apply once BLE control lands.",
+              ),
               duration: Duration(seconds: 3),
             ),
           );
@@ -241,7 +277,10 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
                   : ListView.builder(
                       controller: _scrollController,
                       reverse: true,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                       itemCount: _messages.length,
                       itemBuilder: (context, index) {
                         final msg = _messages[index];
@@ -260,12 +299,18 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
                       SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.primary),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: colorScheme.primary,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         'MenoMate Care is thinking...',
-                        style: TextStyle(fontSize: 12, color: colorScheme.secondary),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.secondary,
+                        ),
                       ),
                     ],
                   ),
@@ -296,7 +341,11 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
                 color: colorScheme.primary.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(Icons.auto_awesome, color: colorScheme.primary, size: 32),
+              child: Icon(
+                Icons.auto_awesome,
+                color: colorScheme.primary,
+                size: 32,
+              ),
             ),
             const SizedBox(height: 16),
             Text(
@@ -327,8 +376,14 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
               children: [
                 _buildQuickChip("What's happening today?", 'cycle_insight'),
                 _buildQuickChip('Help with my current pain', 'pain_help'),
-                _buildQuickChip('What patterns do you notice?', 'pattern_summary'),
-                _buildQuickChip('What helped me before?', 'therapy_recommendation'),
+                _buildQuickChip(
+                  'What patterns do you notice?',
+                  'pattern_summary',
+                ),
+                _buildQuickChip(
+                  'What helped me before?',
+                  'therapy_recommendation',
+                ),
               ],
             ),
           ],
@@ -381,7 +436,10 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
               minLines: 1,
               decoration: InputDecoration(
                 hintText: 'Ask about your cycle, symptoms, or therapy...',
-                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide(color: colorScheme.outline),
@@ -398,7 +456,10 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
                 ? const SizedBox(
                     width: 18,
                     height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
                 : const Icon(Icons.send_rounded, size: 20),
             onPressed: _isLoading

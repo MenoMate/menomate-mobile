@@ -40,9 +40,9 @@ class CycleRepository {
   }
 
   Future<PredictionCacheData?> _cache(String userId) {
-    return (db.select(db.predictionCache)
-          ..where((t) => t.userId.equals(userId)))
-        .getSingleOrNull();
+    return (db.select(
+      db.predictionCache,
+    )..where((t) => t.userId.equals(userId))).getSingleOrNull();
   }
 
   bool _hasConflict(List<LocalCycle> rows) =>
@@ -71,8 +71,9 @@ class CycleRepository {
   ) {
     if (rows.isEmpty) return null;
     final today = todayIso();
-    final observed =
-        rows.where((r) => r.periodStart.compareTo(today) <= 0).toList();
+    final observed = rows
+        .where((r) => r.periodStart.compareTo(today) <= 0)
+        .toList();
 
     LocalCycle? ongoing;
     for (final r in rows.reversed) {
@@ -83,7 +84,9 @@ class CycleRepository {
     }
 
     if (ongoing == null && observed.isEmpty) {
-      // Only future user-entered periods exist: display them, predict nothing.
+      // Only future user-entered periods exist: record the logged date,
+      // predict nothing. predictedNextPeriod stays null so server-owned
+      // predictions are never mimicked; confidence is unknown ('None').
       final first = rows.first;
       final days = isoDayDifference(today, first.periodStart);
       return CurrentCycleResponse(
@@ -97,10 +100,10 @@ class CycleRepository {
             ? null
             : parseIsoDate(first.periodEnd!),
         predictedCycleLength: null,
-        predictedNextPeriod: parseIsoDate(first.periodStart),
+        predictedNextPeriod: null,
         daysUntilNextPeriod: days,
-        predictionStatus: days == 0 ? 'today' : 'upcoming',
-        predictionConfidence: 'high',
+        predictionStatus: 'user_logged',
+        predictionConfidence: 'None',
         predictionSource: 'user_logged',
         averageCycleLength: cache?.averageCycleLength?.round(),
         averagePeriodLength: cache?.averagePeriodLength?.round(),
@@ -143,8 +146,7 @@ class CycleRepository {
           id: r.serverId ?? -r.id,
           userId: r.userId,
           periodStart: parseIsoDate(r.periodStart),
-          periodEnd:
-              r.periodEnd == null ? null : parseIsoDate(r.periodEnd!),
+          periodEnd: r.periodEnd == null ? null : parseIsoDate(r.periodEnd!),
           // Observed bleeding duration from stored dates (display only).
           periodLengthDays: r.periodEnd == null
               ? null
@@ -167,19 +169,19 @@ class CycleRepository {
       if (i < asc.length - 1) {
         // Observed start-to-start interval between two logged periods,
         // shown as a history label only. Never used for prediction.
-        interval =
-            isoDayDifference(r.periodStart, asc[i + 1].periodStart);
+        interval = isoDayDifference(r.periodStart, asc[i + 1].periodStart);
       }
-      entries.add(HistoryPeriodEntry(
-        id: r.serverId ?? -r.id,
-        periodStart: parseIsoDate(r.periodStart),
-        periodEnd:
-            r.periodEnd == null ? null : parseIsoDate(r.periodEnd!),
-        periodLengthDays: r.periodEnd == null
-            ? null
-            : isoDayDifference(r.periodStart, r.periodEnd!) + 1,
-        cycleLengthDays: interval,
-      ));
+      entries.add(
+        HistoryPeriodEntry(
+          id: r.serverId ?? -r.id,
+          periodStart: parseIsoDate(r.periodStart),
+          periodEnd: r.periodEnd == null ? null : parseIsoDate(r.periodEnd!),
+          periodLengthDays: r.periodEnd == null
+              ? null
+              : isoDayDifference(r.periodStart, r.periodEnd!) + 1,
+          cycleLengthDays: interval,
+        ),
+      );
     }
     return HistorySummaryResponse(
       totalPeriodsLogged: rows.length,
@@ -212,22 +214,28 @@ class CycleRepository {
         }
         match ??= _findByStart(rows, sStart);
         if (match == null) {
-          await db.into(db.localCycles).insert(LocalCyclesCompanion.insert(
-                localId: _newLocalId(),
-                userId: userId,
-                serverId: Value(s.id),
-                periodStart: sStart,
-                periodEnd: Value(sEnd),
-                syncState: Value(SyncState.synced),
-              ));
+          await db
+              .into(db.localCycles)
+              .insert(
+                LocalCyclesCompanion.insert(
+                  localId: _newLocalId(),
+                  userId: userId,
+                  serverId: Value(s.id),
+                  periodStart: sStart,
+                  periodEnd: Value(sEnd),
+                  syncState: Value(SyncState.synced),
+                ),
+              );
         } else if (match.syncState == SyncState.synced) {
-          await (db.update(db.localCycles)
-                ..where((t) => t.id.equals(match!.id)))
-              .write(LocalCyclesCompanion(
-            serverId: Value(s.id),
-            periodStart: Value(sStart),
-            periodEnd: Value(sEnd),
-          ));
+          await (db.update(
+            db.localCycles,
+          )..where((t) => t.id.equals(match!.id))).write(
+            LocalCyclesCompanion(
+              serverId: Value(s.id),
+              periodStart: Value(sStart),
+              periodEnd: Value(sEnd),
+            ),
+          );
         } else if (match.serverId == null) {
           // Offline-created row now matches a server row by start date:
           // reconcile the identity but keep local values pending push.
@@ -251,20 +259,22 @@ class CycleRepository {
     String userId,
     CurrentCycleResponse current,
   ) async {
-    await db.into(db.predictionCache).insertOnConflictUpdate(
+    await db
+        .into(db.predictionCache)
+        .insertOnConflictUpdate(
           PredictionCacheCompanion.insert(
             userId: userId,
             phase: Value(current.phase),
-            predictedNextPeriod: Value(current.predictedNextPeriod == null
-                ? null
-                : toIsoDate(current.predictedNextPeriod!)),
+            predictedNextPeriod: Value(
+              current.predictedNextPeriod == null
+                  ? null
+                  : toIsoDate(current.predictedNextPeriod!),
+            ),
             daysUntilNextPeriod: Value(current.daysUntilNextPeriod),
             predictionStatus: Value(current.predictionStatus),
             predictionConfidence: Value(current.predictionConfidence),
-            averageCycleLength: Value(
-                current.averageCycleLength?.toDouble()),
-            averagePeriodLength: Value(
-                current.averagePeriodLength?.toDouble()),
+            averageCycleLength: Value(current.averageCycleLength?.toDouble()),
+            averagePeriodLength: Value(current.averagePeriodLength?.toDouble()),
             fetchedAt: Value(DateTime.now()),
           ),
         );
@@ -303,6 +313,45 @@ class CycleRepository {
 
   // -------------------------------------------------- public reads
 
+  /// Local-only reads for offline tracking: assemble from local rows plus
+  /// the prediction cache without any network attempt. Empty is [NoData]
+  /// (onboarding not done), never an error. State mapping matches the
+  /// remote paths so offline rows honestly report as not-yet-synced.
+  Future<DataState<CurrentCycleResponse?>> loadCurrentLocal(
+    String userId,
+  ) async {
+    final rows = await _localRows(userId);
+    final cache = await _cache(userId);
+    return _stateFor(_assembleCurrent(rows, cache), rows, cache);
+  }
+
+  Future<DataState<HistorySummaryResponse>> loadHistoryLocal(
+    String userId,
+  ) async {
+    final rows = await _localRows(userId);
+    final cache = await _cache(userId);
+    if (rows.isEmpty && cache == null) {
+      return const NoData();
+    }
+    final view = _assembleHistory(rows, cache);
+    if (_hasConflict(rows)) {
+      return ConflictState(view, 'One entry needs review.');
+    }
+    if (_hasPending(rows)) return PendingSync(view);
+    return Fresh(view);
+  }
+
+  Future<DataState<List<CycleResponse>>> loadCyclesLocal(String userId) async {
+    final rows = await _localRows(userId);
+    if (rows.isEmpty) return const NoData();
+    final view = _toCycleList(rows);
+    if (_hasConflict(rows)) {
+      return ConflictState(view, 'One entry needs review.');
+    }
+    if (_hasPending(rows)) return PendingSync(view);
+    return Fresh(view);
+  }
+
   Future<DataState<CurrentCycleResponse?>> loadCurrent(String userId) async {
     final rows = await _localRows(userId);
     final cache = await _cache(userId);
@@ -318,8 +367,10 @@ class CycleRepository {
             // Prediction cached; cycle rows retry on next load.
           }
         }
-        final view =
-            _assembleCurrent(await _localRows(userId), await _cache(userId));
+        final view = _assembleCurrent(
+          await _localRows(userId),
+          await _cache(userId),
+        );
         if (view == null && !current.hasData) return const NoData();
         return Fresh(view ?? current);
       } on NetworkUnavailable catch (e) {
@@ -333,8 +384,10 @@ class CycleRepository {
       }
     }
     final ok = await _refreshFromRemote(userId);
-    final view =
-        _assembleCurrent(await _localRows(userId), await _cache(userId));
+    final view = _assembleCurrent(
+      await _localRows(userId),
+      await _cache(userId),
+    );
     if (!ok) {
       final r = await _localRows(userId);
       final c = await _cache(userId);
@@ -399,7 +452,9 @@ class CycleRepository {
     HistorySummaryResponse history,
   ) async {
     final existing = await _cache(userId);
-    await db.into(db.predictionCache).insertOnConflictUpdate(
+    await db
+        .into(db.predictionCache)
+        .insertOnConflictUpdate(
           PredictionCacheCompanion.insert(
             userId: userId,
             phase: Value(existing?.phase),
@@ -476,23 +531,67 @@ class CycleRepository {
     }
     match ??= _findByStart(rows, periodStart);
     if (match == null) {
-      await db.into(db.localCycles).insert(LocalCyclesCompanion.insert(
-            localId: _newLocalId(),
-            userId: userId,
-            serverId: Value(serverId),
-            periodStart: periodStart,
-            periodEnd: Value(periodEnd),
-            syncState: const Value(SyncState.synced),
-          ));
+      await db
+          .into(db.localCycles)
+          .insert(
+            LocalCyclesCompanion.insert(
+              localId: _newLocalId(),
+              userId: userId,
+              serverId: Value(serverId),
+              periodStart: periodStart,
+              periodEnd: Value(periodEnd),
+              syncState: const Value(SyncState.synced),
+            ),
+          );
     } else {
-      await (db.update(db.localCycles)..where((t) => t.id.equals(match!.id)))
-          .write(LocalCyclesCompanion(
-        serverId: Value(serverId),
-        periodStart: Value(periodStart),
-        periodEnd: Value(periodEnd),
-        syncState: const Value(SyncState.synced),
-        updatedAt: Value(DateTime.now()),
-      ));
+      await (db.update(
+        db.localCycles,
+      )..where((t) => t.id.equals(match!.id))).write(
+        LocalCyclesCompanion(
+          serverId: Value(serverId),
+          periodStart: Value(periodStart),
+          periodEnd: Value(periodEnd),
+          syncState: const Value(SyncState.synced),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+    }
+  }
+
+  /// Records a first period purely locally (offline onboarding): same
+  /// storage as every other cycle row, deduplicated by start date, always
+  /// pending so a later consented adoption can push it. No server id is
+  /// assigned here; reconciliation happens through the normal sync path.
+  Future<void> storeLocalCycle(
+    String userId, {
+    required String periodStart,
+    String? periodEnd,
+  }) async {
+    final rows = await _localRows(userId);
+    final match = _findByStart(rows, periodStart);
+    if (match == null) {
+      await db
+          .into(db.localCycles)
+          .insert(
+            LocalCyclesCompanion.insert(
+              localId: _newLocalId(),
+              userId: userId,
+              periodStart: periodStart,
+              periodEnd: Value(periodEnd),
+              syncState: const Value(SyncState.pending),
+            ),
+          );
+    } else {
+      await (db.update(
+        db.localCycles,
+      )..where((t) => t.id.equals(match.id))).write(
+        LocalCyclesCompanion(
+          periodStart: Value(periodStart),
+          periodEnd: Value(periodEnd),
+          syncState: const Value(SyncState.pending),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
     }
   }
 
@@ -500,19 +599,31 @@ class CycleRepository {
   /// row is returned as-is; retry re-sends the same row.
   Future<DataState<CurrentCycleResponse?>> startPeriod(
     String userId,
-    String isoDate,
-  ) async {
+    String isoDate, {
+    bool localOnly = false,
+  }) async {
     final rows = await _localRows(userId);
     final today = todayIso();
-    final hasOngoing =
-        rows.any((r) => r.periodEnd == null && r.periodStart.compareTo(today) <= 0);
+    final hasOngoing = rows.any(
+      (r) => r.periodEnd == null && r.periodStart.compareTo(today) <= 0,
+    );
     if (!hasOngoing) {
-      await db.into(db.localCycles).insert(LocalCyclesCompanion.insert(
-            localId: _newLocalId(),
-            userId: userId,
-            periodStart: isoDate,
-            syncState: Value(SyncState.pending),
-          ));
+      await db
+          .into(db.localCycles)
+          .insert(
+            LocalCyclesCompanion.insert(
+              localId: _newLocalId(),
+              userId: userId,
+              periodStart: isoDate,
+              syncState: Value(SyncState.pending),
+            ),
+          );
+    }
+    if (localOnly) {
+      final r = await _localRows(userId);
+      final view = _assembleCurrent(r, await _cache(userId));
+      if (view == null) return const NoData();
+      return PendingSync(view);
     }
     await syncPending(userId);
     await _refreshPredictionAfterPush(userId);
@@ -526,8 +637,9 @@ class CycleRepository {
   /// Local-first period end on the same local row created offline.
   Future<DataState<CurrentCycleResponse?>> endOngoingPeriod(
     String userId,
-    String isoDate,
-  ) async {
+    String isoDate, {
+    bool localOnly = false,
+  }) async {
     final rows = await _localRows(userId);
     final today = todayIso();
     LocalCycle? ongoing;
@@ -538,6 +650,18 @@ class CycleRepository {
       }
     }
     if (ongoing == null) {
+      if (localOnly) {
+        // Nothing local to end and no server to ask: report the stored
+        // state as-is instead of failing.
+        final r = await _localRows(userId);
+        final view = _assembleCurrent(r, await _cache(userId));
+        if (view == null) return const NoData();
+        if (_hasConflict(r)) {
+          return ConflictState(view, 'One entry needs review.');
+        }
+        if (_hasPending(r)) return PendingSync(view);
+        return Cached(view, _fetchedAt(await _cache(userId), r));
+      }
       // No local ongoing row: fall back to the server end endpoint once.
       try {
         final ended = await api.endOngoingCycle(isoDate);
@@ -563,14 +687,25 @@ class CycleRepository {
         final r = await _localRows(userId);
         final view = _assembleCurrent(r, await _cache(userId));
         return ConflictState(
-            view, 'End date cannot be before the period start date.');
+          view,
+          'End date cannot be before the period start date.',
+        );
       }
-      await (db.update(db.localCycles)..where((t) => t.id.equals(ongoing!.id)))
-          .write(LocalCyclesCompanion(
-        periodEnd: Value(isoDate),
-        syncState: const Value(SyncState.pending),
-        updatedAt: Value(DateTime.now()),
-      ));
+      await (db.update(
+        db.localCycles,
+      )..where((t) => t.id.equals(ongoing!.id))).write(
+        LocalCyclesCompanion(
+          periodEnd: Value(isoDate),
+          syncState: const Value(SyncState.pending),
+          updatedAt: Value(DateTime.now()),
+        ),
+      );
+    }
+    if (localOnly) {
+      final r = await _localRows(userId);
+      final view = _assembleCurrent(r, await _cache(userId));
+      if (view == null) return const NoData();
+      return PendingSync(view);
     }
     await syncPending(userId);
     await _refreshPredictionAfterPush(userId);
@@ -584,12 +719,15 @@ class CycleRepository {
   /// Pushes pending rows oldest-first. Continues past 400/409 conflicts;
   /// stops the pass on network/5xx/auth failures.
   Future<void> syncPending(String userId) async {
-    final pending = await (db.select(db.localCycles)
-          ..where((t) =>
-              t.userId.equals(userId) &
-              t.syncState.equals(SyncState.pending.index))
-          ..orderBy([(t) => OrderingTerm.asc(t.periodStart)]))
-        .get();
+    final pending =
+        await (db.select(db.localCycles)
+              ..where(
+                (t) =>
+                    t.userId.equals(userId) &
+                    t.syncState.equals(SyncState.pending.index),
+              )
+              ..orderBy([(t) => OrderingTerm.asc(t.periodStart)]))
+            .get();
     for (final row in pending) {
       ApiError? failure;
       CycleResponse? created;
@@ -610,23 +748,28 @@ class CycleRepository {
         failure = e;
       }
       if (failure == null && created != null) {
-        await (db.update(db.localCycles)..where((t) => t.id.equals(row.id)))
-            .write(LocalCyclesCompanion(
-          serverId: Value(created.id),
-          periodStart: Value(toIsoDate(created.periodStart)),
-          periodEnd: Value(created.periodEnd == null
-              ? null
-              : toIsoDate(created.periodEnd!)),
-          syncState: const Value(SyncState.synced),
-          updatedAt: Value(DateTime.now()),
-        ));
+        await (db.update(
+          db.localCycles,
+        )..where((t) => t.id.equals(row.id))).write(
+          LocalCyclesCompanion(
+            serverId: Value(created.id),
+            periodStart: Value(toIsoDate(created.periodStart)),
+            periodEnd: Value(
+              created.periodEnd == null ? null : toIsoDate(created.periodEnd!),
+            ),
+            syncState: const Value(SyncState.synced),
+            updatedAt: Value(DateTime.now()),
+          ),
+        );
         continue;
       }
       final outcome = classifySyncError(failure!);
       if (outcome == SyncOutcome.conflict) {
-        await (db.update(db.localCycles)..where((t) => t.id.equals(row.id)))
-            .write(const LocalCyclesCompanion(
-                syncState: Value(SyncState.conflict)));
+        await (db.update(
+          db.localCycles,
+        )..where((t) => t.id.equals(row.id))).write(
+          const LocalCyclesCompanion(syncState: Value(SyncState.conflict)),
+        );
         // Obtain the authoritative server copy where possible while
         // keeping the local record and its conflict flag.
         await _adoptServerMatch(userId, row);
@@ -653,17 +796,22 @@ class CycleRepository {
       // Keep the existing cache; it retries on the next load.
     }
   }
+
   Future<void> _adoptServerMatch(String userId, LocalCycle row) async {
     try {
       final server = await api.fetchCycles();
       for (final s in server) {
         if (toIsoDate(s.periodStart) == row.periodStart) {
-          await (db.update(db.localCycles)..where((t) => t.id.equals(row.id)))
-              .write(LocalCyclesCompanion(
-            serverId: Value(s.id),
-            periodEnd: Value(
-                s.periodEnd == null ? null : toIsoDate(s.periodEnd!)),
-          ));
+          await (db.update(
+            db.localCycles,
+          )..where((t) => t.id.equals(row.id))).write(
+            LocalCyclesCompanion(
+              serverId: Value(s.id),
+              periodEnd: Value(
+                s.periodEnd == null ? null : toIsoDate(s.periodEnd!),
+              ),
+            ),
+          );
           return;
         }
       }

@@ -147,8 +147,10 @@ void main() {
     });
 
     test('Ended keeps the chosen end date', () {
-      expect(resolvePeriodEndIso(PeriodStatus.ended, '2026-09-01'),
-          '2026-09-01');
+      expect(
+        resolvePeriodEndIso(PeriodStatus.ended, '2026-09-01'),
+        '2026-09-01',
+      );
     });
 
     test('Ongoing never requires an end date', () {
@@ -213,120 +215,130 @@ void main() {
 
   group('error typing (§4.15–4.16)', () {
     test('HTTP 422 maps to ValidationError', () {
-      final err = mapDioException(DioException(
-        requestOptions: RequestOptions(path: '/api/v1/onboarding/complete'),
-        response: Response(
+      final err = mapDioException(
+        DioException(
           requestOptions: RequestOptions(path: '/api/v1/onboarding/complete'),
-          statusCode: 422,
-          data: {'detail': 'name must not be blank'},
+          response: Response(
+            requestOptions: RequestOptions(path: '/api/v1/onboarding/complete'),
+            statusCode: 422,
+            data: {'detail': 'name must not be blank'},
+          ),
         ),
-      ));
+      );
       expect(err, isA<ValidationError>());
       expect(err.message, contains('name must not be blank'));
     });
 
     test('HTTP 409 maps to Conflict', () {
-      final err = mapDioException(DioException(
-        requestOptions: RequestOptions(path: '/api/v1/onboarding/complete'),
-        response: Response(
+      final err = mapDioException(
+        DioException(
           requestOptions: RequestOptions(path: '/api/v1/onboarding/complete'),
-          statusCode: 409,
-          data: {'detail': 'already been completed'},
+          response: Response(
+            requestOptions: RequestOptions(path: '/api/v1/onboarding/complete'),
+            statusCode: 409,
+            data: {'detail': 'already been completed'},
+          ),
         ),
-      ));
+      );
       expect(err, isA<Conflict>());
     });
 
     test('offline completeOnboarding throws NetworkUnavailable', () async {
       final api = FakeApiService()..offline = true;
       await expectLater(
-        api.completeOnboarding(OnboardingRequest(
-          name: 'Maya',
-          lastPeriodStart: '2026-09-01',
-        )),
+        api.completeOnboarding(
+          OnboardingRequest(name: 'Maya', lastPeriodStart: '2026-09-01'),
+        ),
         throwsA(isA<NetworkUnavailable>()),
       );
     });
 
     test('ValidationError classifies as conflict (no blind retry)', () {
-      expect(classifySyncError(const ValidationError('bad')),
-          SyncOutcome.conflict);
+      expect(
+        classifySyncError(const ValidationError('bad')),
+        SyncOutcome.conflict,
+      );
     });
   });
 
   group('local-first persistence (§4.13–4.14)', () {
-    test('successful onboarding persists profile + first cycle as synced',
-        () async {
-      final db = AppDatabase.memory();
-      addTearDown(db.close);
-      final api = FakeApiService();
-      final profileRepo = ProfileRepository(db, api);
-      final cycleRepo = CycleRepository(db, api);
+    test(
+      'successful onboarding persists profile + first cycle as synced',
+      () async {
+        final db = AppDatabase.memory();
+        addTearDown(db.close);
+        final api = FakeApiService();
+        final profileRepo = ProfileRepository(db, api);
+        final cycleRepo = CycleRepository(db, api);
 
-      final result = await api.completeOnboarding(OnboardingRequest(
-        name: 'Maya',
-        lastPeriodStart: '2026-09-01',
-        lastPeriodEnd: '2026-09-05',
-        usualCycleDays: 28,
-        usualPeriodDays: 5,
-      ));
-      await profileRepo.storeOnboardedProfile(result.profile);
-      await cycleRepo.storeOnboardedCycle(
-        'user-a',
-        serverId: result.periodId,
-        periodStart: result.periodStart,
-        periodEnd: result.periodEnd,
-      );
+        final result = await api.completeOnboarding(
+          OnboardingRequest(
+            name: 'Maya',
+            lastPeriodStart: '2026-09-01',
+            lastPeriodEnd: '2026-09-05',
+            usualCycleDays: 28,
+            usualPeriodDays: 5,
+          ),
+        );
+        await profileRepo.storeOnboardedProfile(result.profile);
+        await cycleRepo.storeOnboardedCycle(
+          'user-a',
+          serverId: result.periodId,
+          periodStart: result.periodStart,
+          periodEnd: result.periodEnd,
+        );
 
-      final profileRow = await (db.select(db.localProfiles)
-            ..where((t) => t.userId.equals('user-a')))
-          .getSingle();
-      expect(profileRow.name, 'Maya');
-      expect(profileRow.syncState, SyncState.synced);
+        final profileRow = await (db.select(
+          db.localProfiles,
+        )..where((t) => t.userId.equals('user-a'))).getSingle();
+        expect(profileRow.name, 'Maya');
+        expect(profileRow.syncState, SyncState.synced);
 
-      final cycleRows = await (db.select(db.localCycles)
-            ..where((t) => t.userId.equals('user-a')))
-          .get();
-      expect(cycleRows, hasLength(1));
-      expect(cycleRows.single.periodStart, '2026-09-01');
-      expect(cycleRows.single.periodEnd, '2026-09-05');
-      expect(cycleRows.single.syncState, SyncState.synced);
-    });
+        final cycleRows = await (db.select(
+          db.localCycles,
+        )..where((t) => t.userId.equals('user-a'))).get();
+        expect(cycleRows, hasLength(1));
+        expect(cycleRows.single.periodStart, '2026-09-01');
+        expect(cycleRows.single.periodEnd, '2026-09-05');
+        expect(cycleRows.single.syncState, SyncState.synced);
+      },
+    );
 
-    test('profile + first cycle survive offline (new repo instances)',
-        () async {
-      final db = AppDatabase.memory();
-      addTearDown(db.close);
-      final api = FakeApiService();
-      final profileRepo = ProfileRepository(db, api);
-      final cycleRepo = CycleRepository(db, api);
+    test(
+      'profile + first cycle survive offline (new repo instances)',
+      () async {
+        final db = AppDatabase.memory();
+        addTearDown(db.close);
+        final api = FakeApiService();
+        final profileRepo = ProfileRepository(db, api);
+        final cycleRepo = CycleRepository(db, api);
 
-      final result = await api.completeOnboarding(OnboardingRequest(
-        name: 'Maya',
-        lastPeriodStart: '2026-09-01',
-      ));
-      await profileRepo.storeOnboardedProfile(result.profile);
-      await cycleRepo.storeOnboardedCycle(
-        'user-a',
-        serverId: result.periodId,
-        periodStart: result.periodStart,
-        periodEnd: result.periodEnd,
-      );
+        final result = await api.completeOnboarding(
+          OnboardingRequest(name: 'Maya', lastPeriodStart: '2026-09-01'),
+        );
+        await profileRepo.storeOnboardedProfile(result.profile);
+        await cycleRepo.storeOnboardedCycle(
+          'user-a',
+          serverId: result.periodId,
+          periodStart: result.periodStart,
+          periodEnd: result.periodEnd,
+        );
 
-      // "Restart": fresh repository instances over the same database,
-      // backend now unreachable.
-      api.offline = true;
-      final freshProfileRepo = ProfileRepository(db, api);
-      final freshCycleRepo = CycleRepository(db, api);
+        // "Restart": fresh repository instances over the same database,
+        // backend now unreachable.
+        api.offline = true;
+        final freshProfileRepo = ProfileRepository(db, api);
+        final freshCycleRepo = CycleRepository(db, api);
 
-      final profileState = await freshProfileRepo.loadProfile('user-a');
-      expect(profileState.dataOrNull?.name, 'Maya');
-      expect(profileState, isNot(isA<Unavailable<Profile?>>()));
+        final profileState = await freshProfileRepo.loadProfile('user-a');
+        expect(profileState.dataOrNull?.name, 'Maya');
+        expect(profileState, isNot(isA<Unavailable<Profile?>>()));
 
-      final cyclesState = await freshCycleRepo.loadCycles('user-a');
-      expect(cyclesState.dataOrNull, hasLength(1));
-      expect(cyclesState, isNot(isA<Unavailable<List<dynamic>>>()));
-    });
+        final cyclesState = await freshCycleRepo.loadCycles('user-a');
+        expect(cyclesState.dataOrNull, hasLength(1));
+        expect(cyclesState, isNot(isA<Unavailable<List<dynamic>>>()));
+      },
+    );
 
     test('storing the same onboarded cycle twice never duplicates', () async {
       final db = AppDatabase.memory();
@@ -334,10 +346,18 @@ void main() {
       final api = FakeApiService();
       final cycleRepo = CycleRepository(db, api);
 
-      await cycleRepo.storeOnboardedCycle('user-a',
-          serverId: 100, periodStart: '2026-09-01', periodEnd: null);
-      await cycleRepo.storeOnboardedCycle('user-a',
-          serverId: 100, periodStart: '2026-09-01', periodEnd: null);
+      await cycleRepo.storeOnboardedCycle(
+        'user-a',
+        serverId: 100,
+        periodStart: '2026-09-01',
+        periodEnd: null,
+      );
+      await cycleRepo.storeOnboardedCycle(
+        'user-a',
+        serverId: 100,
+        periodStart: '2026-09-01',
+        periodEnd: null,
+      );
 
       final rows = await db.select(db.localCycles).get();
       expect(rows, hasLength(1));
@@ -371,13 +391,18 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('blank name shows inline error and never calls the API',
-        (tester) async {
+    testWidgets('blank name shows inline error and never calls the API', (
+      tester,
+    ) async {
       final db = AppDatabase.memory();
       addTearDown(db.close);
       final api = FakeApiService();
-      await pumpOnboarding(tester,
-          api: api, db: db, profileNotifier: _RecordingProfileNotifier());
+      await pumpOnboarding(
+        tester,
+        api: api,
+        db: db,
+        profileNotifier: _RecordingProfileNotifier(),
+      );
 
       await tester.tap(find.text('Complete onboarding'));
       await tester.pumpAndSettle();
@@ -386,27 +411,36 @@ void main() {
       expect(api.completeOnboardingCalls, 0);
     });
 
-    testWidgets('Ended without end date blocks; Ongoing submits cleanly',
-        (tester) async {
+    testWidgets('Ended without end date blocks; Ongoing submits cleanly', (
+      tester,
+    ) async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
-        const MethodChannel('menomate/timezone'),
-        (call) async => 'Asia/Kolkata',
+            const MethodChannel('menomate/timezone'),
+            (call) async => 'Asia/Kolkata',
+          );
+      addTearDown(
+        () => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(
+              const MethodChannel('menomate/timezone'),
+              null,
+            ),
       );
-      addTearDown(() => TestDefaultBinaryMessengerBinding
-          .instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-              const MethodChannel('menomate/timezone'), null));
       final db = AppDatabase.memory();
       addTearDown(db.close);
       final api = FakeApiService();
       final profileNotifier = _RecordingProfileNotifier();
-      await pumpOnboarding(tester,
-          api: api, db: db, profileNotifier: profileNotifier);
+      await pumpOnboarding(
+        tester,
+        api: api,
+        db: db,
+        profileNotifier: profileNotifier,
+      );
 
       await tester.enterText(
-          find.widgetWithText(TextField, 'What should we call you?'),
-          'Widget User');
+        find.widgetWithText(TextField, 'What should we call you?'),
+        'Widget User',
+      );
       // Pick a start date via the picker dialog (accepts initial = today).
       await tester.tap(find.text('Select start date'));
       await tester.pump();
@@ -421,16 +455,18 @@ void main() {
       await tester.tap(find.text('Complete onboarding'));
       await tester.pumpAndSettle();
       expect(
-          find.text('Please choose when it ended, or select Ongoing.'),
-          findsOneWidget);
+        find.text('Please choose when it ended, or select Ongoing.'),
+        findsOneWidget,
+      );
       expect(api.completeOnboardingCalls, 0);
 
       // Switch to Ongoing and submit -> success, persisted, provider set.
       await tester.tap(find.text('Ongoing'));
       await tester.pumpAndSettle();
       expect(
-          find.text('Please choose when it ended, or select Ongoing.'),
-          findsNothing);
+        find.text('Please choose when it ended, or select Ongoing.'),
+        findsNothing,
+      );
       await tester.tap(find.text('Complete onboarding'));
       // Explicit pumps (not pumpAndSettle): the loading spinner animates
       // while the fake API future resolves. Poll until the local cycle
@@ -445,9 +481,9 @@ void main() {
       // Device zone rode along atomically with onboarding (§2.2 wiring).
       expect(api.lastOnboardingRequest?.timezone, 'Asia/Kolkata');
       expect(profileNotifier.lastSet?.name, 'Widget User');
-      final profileRow = await (db.select(db.localProfiles)
-            ..where((t) => t.userId.equals('user-a')))
-          .getSingle();
+      final profileRow = await (db.select(
+        db.localProfiles,
+      )..where((t) => t.userId.equals('user-a'))).getSingle();
       expect(profileRow.name, 'Widget User');
       final cycleRows = await db.select(db.localCycles).get();
       expect(cycleRows, hasLength(1));
@@ -456,22 +492,29 @@ void main() {
       expect(find.byType(OnboardingScreen), findsOneWidget);
     });
 
-    testWidgets('malformed numerics show guidance, blank stays not-sure',
-        (tester) async {
+    testWidgets('malformed numerics show guidance, blank stays not-sure', (
+      tester,
+    ) async {
       final db = AppDatabase.memory();
       addTearDown(db.close);
       final api = FakeApiService();
-      await pumpOnboarding(tester,
-          api: api, db: db, profileNotifier: _RecordingProfileNotifier());
+      await pumpOnboarding(
+        tester,
+        api: api,
+        db: db,
+        profileNotifier: _RecordingProfileNotifier(),
+      );
 
       // The "leave blank" helper copy is always visible pre-submit (§8).
       expect(
-          find.text(
-              'Days between periods. Leave blank if you\u2019re not sure.'),
-          findsOneWidget);
+        find.text('Days between periods. Leave blank if you\u2019re not sure.'),
+        findsOneWidget,
+      );
 
       await tester.enterText(
-          find.widgetWithText(TextField, 'Usual cycle length'), '28 days');
+        find.widgetWithText(TextField, 'Usual cycle length'),
+        '28 days',
+      );
       await tester.tap(find.text('Complete onboarding'));
       await tester.pumpAndSettle();
 
@@ -480,8 +523,132 @@ void main() {
       expect(api.completeOnboardingCalls, 0);
     });
 
-    testWidgets('narrow dark theme renders without overflow; CTA reachable',
-        (tester) async {
+    testWidgets('required vs optional groups are labeled', (tester) async {
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      final api = FakeApiService();
+      await pumpOnboarding(
+        tester,
+        api: api,
+        db: db,
+        profileNotifier: _RecordingProfileNotifier(),
+      );
+
+      expect(find.text('To get started'), findsOneWidget);
+      expect(find.text('Nice to have — optional'), findsOneWidget);
+      expect(
+        find.textContaining('the rest is optional and can wait'),
+        findsOneWidget,
+      );
+      expect(find.text('Birth month & year (optional)'), findsOneWidget);
+    });
+
+    testWidgets('optional DOB left blank submits without complaint', (
+      tester,
+    ) async {
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      final api = FakeApiService();
+      await pumpOnboarding(
+        tester,
+        api: api,
+        db: db,
+        profileNotifier: _RecordingProfileNotifier(),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'What should we call you?'),
+        'Widget User',
+      );
+      await tester.tap(find.text('Select start date'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('OK'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Ongoing'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Complete onboarding'));
+      await tester.pump();
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if ((await db.select(db.localCycles).get()).isNotEmpty) break;
+      }
+
+      expect(api.completeOnboardingCalls, 1);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('DOB month without year blocks with guidance', (tester) async {
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      final api = FakeApiService();
+      await pumpOnboarding(
+        tester,
+        api: api,
+        db: db,
+        profileNotifier: _RecordingProfileNotifier(),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'What should we call you?'),
+        'Widget User',
+      );
+      // Month dropdown is the only DropdownButton on the screen.
+      await tester.tap(find.byType(DropdownButton<int?>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('May').last);
+      await tester.pump();
+      await tester.tap(find.text('Complete onboarding'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('both birth month and year'), findsOneWidget);
+      expect(api.completeOnboardingCalls, 0);
+    });
+
+    testWidgets('DOB persists through onboarding submit', (tester) async {
+      final db = AppDatabase.memory();
+      addTearDown(db.close);
+      final api = FakeApiService();
+      await pumpOnboarding(
+        tester,
+        api: api,
+        db: db,
+        profileNotifier: _RecordingProfileNotifier(),
+      );
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'What should we call you?'),
+        'Widget User',
+      );
+      await tester.tap(find.text('Select start date'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('OK'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Ongoing'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButton<int?>));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('May').last);
+      await tester.pump();
+      await tester.enterText(find.widgetWithText(TextField, 'Year'), '1992');
+      await tester.tap(find.text('Complete onboarding'));
+      await tester.pump();
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+        if ((await db.select(db.localCycles).get()).isNotEmpty) break;
+      }
+
+      expect(api.completeOnboardingCalls, 1);
+      expect(api.serverProfile.birthYear, 1992);
+      expect(api.serverProfile.birthMonth, 5);
+    });
+
+    testWidgets('narrow dark theme renders without overflow; CTA reachable', (
+      tester,
+    ) async {
       final db = AppDatabase.memory();
       addTearDown(db.close);
       final api = FakeApiService();
@@ -495,8 +662,7 @@ void main() {
             apiServiceProvider.overrideWithValue(api),
             appDatabaseProvider.overrideWithValue(db),
             currentUserIdProvider.overrideWithValue('user-a'),
-            profileProvider
-                .overrideWith(() => _RecordingProfileNotifier()),
+            profileProvider.overrideWith(() => _RecordingProfileNotifier()),
           ],
           child: MaterialApp(
             theme: ThemeData.dark(),

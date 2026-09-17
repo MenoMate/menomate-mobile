@@ -3,11 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../core/device_timezone.dart';
+import '../core/format.dart' show kMonthNames;
 import '../data/app_database.dart' show toIsoDate;
 import '../data/sync_policy.dart';
+import '../models/health_context.dart' show validateBirthPair;
 import '../models/onboarding.dart';
+import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
+import '../providers/offline_mode_provider.dart';
 import '../providers/profile_provider.dart';
+import '../providers/theme_provider.dart';
 import '../services/api_service.dart';
 
 /// First-run personalization: name, last period (start + Ongoing/Ended
@@ -25,12 +30,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _nameController = TextEditingController();
   final _cycleDaysController = TextEditingController();
   final _periodDaysController = TextEditingController();
+  final _birthYearController = TextEditingController();
+
+  int? _dobMonth;
 
   DateTime? _lastPeriodStart;
   DateTime? _lastPeriodEnd;
   // Fail-closed default: an end date must be explicitly chosen; switching
   // to Ongoing clears it (§2.6).
   PeriodStatus _status = PeriodStatus.ended;
+  // Optional preference shared by both paths; defaults to metric and can
+  // be changed later in Settings. Never a medical question.
+  String _selectedUnits = 'metric';
   Map<String, String> _errors = {};
   bool _isLoading = false;
 
@@ -39,6 +50,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     _nameController.dispose();
     _cycleDaysController.dispose();
     _periodDaysController.dispose();
+    _birthYearController.dispose();
     super.dispose();
   }
 
@@ -91,8 +103,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor:
-            isError ? Theme.of(context).colorScheme.error : null,
+        backgroundColor: isError ? Theme.of(context).colorScheme.error : null,
       ),
     );
   }
@@ -102,9 +113,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   /// backend falls back to the stored/UTC date anchor.
   Future<String?> _deviceZone() async {
     try {
-      return await deviceTimeZoneId().timeout(
-        const Duration(seconds: 3),
-      );
+      return await deviceTimeZoneId().timeout(const Duration(seconds: 3));
     } catch (_) {
       return null;
     }
@@ -122,6 +131,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       usualPeriod: periodParsed,
       today: DateTime.now(),
     );
+    // Birth month/year is optional and validated as a pair, mirroring the
+    // backend contract (both together or both blank). Reuses the same
+    // fields the Profile screen edits — no new storage, no new logic.
+    final birthYearRaw = _birthYearController.text.trim();
+    final int? birthYear = birthYearRaw.isEmpty
+        ? null
+        : int.tryParse(birthYearRaw);
+    if (birthYearRaw.isNotEmpty && birthYear == null) {
+      errors['dob'] = 'Please enter a 4-digit birth year.';
+    } else {
+      final dobError = validateBirthPair(birthYear, _dobMonth);
+      if (dobError != null) errors['dob'] = dobError;
+    }
     if (errors.isNotEmpty) {
       setState(() => _errors = errors);
       return;
@@ -133,6 +155,36 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     });
 
     try {
+      // Offline path: same questions, purely local writes. No account, no
+      // network, no Supabase call of any kind.
+      final offline = ref.read(isOfflineTrackingProvider);
+      final userId = ref.read(currentUserIdProvider);
+      if (offline && userId != null) {
+        await ref.read(profileRepositoryProvider).saveProfile(userId, {
+          'name': _nameController.text.trim(),
+          'usual_cycle_days': cycleParsed.isValid ? cycleParsed.value : null,
+          'usual_period_days': periodParsed.isValid ? periodParsed.value : null,
+          'theme': ref.read(themeModeProvider) == ThemeMode.dark
+              ? 'dark'
+              : 'light',
+          'units': _selectedUnits,
+          'birth_year': birthYear,
+          'birth_month': _dobMonth,
+          'timezone': await _deviceZone(),
+        }, localOnly: true);
+        await ref
+            .read(cycleRepositoryProvider)
+            .storeLocalCycle(
+              userId,
+              periodStart: toIsoDate(_lastPeriodStart!),
+              periodEnd: _status == PeriodStatus.ended && _lastPeriodEnd != null
+                  ? toIsoDate(_lastPeriodEnd!)
+                  : resolvePeriodEndIso(_status, null),
+            );
+        refreshAllAppData(ref);
+        return;
+      }
+
       final request = OnboardingRequest(
         name: _nameController.text.trim(),
         lastPeriodStart: toIsoDate(_lastPeriodStart!),
@@ -146,24 +198,39 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         timezone: await _deviceZone(),
       );
 
-      final result =
-          await ref.read(apiServiceProvider).completeOnboarding(request);
+      final result = await ref
+          .read(apiServiceProvider)
+          .completeOnboarding(request);
 
       // Local-first persistence through the existing repositories: the
       // profile and first period survive restart and offline use. No
       // second cache, no new repository (§2.10).
-      final userId = ref.read(currentUserIdProvider);
       if (userId != null) {
         await ref
             .read(profileRepositoryProvider)
             .storeOnboardedProfile(result.profile);
-        await ref.read(cycleRepositoryProvider).storeOnboardedCycle(
+        await ref
+            .read(cycleRepositoryProvider)
+            .storeOnboardedCycle(
               userId,
               serverId: result.periodId,
               periodStart: result.periodStart,
               periodEnd: result.periodEnd,
             );
-        ref.read(profileProvider.notifier).setProfile(result.profile);
+        // Apply the optional extras (units, birth pair) on top of the
+        // fresh server profile; a failed patch safely stays pending for
+        // the next sync.
+        final updated = await ref.read(profileRepositoryProvider).saveProfile(
+          userId,
+          {
+            'units': _selectedUnits,
+            'birth_year': birthYear,
+            'birth_month': _dobMonth,
+          },
+        );
+        ref
+            .read(profileProvider.notifier)
+            .setProfile(updated.dataOrNull ?? result.profile);
       } else {
         await ref.read(profileProvider.notifier).reload();
       }
@@ -211,7 +278,23 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
+            const SizedBox(height: 4),
+            Text(
+              'A few basics to start — the rest is optional and can wait.',
+              style: textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.secondary,
+                height: 1.35,
+              ),
+            ),
             const SizedBox(height: 24),
+
+            Text(
+              'To get started',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
 
             TextField(
               controller: _nameController,
@@ -227,29 +310,32 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 }
               },
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            Text('Last period', style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            )),
-            const SizedBox(height: 12),
-
-            Text('When did your last period start?',
-                style: textTheme.bodyMedium),
+            Text(
+              'When did your last period start?',
+              style: textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.calendar_today),
-              label: Text(_lastPeriodStart == null
-                  ? 'Select start date'
-                  : dateFormat.format(_lastPeriodStart!)),
+              label: Text(
+                _lastPeriodStart == null
+                    ? 'Select start date'
+                    : dateFormat.format(_lastPeriodStart!),
+              ),
               onPressed: () => _selectDate(context, true),
             ),
             if (_errors.containsKey('start')) ...[
               const SizedBox(height: 4),
-              Text(_errors['start']!,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  )),
+              Text(
+                _errors['start']!,
+                style: textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
             ],
             const SizedBox(height: 16),
 
@@ -277,20 +363,40 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 icon: const Icon(Icons.calendar_today),
-                label: Text(_lastPeriodEnd == null
-                    ? 'Select end date'
-                    : dateFormat.format(_lastPeriodEnd!)),
+                label: Text(
+                  _lastPeriodEnd == null
+                      ? 'Select end date'
+                      : dateFormat.format(_lastPeriodEnd!),
+                ),
                 onPressed: () => _selectDate(context, false),
               ),
             ],
             if (_errors.containsKey('end')) ...[
               const SizedBox(height: 4),
-              Text(_errors['end']!,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  )),
+              Text(
+                _errors['end']!,
+                style: textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
             ],
             const SizedBox(height: 24),
+
+            Text(
+              'Nice to have — optional',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Skip anything you\u2019re not sure about — you can add it later in Profile.',
+              style: textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.secondary,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 12),
 
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -301,8 +407,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     decoration: InputDecoration(
                       labelText: 'Usual cycle length',
                       hintText: 'e.g. 28',
-                      helperText:
-                          'Days between periods. Leave blank if you\u2019re not sure.',
+                      helperText: 'Days between periods. Leave blank if you\u2019re not sure.',
                       border: const OutlineInputBorder(),
                       errorText: _errors['cycle'],
                     ),
@@ -321,8 +426,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     decoration: InputDecoration(
                       labelText: 'Usual period length',
                       hintText: 'e.g. 5',
-                      helperText:
-                          'Days bleeding lasts. Leave blank if you\u2019re not sure.',
+                      helperText: 'Days bleeding lasts. Leave blank if you\u2019re not sure.',
                       border: const OutlineInputBorder(),
                       errorText: _errors['period'],
                     ),
@@ -336,7 +440,109 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+
+            Text(
+              'Measurement units',
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Used for temperature and health displays. '
+              'You can change this later in Settings.',
+              style: textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment<String>(
+                  value: 'metric',
+                  label: Text('Metric (°C)'),
+                  icon: Icon(Icons.thermostat_outlined),
+                ),
+                ButtonSegment<String>(
+                  value: 'imperial',
+                  label: Text('Imperial (°F)'),
+                  icon: Icon(Icons.thermostat),
+                ),
+              ],
+              selected: {_selectedUnits},
+              onSelectionChanged: (selected) =>
+                  setState(() => _selectedUnits = selected.first),
+            ),
+            const SizedBox(height: 16),
+
+            Text(
+              'Birth month & year (optional)',
+              style: textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: DropdownButton<int?>(
+                    value: _dobMonth,
+                    isExpanded: true,
+                    underline: const SizedBox.shrink(),
+                    hint: const Text('Month'),
+                    items: [
+                      const DropdownMenuItem<int?>(
+                        value: null,
+                        child: Text('—'),
+                      ),
+                      for (var i = 0; i < 12; i++)
+                        DropdownMenuItem<int?>(
+                          value: i + 1,
+                          child: Text(kMonthNames[i]),
+                        ),
+                    ],
+                    onChanged: (val) => setState(() {
+                      _dobMonth = val;
+                      _errors.remove('dob');
+                    }),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: _birthYearController,
+                    decoration: InputDecoration(
+                      labelText: 'Year',
+                      hintText: 'e.g. 1990',
+                      border: const OutlineInputBorder(),
+                      errorText: _errors['dob'],
+                    ),
+                    keyboardType: TextInputType.number,
+                    onChanged: (_) {
+                      if (_errors.containsKey('dob')) {
+                        setState(() => _errors.remove('dob'));
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 32),
+
+            if (ref.watch(isOfflineTrackingProvider)) ...[
+              Text(
+                'Your tracking data stays on this device. '
+                'You can sign in later to sync it.',
+                textAlign: TextAlign.center,
+                style: textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.secondary,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
 
             if (_isLoading)
               const Center(child: CircularProgressIndicator())
@@ -346,8 +552,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 16),
                 ),
-                child: const Text('Complete onboarding',
-                    style: TextStyle(fontSize: 16)),
+                child: const Text(
+                  'Complete onboarding',
+                  style: TextStyle(fontSize: 16),
+                ),
               ),
             // Bottom breathing room so the CTA clears the keyboard area.
             const SizedBox(height: 16),

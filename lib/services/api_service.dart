@@ -1,9 +1,11 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../core/api_client.dart';
 import '../data/sync_policy.dart';
 import '../models/profile.dart';
+import '../models/health_context.dart';
 import '../models/onboarding.dart';
 import '../models/cycle.dart';
 import '../models/daily_log.dart';
@@ -56,7 +58,10 @@ class ApiService {
   /// response is a server contract violation ([ServerError]).
   Future<OnboardingResult> completeOnboarding(OnboardingRequest payload) async {
     try {
-      final response = await _dio.post('/api/v1/onboarding/complete', data: payload.toJson());
+      final response = await _dio.post(
+        '/api/v1/onboarding/complete',
+        data: payload.toJson(),
+      );
       final data = response.data;
       if (data is Map<String, dynamic> && data['profile'] != null) {
         return OnboardingResult.fromJson(data);
@@ -116,9 +121,10 @@ class ApiService {
     }
   }
 
-
   // --- Care Interaction API ---
-  Future<CareInteractionResponse> postCareInteraction(CareInteractionRequest request) async {
+  Future<CareInteractionResponse> postCareInteraction(
+    CareInteractionRequest request,
+  ) async {
     try {
       final response = await _dio.post(
         '/api/v1/care/interactions',
@@ -160,7 +166,10 @@ class ApiService {
 
   Future<Device?> registerDevice(DeviceCreate payload) async {
     try {
-      final response = await _dio.post('/api/v1/devices', data: payload.toJson());
+      final response = await _dio.post(
+        '/api/v1/devices',
+        data: payload.toJson(),
+      );
       return Device.fromJson(response.data);
     } catch (e) {
       debugPrint('Error registering device: $e');
@@ -208,8 +217,7 @@ class ApiService {
       final data = <String, dynamic>{};
       if (periodStart != null) data['period_start'] = periodStart;
       if (periodEnd != null) data['period_end'] = periodEnd;
-      final response =
-          await _dio.patch('/api/v1/cycles/$serverId', data: data);
+      final response = await _dio.patch('/api/v1/cycles/$serverId', data: data);
       return CycleResponse.fromJson(response.data);
     } on DioException catch (e) {
       throw mapDioException(e);
@@ -221,9 +229,10 @@ class ApiService {
 
   Future<CycleResponse> endOngoingCycle(String dateString) async {
     try {
-      final response = await _dio.post('/api/v1/cycles/current/end', data: {
-        'period_end': dateString,
-      });
+      final response = await _dio.post(
+        '/api/v1/cycles/current/end',
+        data: {'period_end': dateString},
+      );
       return CycleResponse.fromJson(response.data);
     } on DioException catch (e) {
       throw mapDioException(e);
@@ -233,14 +242,191 @@ class ApiService {
     }
   }
 
+  // --- Health Context API ---
+  //
+  // V1 foundation: user-provided context only. The backend stores and
+  // returns these values verbatim; it never diagnoses, infers, or lets
+  // them alter predictions — and neither does this client.
+
+  /// GET the singleton. Never 404s: the backend returns an empty object
+  /// when nothing is stored yet.
+  Future<HealthContext> fetchHealthContext(String userId) async {
+    try {
+      final response = await _dio.get('/api/v1/health-context');
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return HealthContext.fromJson(userId, data);
+      }
+      throw const ServerError('Health context response malformed.');
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } on ApiError {
+      rethrow;
+    } catch (e) {
+      debugPrint('Error fetching health context: $e');
+      throw ServerError('Health context fetch failed: $e');
+    }
+  }
+
+  /// PUT the singleton (full replacement; omitted fields clear to null).
+  Future<HealthContext> putHealthContext(
+    String userId,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await _dio.put('/api/v1/health-context', data: payload);
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return HealthContext.fromJson(userId, data);
+      }
+      throw const ServerError('Health context response malformed.');
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } on ApiError {
+      rethrow;
+    } catch (e) {
+      debugPrint('Error saving health context: $e');
+      throw ServerError('Health context save failed: $e');
+    }
+  }
+
+  Future<List<HealthCondition>> fetchConditions() async {
+    try {
+      final response = await _dio.get('/api/v1/health-context/conditions');
+      final List data = response.data;
+      return data
+          .map((json) => HealthCondition.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error fetching conditions: $e');
+      rethrow;
+    }
+  }
+
+  Future<HealthCondition> createCondition(Map<String, dynamic> payload) async {
+    try {
+      final response = await _dio.post(
+        '/api/v1/health-context/conditions',
+        data: payload,
+      );
+      return HealthCondition.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error creating condition: $e');
+      rethrow;
+    }
+  }
+
+  Future<HealthCondition> patchCondition(
+    int serverId,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await _dio.patch(
+        '/api/v1/health-context/conditions/$serverId',
+        data: payload,
+      );
+      return HealthCondition.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error updating condition: $e');
+      rethrow;
+    }
+  }
+
+  /// DELETE is idempotent: a 404 means the row is already gone, which is
+  /// the desired end state, so it succeeds silently.
+  Future<void> deleteCondition(int serverId) async {
+    try {
+      await _dio.delete('/api/v1/health-context/conditions/$serverId');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return;
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error deleting condition: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<Medication>> fetchMedications() async {
+    try {
+      final response = await _dio.get('/api/v1/health-context/medications');
+      final List data = response.data;
+      return data
+          .map((json) => Medication.fromJson(json as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error fetching medications: $e');
+      rethrow;
+    }
+  }
+
+  Future<Medication> createMedication(Map<String, dynamic> payload) async {
+    try {
+      final response = await _dio.post(
+        '/api/v1/health-context/medications',
+        data: payload,
+      );
+      return Medication.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error creating medication: $e');
+      rethrow;
+    }
+  }
+
+  Future<Medication> patchMedication(
+    int serverId,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await _dio.patch(
+        '/api/v1/health-context/medications/$serverId',
+        data: payload,
+      );
+      return Medication.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error updating medication: $e');
+      rethrow;
+    }
+  }
+
+  /// DELETE is idempotent: a 404 means the row is already gone, which is
+  /// the desired end state, so it succeeds silently.
+  Future<void> deleteMedication(int serverId) async {
+    try {
+      await _dio.delete('/api/v1/health-context/medications/$serverId');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return;
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error deleting medication: $e');
+      rethrow;
+    }
+  }
+
   // --- Therapy API ---
-  Future<TherapyRecommendationResponse?> getTherapyRecommendations({int? painScore}) async {
+  Future<TherapyRecommendationResponse?> getTherapyRecommendations({
+    int? painScore,
+  }) async {
     try {
       final payload = <String, dynamic>{};
       if (painScore != null) {
         payload['pain_score'] = painScore;
       }
-      final response = await _dio.post('/api/v1/therapy/recommend', data: payload);
+      final response = await _dio.post(
+        '/api/v1/therapy/recommend',
+        data: payload,
+      );
       return TherapyRecommendationResponse.fromJson(response.data);
     } catch (e) {
       debugPrint('Error getting therapy recommendations: $e');
