@@ -41,7 +41,7 @@ lib/
 │   └── theme.dart             # MenoMateTheme: sakura (light) + starry-night (dark), semantic tokens
 ├── content/insight_library.dart  # Daily Insight deterministic pair library
 ├── data/
-│   ├── app_database.dart      # Drift schema v2 + migration + date-only helpers (toIsoDate/parseIsoDate)
+│   ├── app_database.dart      # Drift schema v3 + migrations + date-only helpers (toIsoDate/parseIsoDate)
 │   ├── sync_policy.dart       # DataState (Fresh/Cached/PendingSync/…) + typed ApiError
 │   └── repositories/          # cycle_repository, daily_log_repository, profile_repository
 ├── models/                    # cycle, daily_log, profile, summary, care, device, therapy, onboarding
@@ -75,7 +75,7 @@ lib/
 
 ## Local database
 
-Drift/SQLite (`menomate.db`, schema v2): `LocalProfiles` (incl. IANA `timezone`), `LocalCycles` (ISO `yyyy-MM-dd` text dates, `localId`/`serverId` reconcile), `LocalDailyLogs` (+ `LocalSymptoms`), `PredictionCache` (7 server fields + `fetchedAt`). Regenerate after table edits:
+Drift/SQLite (`menomate.db`, schema v3): `LocalProfiles` (incl. IANA `timezone`), `LocalCycles` (ISO `yyyy-MM-dd` text dates, `localId`/`serverId` reconcile), `LocalDailyLogs` (+ `LocalSymptoms`), `PredictionCache` (7 server fields + `fetchedAt`). Regenerate after table edits:
 
 ```bash
 flutter pub run build_runner build --delete-conflicting-outputs
@@ -133,7 +133,7 @@ flutter analyze
 flutter test
 ```
 
-Suite status (2026-09-13 snapshot): 115 passing — unit (library selection, safety/nutrition wording, timezone plumbing, formatting) + widget (cards, calendar tokens, caching, composition, overflow) + offline sync fakes. Real-device checks still matter for: atmosphere visibility, card proportions, BLE scan, and offline→online transitions.
+Suite status (2026-09-18 snapshot): 191 passing — unit (library selection, safety/nutrition wording, timezone plumbing, formatting, daily-log models/repos, Care session/actions) + widget (cards, calendar tokens, caching, composition, logger toggles, overflow) + offline sync fakes. Real-device checks still matter for: atmosphere visibility, card proportions, BLE scan, and offline→online transitions.
 
 ## Environment/configuration
 
