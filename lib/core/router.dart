@@ -7,8 +7,13 @@ import '../data/sync_policy.dart';
 import '../models/profile.dart';
 import '../providers/auth_provider.dart';
 import '../providers/offline_mode_provider.dart';
+import '../providers/onboarding_status_provider.dart';
 import '../providers/profile_provider.dart';
 import '../screens/auth_screen.dart';
+import '../screens/aging_context_screen.dart';
+import '../screens/calendar_day_detail_screen.dart';
+import '../screens/calendar_screen.dart';
+import '../screens/fertility_log_screen.dart';
 import '../screens/health_conditions_screen.dart';
 import '../screens/health_context_screen.dart';
 import '../screens/health_intro_screen.dart';
@@ -16,10 +21,13 @@ import '../screens/health_medications_screen.dart';
 import '../screens/health_notes_screen.dart';
 import '../screens/health_reproductive_screen.dart';
 import '../screens/home_screen.dart';
+import '../screens/log_hub_screen.dart';
+import '../screens/pregnancy_mode_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/profile_screen.dart';
 import '../screens/splash_screen.dart';
 import '../screens/symptom_logger_screen.dart';
+import '../screens/tabs/history_tab.dart';
 import '../screens/welcome_screen.dart';
 
 /// Listenable that triggers GoRouter redirects without destroying the router instance.
@@ -37,6 +45,10 @@ class RouterNotifier extends ChangeNotifier {
     );
     _ref.listen<AsyncValue<bool>>(
       offlineModeProvider,
+      (_, _) => notifyListeners(),
+    );
+    _ref.listen<AsyncValue<bool>>(
+      onboardingStatusProvider,
       (_, _) => notifyListeners(),
     );
   }
@@ -59,6 +71,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       final authState = ref.read(authStateProvider);
       final profileAsync = ref.read(profileProvider);
       final offlineAsync = ref.read(offlineModeProvider);
+      final onboardingCompleted =
+          ref.read(onboardingStatusProvider).value ?? false;
 
       final user = authState.value;
       final isAuthLoading = authState.isLoading;
@@ -109,10 +123,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           return null;
         }
         final profile = dataState?.dataOrNull;
-        final bool isOnboarded =
-            profile != null &&
-            profile.name != null &&
-            profile.name!.trim().isNotEmpty;
+        // Canonical gate: non-empty name OR explicit local completion flag.
+        // The flag protects existing users from transient empty-name
+        // payloads; the name covers fresh installs signing into an
+        // existing account where the flag was never set on this device.
+        final bool isOnboarded = isProfileOnboarded(
+          profile,
+          onboardingCompleted,
+        );
 
         if (!isOnboarded) {
           // User needs onboarding
@@ -159,16 +177,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         return null;
       }
       final offlineProfile = offlineState?.dataOrNull;
-      final bool offlineOnboarded =
-          offlineProfile != null &&
-          offlineProfile.name != null &&
-          offlineProfile.name!.trim().isNotEmpty;
+      final bool offlineOnboarded = isProfileOnboarded(
+        offlineProfile,
+        onboardingCompleted,
+      );
 
       if (!offlineOnboarded) {
-        return isOnboarding ? null : '/onboarding';
+        // /login stays reachable voluntarily (sign in instead of
+        // onboarding offline); every other route still funnels here.
+        if (isOnboarding || isLogin) return null;
+        return '/onboarding';
       }
 
-      if (isSplash || isLogin || isOnboarding || isWelcome) {
+      // /login stays reachable voluntarily (the Settings sign-in path):
+      // bouncing it back to /home makes the button look dead. Entry and
+      // setup routes still funnel to /home once tracking is set up.
+      if (isSplash || isOnboarding || isWelcome) {
         return '/home';
       }
 
@@ -189,6 +213,29 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const OnboardingScreen(),
       ),
       GoRoute(path: '/home', builder: (context, state) => const HomeScreen()),
+      // Calendar hierarchy: Year → Month → Day Detail. /calendar is the
+      // combined month+year experience (tab); /calendar/day is the
+      // dedicated day detail; /history is kept as a legacy alias that
+      // renders the same calendar so old deep links and Care actions
+      // keep working.
+      GoRoute(
+        path: '/calendar',
+        builder: (context, state) => const CalendarScreen(),
+      ),
+      GoRoute(
+        path: '/calendar/day',
+        builder: (context, state) {
+          final date = state.uri.queryParameters['date'];
+          final valid =
+              date != null && RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date);
+          return CalendarDayDetailScreen(isoDate: valid ? date : '');
+        },
+      ),
+      GoRoute(path: '/log', builder: (context, state) => const LogHubScreen()),
+      GoRoute(
+        path: '/history',
+        builder: (context, state) => const HistoryTab(),
+      ),
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileScreen(),
@@ -210,6 +257,14 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const HealthReproductiveScreen(),
       ),
       GoRoute(
+        path: '/profile/health/pregnancy-mode',
+        builder: (context, state) => const PregnancyModeScreen(),
+      ),
+      GoRoute(
+        path: '/profile/health/aging',
+        builder: (context, state) => const AgingContextScreen(),
+      ),
+      GoRoute(
         path: '/profile/health/notes',
         builder: (context, state) => const HealthNotesScreen(),
       ),
@@ -224,6 +279,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           final valid =
               date != null && RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date);
           return SymptomLoggerScreen(initialDate: valid ? date : null);
+        },
+      ),
+      GoRoute(
+        path: '/fertility-log',
+        builder: (context, state) {
+          final date = state.uri.queryParameters['date'];
+          final valid =
+              date != null && RegExp(r'^\d{4}-\d{2}-\d{2}$').hasMatch(date);
+          return FertilityLogScreen(initialDate: valid ? date : null);
         },
       ),
     ],

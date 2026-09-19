@@ -114,7 +114,10 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
       },
       child: Card(
         elevation: 0,
-        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        // No outer margin: parent columns already set the screen inset,
+        // so the card aligns with sibling sections instead of double
+        // indenting.
+        margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         color: colorScheme.surface,
         child: Padding(
@@ -138,14 +141,14 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const _InsightSectionLabel(text: 'For you today'),
+                  const InsightSectionLabel(text: 'For you today'),
                   const SizedBox(height: 4),
-                  _InsightBody(piece: insight),
+                  InsightPieceBody(piece: insight),
                   if (action != null) ...[
                     const SizedBox(height: 12),
-                    const _InsightSectionLabel(text: 'Something to try'),
+                    const InsightSectionLabel(text: 'Something to try'),
                     const SizedBox(height: 4),
-                    _InsightBody(piece: action, quiet: true),
+                    InsightPieceBody(piece: action, quiet: true),
                   ],
                 ],
               );
@@ -172,10 +175,11 @@ class _DailyInsightCardState extends ConsumerState<DailyInsightCard> {
 }
 
 /// Small-caps section label: quiet metadata, never competing with body.
-class _InsightSectionLabel extends StatelessWidget {
+/// Shared with the Insights tab so both surfaces read as one system.
+class InsightSectionLabel extends StatelessWidget {
   final String text;
 
-  const _InsightSectionLabel({required this.text});
+  const InsightSectionLabel({super.key, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -193,12 +197,13 @@ class _InsightSectionLabel extends StatelessWidget {
 
 /// One compact piece: 1–2 sentence body, and a tiny source label only
 /// when the piece opts into visible attribution. The complementary action
-/// renders quieter so the personalized insight stays dominant.
-class _InsightBody extends StatelessWidget {
+/// renders quieter so the personalized insight stays dominant. Shared
+/// with the Insights tab.
+class InsightPieceBody extends StatelessWidget {
   final InsightPiece piece;
   final bool quiet;
 
-  const _InsightBody({required this.piece, this.quiet = false});
+  const InsightPieceBody({super.key, required this.piece, this.quiet = false});
 
   @override
   Widget build(BuildContext context) {

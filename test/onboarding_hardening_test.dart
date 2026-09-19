@@ -13,6 +13,7 @@ import 'package:menomate_mobile/providers/data_providers.dart';
 import 'package:menomate_mobile/providers/profile_provider.dart';
 import 'package:menomate_mobile/screens/onboarding_screen.dart';
 import 'package:menomate_mobile/services/api_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'offline_fake_api.dart';
 
@@ -364,7 +365,7 @@ void main() {
     });
   });
 
-  group('onboarding screen (§4.17–4.18 + Part B)', () {
+  group('onboarding wizard (one-question-per-screen)', () {
     Future<void> pumpOnboarding(
       WidgetTester tester, {
       required FakeApiService api,
@@ -372,9 +373,10 @@ void main() {
       required _RecordingProfileNotifier profileNotifier,
       Size? viewport,
     }) async {
-      // Tall viewport by default (repo convention): the full form fits
-      // without scrolling. The narrow test below overrides this.
-      tester.view.physicalSize = viewport ?? const Size(800, 2000);
+      // Wizard is paged: a normal phone viewport suffices. The narrow
+      // test below overrides this.
+      SharedPreferences.setMockInitialValues({});
+      tester.view.physicalSize = viewport ?? const Size(400, 900);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       await tester.pumpWidget(
@@ -391,6 +393,40 @@ void main() {
       await tester.pumpAndSettle();
     }
 
+    Future<void> tapContinue(WidgetTester tester) async {
+      await tester.tap(find.text('Continue').last);
+      await tester.pumpAndSettle();
+    }
+
+    /// Tap Skip when present else Continue, until [target] appears
+    /// (max 15 steps). Robust against step-index drift.
+    Future<void> advanceTo(WidgetTester tester, String target) async {
+      for (var i = 0; i < 15; i++) {
+        if (find.text(target).evaluate().isNotEmpty) return;
+        final skip = find.text('Skip');
+        if (skip.evaluate().isNotEmpty) {
+          await tester.tap(skip.first);
+        } else {
+          final cont = find.text('Continue');
+          if (cont.evaluate().isEmpty) return;
+          await tester.tap(cont.last);
+        }
+        await tester.pumpAndSettle();
+      }
+    }
+
+    Future<void> tapLetsGetStarted(WidgetTester tester) async {
+      await tester.tap(find.text('Let\u2019s get started'));
+      await tester.pumpAndSettle();
+    }
+
+    /// Advance from welcome to the name step.
+    Future<void> goToName(WidgetTester tester) async {
+      expect(find.text('Welcome to MenoMate'), findsOneWidget);
+      await tapLetsGetStarted(tester);
+      expect(find.text('What should we call you?'), findsWidgets);
+    }
+
     testWidgets('blank name shows inline error and never calls the API', (
       tester,
     ) async {
@@ -404,8 +440,9 @@ void main() {
         profileNotifier: _RecordingProfileNotifier(),
       );
 
-      await tester.tap(find.text('Complete onboarding'));
-      await tester.pumpAndSettle();
+      await goToName(tester);
+      // Continue with empty name blocks on the name step.
+      await tapContinue(tester);
 
       expect(find.text('Please enter your name.'), findsOneWidget);
       expect(api.completeOnboardingCalls, 0);
@@ -437,40 +474,47 @@ void main() {
         profileNotifier: profileNotifier,
       );
 
+      // Welcome -> name.
+      await goToName(tester);
       await tester.enterText(
         find.widgetWithText(TextField, 'What should we call you?'),
         'Widget User',
       );
-      // Pick a start date via the picker dialog (accepts initial = today).
-      await tester.tap(find.text('Select start date'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text('OK'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      // The picker must have committed a start date.
-      expect(find.text('Select start date'), findsNothing);
-
-      // Default status is Ended with no end date -> inline error, no call.
-      await tester.tap(find.text('Complete onboarding'));
+      await tapContinue(tester); // -> age
+      await advanceTo(tester, 'When did your last period start?');
+      // Now on last-period start step.
+      expect(find.text('When did your last period start?'), findsOneWidget);
+      await tester.tap(
+        find.text('I don\u2019t remember — use today (approximate)'),
+      );
       await tester.pumpAndSettle();
+      await tapContinue(tester); // -> status step
+
+      expect(find.text('Has your last period ended?'), findsOneWidget);
+      // Default Ended with no end date -> inline error, no API call.
+      await tapContinue(tester);
       expect(
         find.text('Please choose when it ended, or select Ongoing.'),
         findsOneWidget,
       );
       expect(api.completeOnboardingCalls, 0);
 
-      // Switch to Ongoing and submit -> success, persisted, provider set.
+      // Switch to Ongoing and continue -> proceeds past validation.
       await tester.tap(find.text('Ongoing'));
       await tester.pumpAndSettle();
       expect(
         find.text('Please choose when it ended, or select Ongoing.'),
         findsNothing,
       );
-      await tester.tap(find.text('Complete onboarding'));
-      // Explicit pumps (not pumpAndSettle): the loading spinner animates
-      // while the fake API future resolves. Poll until the local cycle
-      // row lands (Drift background isolate), bounded.
+      await tapContinue(tester); // -> reproductive
+      // Skip reproductive + birth (birth Skip triggers submit).
+      var skip = find.text('Skip');
+      expect(skip, findsOneWidget);
+      await tester.tap(skip.first); // skip reproductive
+      await tester.pumpAndSettle();
+      skip = find.text('Skip');
+      // Birth step: Skip submits (last content step).
+      await tester.tap(skip.first);
       await tester.pump();
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 100));
@@ -478,7 +522,7 @@ void main() {
       }
 
       expect(api.completeOnboardingCalls, 1);
-      // Device zone rode along atomically with onboarding (§2.2 wiring).
+      // Device zone rode along atomically with onboarding.
       expect(api.lastOnboardingRequest?.timezone, 'Asia/Kolkata');
       expect(profileNotifier.lastSet?.name, 'Widget User');
       final profileRow = await (db.select(
@@ -492,7 +536,7 @@ void main() {
       expect(find.byType(OnboardingScreen), findsOneWidget);
     });
 
-    testWidgets('malformed numerics show guidance, blank stays not-sure', (
+    testWidgets('cycle and period default to Not sure and advance cleanly', (
       tester,
     ) async {
       final db = AppDatabase.memory();
@@ -505,25 +549,25 @@ void main() {
         profileNotifier: _RecordingProfileNotifier(),
       );
 
-      // The "leave blank" helper copy is always visible pre-submit (§8).
-      expect(
-        find.text('Days between periods. Leave blank if you\u2019re not sure.'),
-        findsOneWidget,
-      );
-
+      await goToName(tester);
       await tester.enterText(
-        find.widgetWithText(TextField, 'Usual cycle length'),
-        '28 days',
+        find.widgetWithText(TextField, 'What should we call you?'),
+        'Maya',
       );
-      await tester.tap(find.text('Complete onboarding'));
-      await tester.pumpAndSettle();
-
-      // Malformed input surfaces guidance instead of submitting.
-      expect(find.textContaining('eave blank'), findsWidgets);
+      await tapContinue(tester);
+      await advanceTo(tester, 'Usual cycle length?');
+      expect(find.text('Usual cycle length?'), findsOneWidget);
+      // Default is Not sure — Continue advances with no API call yet.
+      await tapContinue(tester);
+      expect(find.text('Usual period length?'), findsOneWidget);
+      await tapContinue(tester);
+      expect(find.text('When did your last period start?'), findsOneWidget);
       expect(api.completeOnboardingCalls, 0);
     });
 
-    testWidgets('required vs optional groups are labeled', (tester) async {
+    testWidgets('wizard is one-question-per-screen with no legacy form', (
+      tester,
+    ) async {
       final db = AppDatabase.memory();
       addTearDown(db.close);
       final api = FakeApiService();
@@ -534,14 +578,63 @@ void main() {
         profileNotifier: _RecordingProfileNotifier(),
       );
 
-      expect(find.text('To get started'), findsOneWidget);
-      expect(find.text('Nice to have — optional'), findsOneWidget);
-      expect(
-        find.textContaining('the rest is optional and can wait'),
-        findsOneWidget,
+      // Progress + single-question structure.
+      expect(find.textContaining('Step 1 of'), findsOneWidget);
+      expect(find.text('Welcome to MenoMate'), findsOneWidget);
+      // Old scrolling form is gone.
+      expect(find.text('To get started'), findsNothing);
+      expect(find.text('Nice to have — optional'), findsNothing);
+      // No temperature question anywhere (no temp input, no degree unit).
+      expect(find.textContaining('emperature?'), findsNothing);
+      expect(find.textContaining('°C'), findsNothing);
+      expect(find.textContaining('°F'), findsNothing);
+      // Optional age step offers Skip.
+      await tapLetsGetStarted(tester);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'What should we call you?'),
+        'Maya',
       );
-      expect(find.text('Birth month & year (optional)'), findsOneWidget);
+      await tapContinue(tester);
+      expect(find.text('What\u2019s your age range?'), findsOneWidget);
+      expect(find.text('Skip'), findsOneWidget);
     });
+
+    Future<void> completeToBirth(
+      WidgetTester tester, {
+      String name = 'Widget User',
+      bool ongoing = true,
+    }) async {
+      await goToName(tester);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'What should we call you?'),
+        name,
+      );
+      await tapContinue(tester);
+      for (var i = 0; i < 7; i++) {
+        final skip = find.text('Skip');
+        if (skip.evaluate().isNotEmpty) {
+          await tester.tap(skip.first);
+        } else {
+          await tapContinue(tester);
+          continue;
+        }
+        await tester.pumpAndSettle();
+      }
+      await tester.tap(
+        find.text('I don\u2019t remember — use today (approximate)'),
+      );
+      await tester.pumpAndSettle();
+      await tapContinue(tester);
+      if (ongoing) {
+        await tester.tap(find.text('Ongoing'));
+        await tester.pumpAndSettle();
+      }
+      await tapContinue(tester); // -> reproductive
+      final skip = find.text('Skip');
+      await tester.tap(skip.first);
+      await tester.pumpAndSettle();
+      expect(find.text('Birth month & year?'), findsOneWidget);
+    }
 
     testWidgets('optional DOB left blank submits without complaint', (
       tester,
@@ -556,27 +649,19 @@ void main() {
         profileNotifier: _RecordingProfileNotifier(),
       );
 
-      await tester.enterText(
-        find.widgetWithText(TextField, 'What should we call you?'),
-        'Widget User',
-      );
-      await tester.tap(find.text('Select start date'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text('OK'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text('Ongoing'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Complete onboarding'));
+      await completeToBirth(tester);
+      // Skip birth (blank pair) submits.
+      await tester.tap(find.text('Skip').first);
       await tester.pump();
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 100));
         if ((await db.select(db.localCycles).get()).isNotEmpty) break;
       }
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(api.completeOnboardingCalls, 1);
       expect(find.byType(SnackBar), findsNothing);
+      expect(find.text('You\u2019re all set!'), findsOneWidget);
     });
 
     testWidgets('DOB month without year blocks with guidance', (tester) async {
@@ -590,15 +675,12 @@ void main() {
         profileNotifier: _RecordingProfileNotifier(),
       );
 
-      await tester.enterText(
-        find.widgetWithText(TextField, 'What should we call you?'),
-        'Widget User',
-      );
-      // Month dropdown is the only DropdownButton on the screen.
-      await tester.tap(find.byType(DropdownButton<int?>));
+      await completeToBirth(tester);
+      // Open month dropdown and pick May, leave year blank.
+      await tester.tap(find.byType(DropdownButtonFormField<int?>).first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('May').last);
-      await tester.pump();
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Complete onboarding'));
       await tester.pumpAndSettle();
 
@@ -617,22 +699,11 @@ void main() {
         profileNotifier: _RecordingProfileNotifier(),
       );
 
-      await tester.enterText(
-        find.widgetWithText(TextField, 'What should we call you?'),
-        'Widget User',
-      );
-      await tester.tap(find.text('Select start date'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text('OK'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text('Ongoing'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(DropdownButton<int?>));
+      await completeToBirth(tester);
+      await tester.tap(find.byType(DropdownButtonFormField<int?>).first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('May').last);
-      await tester.pump();
+      await tester.pumpAndSettle();
       await tester.enterText(find.widgetWithText(TextField, 'Year'), '1992');
       await tester.tap(find.text('Complete onboarding'));
       await tester.pump();
@@ -649,6 +720,7 @@ void main() {
     testWidgets('narrow dark theme renders without overflow; CTA reachable', (
       tester,
     ) async {
+      SharedPreferences.setMockInitialValues({});
       final db = AppDatabase.memory();
       addTearDown(db.close);
       final api = FakeApiService();
@@ -673,13 +745,12 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      // The CTA is below the fold on a short screen but must stay
-      // reachable via scroll (no clipping, no overflow).
-      await tester.ensureVisible(find.text('Complete onboarding'));
+      // Wizard CTA stays reachable on a short screen.
+      expect(find.text('Let\u2019s get started'), findsOneWidget);
+      await tester.tap(find.text('Let\u2019s get started'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
-      expect(find.text('Complete onboarding'), findsOneWidget);
-      expect(find.text('Has your last period ended?'), findsOneWidget);
+      expect(find.text('What should we call you?'), findsWidgets);
     });
   });
 }

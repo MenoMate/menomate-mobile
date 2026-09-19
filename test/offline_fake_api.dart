@@ -6,6 +6,7 @@ import 'package:menomate_mobile/models/health_context.dart';
 import 'package:menomate_mobile/models/onboarding.dart';
 import 'package:menomate_mobile/models/care.dart';
 import 'package:menomate_mobile/models/profile.dart';
+import 'package:menomate_mobile/models/reproductive.dart';
 import 'package:menomate_mobile/models/summary.dart';
 import 'package:menomate_mobile/services/api_service.dart';
 
@@ -510,5 +511,467 @@ class FakeApiService extends ApiService {
     _guard();
     deleteMedicationCalls++;
     serverMedications.removeWhere((m) => m.id == serverId);
+  }
+
+  // --- Reproductive fakes (mirror the Phase 2–4 backend contracts) ---
+  //
+  // Observation upsert converges by (date, type) like the backend (second
+  // POST overwrites). Pregnancy PUT/PATCH enforce the joint dating rules
+  // and the provenance-precedence 409; derived dating display is computed
+  // here (test-only mirror of the server derivation — Flutter never
+  // computes these values, it only renders what this fake returns).
+  // REVIEW GATE: this derivation must stay inside test infrastructure.
+  // Never move gestational-age/EDD math into lib/ — production dating is
+  // always server-computed.
+  final List<FertilityObservation> serverObservations = [];
+  PregnancyContext? serverPregnancy;
+  AgingContext? serverAging;
+
+  /// Canned estimate served when pregnancy mode is inactive. Tests set the
+  /// status under examination (null = INSUFFICIENT_DATA default).
+  FertilityEstimate? cannedEstimate;
+
+  int createObservationCalls = 0;
+  int listObservationsCalls = 0;
+  int patchObservationCalls = 0;
+  int deleteObservationCalls = 0;
+  int fetchEstimateCalls = 0;
+  int fetchPregnancyCalls = 0;
+  int putPregnancyCalls = 0;
+  int patchPregnancyCalls = 0;
+  int deletePregnancyCalls = 0;
+  int fetchAgingCalls = 0;
+  int putAgingCalls = 0;
+
+  /// Last payloads received (payload-shape asserts, e.g. no `user_id`).
+  Map<String, dynamic>? lastObservationPayload;
+  Map<String, dynamic>? lastPregnancyPutPayload;
+  Map<String, dynamic>? lastPregnancyPatchPayload;
+
+  int _nextObsId = 500;
+
+  static String _todayIso() {
+    final now = DateTime.now();
+    return '${now.year.toString().padLeft(4, '0')}-'
+        '${now.month.toString().padLeft(2, '0')}-'
+        '${now.day.toString().padLeft(2, '0')}';
+  }
+
+  static int _daysBetween(String earlier, String later) =>
+      DateTime.parse(later).difference(DateTime.parse(earlier)).inDays;
+
+  @override
+  Future<FertilityObservation> createObservation(
+    Map<String, dynamic> payload,
+  ) async {
+    _guard();
+    createObservationCalls++;
+    lastObservationPayload = Map<String, dynamic>.from(payload);
+    final date = payload['observation_date'] as String? ?? _todayIso();
+    if (date.compareTo(_todayIso()) > 0) {
+      throw const Conflict('observation_date cannot be in the future');
+    }
+    final type = payload['observation_type'] as String? ?? '';
+    final hasLh = payload['lh_result'] != null;
+    final hasBbt = payload['bbt_celsius'] != null;
+    final hasMucus = payload['mucus_category'] != null;
+    final valid =
+        (type == ObservationTypes.lhTest && hasLh && !hasBbt && !hasMucus) ||
+        (type == ObservationTypes.bbt && hasBbt && !hasLh && !hasMucus) ||
+        (type == ObservationTypes.cervicalMucus &&
+            hasMucus &&
+            !hasLh &&
+            !hasBbt);
+    if (!valid) {
+      throw const ValidationError('Value does not match observation type.');
+    }
+    final existing = serverObservations
+        .where((o) => o.observationDate == date && o.observationType == type)
+        .toList();
+    if (existing.isNotEmpty) {
+      // Deterministic upsert: overwrite in place (backend answers 200).
+      final old = existing.single;
+      final row = FertilityObservation(
+        id: old.id,
+        userId: old.userId,
+        observationDate: date,
+        observationType: type,
+        lhResult: payload['lh_result'] as String?,
+        bbtCelsius: (payload['bbt_celsius'] as num?)?.toDouble(),
+        mucusCategory: payload['mucus_category'] as String?,
+        source: payload['source'] as String? ?? ObservationSources.manual,
+        note: payload['note'] as String?,
+      );
+      serverObservations[serverObservations.indexOf(old)] = row;
+      return row;
+    }
+    final row = FertilityObservation(
+      id: _nextObsId++,
+      userId: serverProfile.userId,
+      observationDate: date,
+      observationType: type,
+      lhResult: payload['lh_result'] as String?,
+      bbtCelsius: (payload['bbt_celsius'] as num?)?.toDouble(),
+      mucusCategory: payload['mucus_category'] as String?,
+      source: payload['source'] as String? ?? ObservationSources.manual,
+      note: payload['note'] as String?,
+    );
+    serverObservations.add(row);
+    return row;
+  }
+
+  @override
+  Future<List<FertilityObservation>> listObservations({
+    String? startDate,
+    String? endDate,
+    String? observationType,
+  }) async {
+    _guard();
+    listObservationsCalls++;
+    if (startDate != null &&
+        endDate != null &&
+        startDate.compareTo(endDate) > 0) {
+      throw const ValidationError('start_date cannot be after end_date');
+    }
+    final rows =
+        serverObservations
+            .where(
+              (o) =>
+                  (startDate == null ||
+                      o.observationDate.compareTo(startDate) >= 0) &&
+                  (endDate == null ||
+                      o.observationDate.compareTo(endDate) <= 0) &&
+                  (observationType == null ||
+                      o.observationType == observationType),
+            )
+            .toList()
+          ..sort((a, b) {
+            final date = b.observationDate.compareTo(a.observationDate);
+            return date != 0 ? date : (b.id ?? 0).compareTo(a.id ?? 0);
+          });
+    return rows;
+  }
+
+  @override
+  Future<FertilityObservation> patchObservation(
+    int serverId,
+    Map<String, dynamic> payload,
+  ) async {
+    _guard();
+    patchObservationCalls++;
+    lastObservationPayload = Map<String, dynamic>.from(payload);
+    final i = serverObservations.indexWhere((o) => o.id == serverId);
+    if (i < 0) throw const ServerError('Fertility observation not found');
+    final old = serverObservations[i];
+    if (payload.containsKey('lh_result') &&
+        payload['lh_result'] != null &&
+        old.observationType != ObservationTypes.lhTest) {
+      throw const ValidationError('lh_result is only valid for lh_test');
+    }
+    if (payload.containsKey('bbt_celsius') &&
+        payload['bbt_celsius'] != null &&
+        old.observationType != ObservationTypes.bbt) {
+      throw const ValidationError('bbt_celsius is only valid for bbt');
+    }
+    if (payload.containsKey('mucus_category') &&
+        payload['mucus_category'] != null &&
+        old.observationType != ObservationTypes.cervicalMucus) {
+      throw const ValidationError(
+        'mucus_category is only valid for cervical_mucus',
+      );
+    }
+    final newDate =
+        payload['observation_date'] as String? ?? old.observationDate;
+    if (newDate.compareTo(_todayIso()) > 0) {
+      throw const Conflict('observation_date cannot be in the future');
+    }
+    if (serverObservations.any(
+      (o) =>
+          o.id != serverId &&
+          o.observationDate == newDate &&
+          o.observationType == old.observationType,
+    )) {
+      throw const Conflict(
+        'An observation of this type already exists on that date.',
+      );
+    }
+    final row = FertilityObservation(
+      id: old.id,
+      userId: old.userId,
+      observationDate: newDate,
+      observationType: old.observationType,
+      lhResult: payload.containsKey('lh_result')
+          ? payload['lh_result'] as String?
+          : old.lhResult,
+      bbtCelsius: payload.containsKey('bbt_celsius')
+          ? (payload['bbt_celsius'] as num?)?.toDouble()
+          : old.bbtCelsius,
+      mucusCategory: payload.containsKey('mucus_category')
+          ? payload['mucus_category'] as String?
+          : old.mucusCategory,
+      source: payload['source'] as String? ?? old.source,
+      note: payload.containsKey('note') ? payload['note'] as String? : old.note,
+    );
+    serverObservations[i] = row;
+    return row;
+  }
+
+  @override
+  Future<void> deleteObservation(int serverId) async {
+    _guard();
+    deleteObservationCalls++;
+    // Idempotent: missing rows are already gone (backend 404 path).
+    serverObservations.removeWhere((o) => o.id == serverId);
+  }
+
+  @override
+  Future<FertilityEstimate> fetchFertilityEstimate({String? asOf}) async {
+    _guard();
+    fetchEstimateCalls++;
+    if (asOf != null && asOf.compareTo(_todayIso()) > 0) {
+      throw const Conflict('as_of cannot be in the future');
+    }
+    // Backend suppression gate: explicit pregnancy mode hides dates.
+    if (serverPregnancy?.isActive == true) {
+      return FertilityEstimate(
+        estimateDate: asOf ?? _todayIso(),
+        status: FertilityEstimateStatus.suppressed,
+        evidenceSource: EstimateEvidenceSource.estimated,
+        evidence: const {'pregnancy_mode_active': true},
+        method: 'fertility_v1',
+        methodVersion: '1.0.0',
+      );
+    }
+    return cannedEstimate ??
+        FertilityEstimate(
+          estimateDate: asOf ?? _todayIso(),
+          status: FertilityEstimateStatus.insufficientData,
+          evidenceSource: EstimateEvidenceSource.estimated,
+          method: 'fertility_v1',
+          methodVersion: '1.0.0',
+        );
+  }
+
+  static int _datingPrecedence(String? source) => switch (source) {
+    DatingSources.clinician => 3,
+    DatingSources.ultrasound => 2,
+    DatingSources.lmp => 1,
+    DatingSources.unknown => 0,
+    _ => -1,
+  };
+
+  /// Test-only mirror of the server dating derivation (see note above).
+  PregnancyContext _derivePregnancy(
+    String userId, {
+    required bool isActive,
+    String? datingSource,
+    String? estimatedDueDate,
+    String? lmpDate,
+    String? confirmationDate,
+    String? datingNote,
+  }) {
+    final today = _todayIso();
+    int? totalDays;
+    if (lmpDate != null) {
+      totalDays = _daysBetween(lmpDate, today);
+      if (totalDays < 0) totalDays = 0;
+    } else if (estimatedDueDate != null) {
+      totalDays = 280 - _daysBetween(today, estimatedDueDate);
+      if (totalDays < 0) totalDays = 0;
+    }
+    return PregnancyContext(
+      userId: userId,
+      isActive: isActive,
+      datingSource: datingSource,
+      estimatedDueDate: estimatedDueDate,
+      lmpDate: lmpDate,
+      confirmationDate: confirmationDate,
+      datingNote: datingNote,
+      eddStatus: estimatedDueDate != null ? 'available' : 'unavailable',
+      eddLabel: datingSource == DatingSources.clinician
+          ? 'clinician_established_due_date'
+          : 'estimated_due_date',
+      datingConfidence: datingSource == DatingSources.clinician
+          ? 'CLINICALLY_CONFIRMED'
+          : (datingSource == DatingSources.ultrasound ||
+                datingSource == DatingSources.lmp)
+          ? 'ESTIMATED'
+          : 'UNKNOWN',
+      gestationalAgeTotalDays: totalDays,
+      gestationalAgeWeeks: totalDays == null ? null : totalDays ~/ 7,
+      gestationalAgeDays: totalDays == null ? null : totalDays % 7,
+      daysUntilDue: estimatedDueDate == null
+          ? null
+          : _daysBetween(today, estimatedDueDate),
+      asOfDate: today,
+      timezoneName: 'UTC (profile timezone unset)',
+    );
+  }
+
+  void _checkPregnancyRules({
+    String? datingSource,
+    String? estimatedDueDate,
+    String? lmpDate,
+    String? confirmationDate,
+  }) {
+    const known = [
+      DatingSources.lmp,
+      DatingSources.ultrasound,
+      DatingSources.clinician,
+    ];
+    if (estimatedDueDate != null && !known.contains(datingSource)) {
+      throw const ValidationError(
+        'estimated_due_date requires a known dating source',
+      );
+    }
+    if (lmpDate != null && datingSource != DatingSources.lmp) {
+      throw const ValidationError('lmp_date is only valid with lmp dating');
+    }
+    if (lmpDate != null && lmpDate.compareTo(_todayIso()) > 0) {
+      throw const Conflict('lmp_date cannot be in the future');
+    }
+    if (confirmationDate != null &&
+        confirmationDate.compareTo(_todayIso()) > 0) {
+      throw const Conflict('confirmation_date cannot be in the future');
+    }
+  }
+
+  void _checkDowngrade({
+    required String? incomingSource,
+    required String? incomingEdd,
+  }) {
+    final existing = serverPregnancy;
+    if (existing?.estimatedDueDate == null || incomingEdd == null) return;
+    if (existing!.estimatedDueDate == incomingEdd) return;
+    if (_datingPrecedence(incomingSource) <
+        _datingPrecedence(existing.datingSource)) {
+      throw Conflict(
+        'Stored ${existing.datingSource}-based due date ${existing.estimatedDueDate} '
+        'has higher provenance than incoming $incomingSource-based date $incomingEdd; '
+        'a lower-provenance source cannot silently replace it.',
+      );
+    }
+  }
+
+  @override
+  Future<PregnancyContext> fetchPregnancy(String userId) async {
+    _guard();
+    fetchPregnancyCalls++;
+    return serverPregnancy ??
+        PregnancyContext(userId: serverProfile.userId, isActive: false);
+  }
+
+  @override
+  Future<PregnancyContext> putPregnancy(
+    String userId,
+    Map<String, dynamic> payload,
+  ) async {
+    _guard();
+    putPregnancyCalls++;
+    lastPregnancyPutPayload = Map<String, dynamic>.from(payload);
+    final source = payload['dating_source'] as String?;
+    final edd = payload['estimated_due_date'] as String?;
+    _checkPregnancyRules(
+      datingSource: source,
+      estimatedDueDate: edd,
+      lmpDate: payload['lmp_date'] as String?,
+      confirmationDate: payload['confirmation_date'] as String?,
+    );
+    _checkDowngrade(incomingSource: source, incomingEdd: edd);
+    serverPregnancy = _derivePregnancy(
+      serverProfile.userId,
+      isActive: payload['is_active'] as bool? ?? true,
+      datingSource: source,
+      estimatedDueDate: edd,
+      lmpDate: payload['lmp_date'] as String?,
+      confirmationDate: payload['confirmation_date'] as String?,
+      datingNote: payload['dating_note'] as String?,
+    );
+    return serverPregnancy!;
+  }
+
+  @override
+  Future<PregnancyContext> patchPregnancy(
+    String userId,
+    Map<String, dynamic> payload,
+  ) async {
+    _guard();
+    patchPregnancyCalls++;
+    lastPregnancyPatchPayload = Map<String, dynamic>.from(payload);
+    final current =
+        serverPregnancy ??
+        _derivePregnancy(serverProfile.userId, isActive: true);
+    final source = payload.containsKey('dating_source')
+        ? payload['dating_source'] as String?
+        : current.datingSource;
+    final edd = payload.containsKey('estimated_due_date')
+        ? payload['estimated_due_date'] as String?
+        : current.estimatedDueDate;
+    final lmp = payload.containsKey('lmp_date')
+        ? payload['lmp_date'] as String?
+        : current.lmpDate;
+    final conf = payload.containsKey('confirmation_date')
+        ? payload['confirmation_date'] as String?
+        : current.confirmationDate;
+    _checkPregnancyRules(
+      datingSource: source,
+      estimatedDueDate: edd,
+      lmpDate: lmp,
+      confirmationDate: conf,
+    );
+    if (payload.containsKey('dating_source') ||
+        payload.containsKey('estimated_due_date')) {
+      _checkDowngrade(incomingSource: source, incomingEdd: edd);
+    }
+    serverPregnancy = _derivePregnancy(
+      serverProfile.userId,
+      isActive: payload.containsKey('is_active')
+          ? (payload['is_active'] as bool? ?? current.isActive)
+          : current.isActive,
+      datingSource: source,
+      estimatedDueDate: edd,
+      lmpDate: lmp,
+      confirmationDate: conf,
+      datingNote: payload.containsKey('dating_note')
+          ? payload['dating_note'] as String?
+          : current.datingNote,
+    );
+    return serverPregnancy!;
+  }
+
+  @override
+  Future<void> deletePregnancy() async {
+    _guard();
+    deletePregnancyCalls++;
+    serverPregnancy = null;
+  }
+
+  @override
+  Future<AgingContext> fetchAgingContext(String userId) async {
+    _guard();
+    fetchAgingCalls++;
+    return serverAging ??
+        AgingContext(userId: serverProfile.userId, hasContext: false);
+  }
+
+  @override
+  Future<AgingContext> putAgingContext(
+    String userId,
+    Map<String, dynamic> payload,
+  ) async {
+    _guard();
+    putAgingCalls++;
+    final notes = payload['notes'] as String?;
+    if (notes != null && notes.length > kAgingNoteMaxLength) {
+      throw const ValidationError(
+        'Please keep this context under 2000 characters.',
+      );
+    }
+    serverAging = AgingContext(
+      userId: serverProfile.userId,
+      hasContext: notes != null,
+      notes: notes,
+    );
+    return serverAging!;
   }
 }

@@ -177,6 +177,92 @@ class PredictionCache extends Table {
   Set<Column> get primaryKey => {userId};
 }
 
+/// User-measured fertility observations (Phase 2 OBSERVED facts: LH test,
+/// BBT, cervical mucus). Deliberately separate from `LocalDailyLogs`
+/// (generic discharge scale) and `LocalSymptoms` (fixed taxonomy), mirroring
+/// the backend's separate `fertility_observations` table.
+///
+/// Grain mirrors the backend upsert contract: one live row per
+/// (user, date, type). Re-posting the same triple overwrites
+/// deterministically, so repeated offline edits converge to one server
+/// record. `localId` is the safe temporary identity for offline-created
+/// rows; `serverId` is filled when the backend create/upsert succeeds.
+/// `isDeleted` is a sync tombstone: deletes apply locally immediately and
+/// are pushed as DELETE on the next pass.
+///
+/// No DB-level unique triple is declared (a pending tombstone must be able
+/// to coexist with its replacement until the push converges); the
+/// repository enforces one live row per triple in code.
+class LocalFertilityObservations extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get localId => text().unique()();
+  TextColumn get userId => text()();
+  IntColumn get serverId => integer().nullable()();
+  TextColumn get observationDate => text()();
+  TextColumn get observationType => text()();
+  TextColumn get lhResult => text().nullable()();
+  RealColumn get bbtCelsius => real().nullable()();
+  TextColumn get mucusCategory => text().nullable()();
+  TextColumn get source => text().withDefault(const Constant('manual'))();
+  TextColumn get note => text().nullable()();
+  BoolColumn get isDeleted => boolean().withDefault(const Constant(false))();
+  IntColumn get syncState =>
+      intEnum<SyncState>().withDefault(Constant(SyncState.synced.index))();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Explicit user-controlled pregnancy mode + dating basis (Phase 3).
+/// Singleton per user: absence means pregnancy mode was never entered;
+/// `isActive = false` retains history with mode off (DELETE erases it).
+///
+/// Stored dating fields are verbatim user/clinician input (PUT
+/// full-replacement, never merged). The `edd*` / gestational-age / `asOf`
+/// columns are a verbatim cache of the last server-derived dating display —
+/// exactly the fields pregnancy surfaces render offline. Display only;
+/// Flutter never computes dating values (same precedent as
+/// [PredictionCache]). The cached derivation is always presented with its
+/// [asOfDate] so stale values are never shown as current without provenance.
+class LocalPregnancyContext extends Table {
+  TextColumn get userId => text()();
+  BoolColumn get isActive => boolean().withDefault(const Constant(true))();
+  TextColumn get datingSource => text().nullable()();
+  TextColumn get estimatedDueDate => text().nullable()();
+  TextColumn get lmpDate => text().nullable()();
+  TextColumn get confirmationDate => text().nullable()();
+  TextColumn get datingNote => text().nullable()();
+  TextColumn get eddStatus => text().nullable()();
+  TextColumn get eddLabel => text().nullable()();
+  TextColumn get datingConfidence => text().nullable()();
+  IntColumn get gestationalAgeTotalDays => integer().nullable()();
+  IntColumn get gestationalAgeWeeks => integer().nullable()();
+  IntColumn get gestationalAgeDays => integer().nullable()();
+  IntColumn get daysUntilDue => integer().nullable()();
+  TextColumn get asOfDate => text().nullable()();
+  TextColumn get timezoneName => text().nullable()();
+  IntColumn get syncState =>
+      intEnum<SyncState>().withDefault(Constant(SyncState.synced.index))();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {userId};
+}
+
+/// Explicit user-declared reproductive-aging context (Phase 4). Singleton
+/// free-text note, stored verbatim and never parsed into medical facts.
+/// Absence (or NULL notes) means no recorded context. Clearing is via PUT
+/// with notes null (full-replacement); there is no PATCH/DELETE surface.
+/// Carries no staging vocabulary by design — none is invented.
+class LocalAgingContext extends Table {
+  TextColumn get userId => text()();
+  TextColumn get notes => text().nullable()();
+  IntColumn get syncState =>
+      intEnum<SyncState>().withDefault(Constant(SyncState.synced.index))();
+  DateTimeColumn get updatedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {userId};
+}
+
 @DriftDatabase(
   tables: [
     LocalProfiles,
@@ -187,6 +273,9 @@ class PredictionCache extends Table {
     LocalHealthContext,
     LocalConditions,
     LocalMedications,
+    LocalFertilityObservations,
+    LocalPregnancyContext,
+    LocalAgingContext,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -204,7 +293,7 @@ class AppDatabase extends _$AppDatabase {
   static AppDatabase memory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -239,6 +328,14 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(localHealthContext);
         await m.createTable(localConditions);
         await m.createTable(localMedications);
+      }
+      // v4 -> v5: Phase 5 reproductive health (fertility observations,
+      // pregnancy mode, aging context). Three new tables only; no existing
+      // table is altered. Additive and safe: existing rows untouched.
+      if (from < 5) {
+        await m.createTable(localFertilityObservations);
+        await m.createTable(localPregnancyContext);
+        await m.createTable(localAgingContext);
       }
     },
   );
@@ -312,7 +409,37 @@ class AppDatabase extends _$AppDatabase {
               )
               ..limit(1))
             .getSingleOrNull();
-    return medicationHit != null;
+    if (medicationHit != null) return true;
+    final observationHit =
+        await (selectOnly(localFertilityObservations)
+              ..addColumns([localFertilityObservations.id])
+              ..where(
+                localFertilityObservations.syncState.equals(pending) |
+                    localFertilityObservations.syncState.equals(conflict),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    if (observationHit != null) return true;
+    final pregnancyHit =
+        await (selectOnly(localPregnancyContext)
+              ..addColumns([localPregnancyContext.userId])
+              ..where(
+                localPregnancyContext.syncState.equals(pending) |
+                    localPregnancyContext.syncState.equals(conflict),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    if (pregnancyHit != null) return true;
+    final agingHit =
+        await (selectOnly(localAgingContext)
+              ..addColumns([localAgingContext.userId])
+              ..where(
+                localAgingContext.syncState.equals(pending) |
+                    localAgingContext.syncState.equals(conflict),
+              )
+              ..limit(1))
+            .getSingleOrNull();
+    return agingHit != null;
   }
 
   /// How much offline-created data could move into an account. Counts are
@@ -358,8 +485,9 @@ class AppDatabase extends _$AppDatabase {
   }
 
   /// Moves offline-created tracking rows (cycles, daily logs + their
-  /// symptoms, health conditions, medications, and the health context
-  /// singleton) into [newUserId] after explicit user consent. Invariant:
+  /// symptoms, health conditions, medications, the health context
+  /// singleton, fertility observations, and the pregnancy/aging singletons)
+  /// into [newUserId] after explicit user consent. Invariant:
   /// rows under [kOfflineUserId] never carry a `serverId` (sync only ever
   /// runs for authenticated ids), so adoption only ever creates fresh
   /// server records or hits the existing per-row conflict path — it can
@@ -367,6 +495,10 @@ class AppDatabase extends _$AppDatabase {
   /// are preserved untouched. The offline profile and prediction rows do
   /// NOT move: the account profile stays authoritative (callers disclose
   /// that display preferences reset). Returns the adopted row counts.
+  ///
+  /// The returned counts keep the Phase 1 shape (reproductive rows ride the
+  /// same consent without changing the offer numbers); see
+  /// [reproductiveAdoptableCounts] for the reproductive share.
   Future<OfflineAdoptionCounts> adoptOfflineData(String newUserId) async {
     return transaction(() async {
       final cycles = await (select(
@@ -390,11 +522,25 @@ class AppDatabase extends _$AppDatabase {
               context.contraceptionNote != null ||
               context.pregnancyContext != null ||
               context.healthNotes != null);
+      final observations = await (select(
+        localFertilityObservations,
+      )..where((t) => t.userId.equals(kOfflineUserId))).get();
+      final pregnancy = await (select(
+        localPregnancyContext,
+      )..where((t) => t.userId.equals(kOfflineUserId))).getSingleOrNull();
+      final aging = await (select(
+        localAgingContext,
+      )..where((t) => t.userId.equals(kOfflineUserId))).getSingleOrNull();
+      final hasReproductive =
+          observations.isNotEmpty ||
+          pregnancy != null ||
+          (aging != null && aging.notes != null);
       if (cycles.isEmpty &&
           logs.isEmpty &&
           conditions.isEmpty &&
           medications.isEmpty &&
-          !hasContext) {
+          !hasContext &&
+          !hasReproductive) {
         return (
           cycles: 0,
           logs: 0,
@@ -420,6 +566,15 @@ class AppDatabase extends _$AppDatabase {
       await (update(localHealthContext)
             ..where((t) => t.userId.equals(kOfflineUserId)))
           .write(LocalHealthContextCompanion(userId: Value(newUserId)));
+      await (update(localFertilityObservations)
+            ..where((t) => t.userId.equals(kOfflineUserId)))
+          .write(LocalFertilityObservationsCompanion(userId: Value(newUserId)));
+      await (update(localPregnancyContext)
+            ..where((t) => t.userId.equals(kOfflineUserId)))
+          .write(LocalPregnancyContextCompanion(userId: Value(newUserId)));
+      await (update(localAgingContext)
+            ..where((t) => t.userId.equals(kOfflineUserId)))
+          .write(LocalAgingContextCompanion(userId: Value(newUserId)));
       await (delete(
         localProfiles,
       )..where((t) => t.userId.equals(kOfflineUserId))).go();
@@ -449,7 +604,34 @@ class AppDatabase extends _$AppDatabase {
       await delete(localHealthContext).go();
       await delete(localConditions).go();
       await delete(localMedications).go();
+      await delete(localFertilityObservations).go();
+      await delete(localPregnancyContext).go();
+      await delete(localAgingContext).go();
     });
+  }
+
+  /// Reproductive share of offline-created data (fertility observations,
+  /// pregnancy singleton presence, recorded aging notes). Counts are taken
+  /// outside any transaction; callers use them for honest post-adoption
+  /// reporting, not for the adoption offer itself (see [adoptOfflineData]).
+  Future<({int observations, bool pregnancy, bool aging})>
+  reproductiveAdoptableCounts() async {
+    final observations =
+        await (selectOnly(localFertilityObservations)
+              ..addColumns([localFertilityObservations.id])
+              ..where(localFertilityObservations.userId.equals(kOfflineUserId)))
+            .get();
+    final pregnancy = await (select(
+      localPregnancyContext,
+    )..where((t) => t.userId.equals(kOfflineUserId))).getSingleOrNull();
+    final aging = await (select(
+      localAgingContext,
+    )..where((t) => t.userId.equals(kOfflineUserId))).getSingleOrNull();
+    return (
+      observations: observations.length,
+      pregnancy: pregnancy != null,
+      aging: aging != null && aging.notes != null,
+    );
   }
 }
 

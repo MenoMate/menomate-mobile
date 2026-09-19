@@ -11,6 +11,7 @@ import 'data_providers.dart';
 import 'health_providers.dart';
 import 'offline_mode_provider.dart';
 import 'profile_provider.dart';
+import 'reproductive_providers.dart';
 
 /// Local-first cycle providers. Names and granularity are unchanged from
 /// the network-only implementation; only the value type is now [DataState]
@@ -51,6 +52,14 @@ final cycleListProvider = FutureProvider<DataState<List<CycleResponse>>>((
   return repo.loadCycles(userId);
 });
 
+/// Local symptom-pattern counts: logged days per symptom type. Pure local
+/// aggregate (no network), so offline tracking and signed-in mode share it.
+final symptomFrequencyProvider = FutureProvider<Map<String, int>>((ref) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return const {};
+  return ref.watch(dailyLogRepositoryProvider).symptomCounts(userId);
+});
+
 /// Offline-created tracking rows waiting for an explicit, consented move
 /// into the signed-in account. Null when there is nothing to offer (no
 /// session, nothing stored, or already declined for this account).
@@ -83,6 +92,7 @@ Future<OfflineAdoptionCounts> adoptOfflineDataIntoAccount(WidgetRef ref) async {
     await ref.read(cycleRepositoryProvider).syncPending(authId);
     await ref.read(dailyLogRepositoryProvider).syncPending(authId);
     await ref.read(healthContextRepositoryProvider).syncPending(authId);
+    await ref.read(reproductiveRepositoryProvider).syncPending(authId);
   } catch (_) {
     // Best-effort push; pending rows retry on the next sync pass.
   }
@@ -95,10 +105,12 @@ void refreshAllAppData(WidgetRef ref) {
   ref.invalidate(currentCycleProvider);
   ref.invalidate(historySummaryProvider);
   ref.invalidate(cycleListProvider);
+  ref.invalidate(symptomFrequencyProvider);
   ref.invalidate(profileProvider);
   ref.invalidate(healthContextProvider);
   ref.invalidate(conditionsProvider);
   ref.invalidate(medicationsProvider);
+  refreshReproductiveData(ref);
 }
 
 /// Same invalidation set for non-widget provider contexts.
@@ -106,10 +118,12 @@ void refreshProviders(Ref ref) {
   ref.invalidate(currentCycleProvider);
   ref.invalidate(historySummaryProvider);
   ref.invalidate(cycleListProvider);
+  ref.invalidate(symptomFrequencyProvider);
   ref.invalidate(profileProvider);
   ref.invalidate(healthContextProvider);
   ref.invalidate(conditionsProvider);
   ref.invalidate(medicationsProvider);
+  refreshReproductiveProviders(ref);
 }
 
 bool _syncInFlight = false;
@@ -129,6 +143,7 @@ Future<void> syncAllPending(Ref ref) async {
     final logRepo = ref.read(dailyLogRepositoryProvider);
     final profileRepo = ref.read(profileRepositoryProvider);
     final healthRepo = ref.read(healthContextRepositoryProvider);
+    final reproductiveRepo = ref.read(reproductiveRepositoryProvider);
     // Device timezone first: any change is staged as pending here and
     // flushed by profileRepo.syncPending below, in the same pass.
     await profileRepo.refreshDeviceTimezone(userId);
@@ -139,6 +154,11 @@ Future<void> syncAllPending(Ref ref) async {
     // user-provided values; it never reads predictions and never triggers
     // a prediction refresh.
     await healthRepo.syncPending(userId);
+    // Phase 5 reproductive rows ride the same pass: observations plus the
+    // pregnancy/aging singletons. Estimates are read-only (no push path).
+    // Like health context, this never reads predictions and never triggers
+    // a prediction refresh.
+    await reproductiveRepo.syncPending(userId);
     refreshProviders(ref);
   } catch (_) {
     // Sync is best-effort; local data remains usable. Errors surface

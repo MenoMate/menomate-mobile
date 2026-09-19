@@ -178,8 +178,8 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
       case CareActionTarget.logger:
         context.push('/logger');
       case CareActionTarget.historyTab:
-        // In home screen, calendar is tab index 2
-        ref.read(homeTabIndexProvider.notifier).setIndex(2);
+        // History is a pushed detail route, not a tab: back returns here.
+        context.push('/history');
       case CareActionTarget.homeTab:
         // Navigate to Home tab (index 0) where the wearable telemetry card is located
         ref.read(homeTabIndexProvider.notifier).setIndex(0);
@@ -245,9 +245,11 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        // Root tab: never show a back arrow here.
+        automaticallyImplyLeading: false,
         title: Row(
           children: [
-            const MenoMateLogo(size: 32),
+            const MenoMateBrandLogo(size: 32),
             const SizedBox(width: 10),
             Text(
               'MenoMate Care',

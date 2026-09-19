@@ -46,4 +46,7 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
-lib/core/env.dart
+# NOTE: lib/core/env.dart is intentionally TRACKED (release-safe defaults,
+# injection-only secrets - see README "Release builds"). Do not ignore it:
+# fresh clones must compile and release builds must resolve the production
+# backend without per-developer setup.

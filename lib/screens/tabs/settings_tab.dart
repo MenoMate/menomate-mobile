@@ -9,7 +9,9 @@ import '../../models/device.dart';
 import '../../models/profile.dart';
 import '../../providers/cycle_provider.dart';
 import '../../providers/data_providers.dart';
+import '../../providers/logo_variant_provider.dart';
 import '../../providers/offline_mode_provider.dart';
+import '../../widgets/menomate_logo.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/api_service.dart';
@@ -247,6 +249,8 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        // Root tab: never show a back arrow here.
+        automaticallyImplyLeading: false,
         title: Text(
           'Settings',
           style: TextStyle(
@@ -264,7 +268,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               // --- 0. Account: identity first, then account actions. ---
               // Name editing lives only in Profile now; this card links
               // there instead of duplicating the field.
-              _buildSectionHeader('Account', colorScheme),
+              _buildSectionHeader('PROFILE · Account', colorScheme),
               if (offline) ...[
                 // Local-only user: status + privacy note + sign-in path.
                 // There is no account to sign out of and nothing is broken.
@@ -514,7 +518,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               // Personal info, conditions, medications and other optional
               // context live on dedicated screens; Settings keeps only its
               // existing quick preferences.
-              _buildSectionHeader('Profile & Health', colorScheme),
+              _buildSectionHeader('PROFILE · Profile & Health', colorScheme),
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
@@ -549,10 +553,44 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   ),
                 ),
               ),
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: colorScheme.outline),
+                ),
+                child: Material(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.calendar_month_outlined,
+                      color: colorScheme.primary,
+                    ),
+                    title: const Text(
+                      'History & Calendar',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      'Past cycles, logged days and predictions',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.secondary,
+                      ),
+                    ),
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      color: colorScheme.secondary,
+                    ),
+                    // Detail route (not a tab): back returns here.
+                    onTap: () => context.push('/calendar'),
+                  ),
+                ),
+              ),
               const SizedBox(height: 20),
 
               // --- 2. Cycle & Period Preferences ---
-              _buildSectionHeader('Cycle & Period Baseline', colorScheme),
+              _buildSectionHeader('PROFILE · Cycle baseline', colorScheme),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -589,7 +627,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               const SizedBox(height: 20),
 
               // --- 3. Appearance ---
-              _buildSectionHeader('Appearance', colorScheme),
+              _buildSectionHeader('APP · Appearance', colorScheme),
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
@@ -697,8 +735,42 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               ),
               const SizedBox(height: 20),
 
+              // --- 3b. App icon (launcher): the requested logo selection
+              // concerns the APPLICATION/LAUNCHER ICON — not the Home
+              // greeting logo beside "Hello, [name]", which stays fixed
+              // brand identity (standard circle). The choice below previews
+              // launcher variants; true OS launcher switching requires
+              // native config — see docs/launcher_icon.md. It never
+              // changes the Home header.
+              _buildSectionHeader('APP · App icon (launcher)', colorScheme),
+              Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: colorScheme.outline),
+                ),
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                      child: Text(
+                        'Previews the launcher icon style. The Home greeting logo stays the classic MenoMate mark. Applying a launcher icon needs a native rebuild (see docs).',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.secondary,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                    for (final variant in AppLogoVariant.values)
+                      _LogoOptionTile(variant: variant),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
               // --- 4. Units Preference ---
-              _buildSectionHeader('Units', colorScheme),
+              _buildSectionHeader('APP · Preferences', colorScheme),
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
@@ -758,7 +830,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               const SizedBox(height: 28),
 
               // --- 5. Wearable Device Section ---
-              _buildSectionHeader('MenoMate Wearable', colorScheme),
+              _buildSectionHeader('APP · MenoMate Wearable', colorScheme),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -814,6 +886,116 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   ],
                 ),
               ),
+              const SizedBox(height: 20),
+
+              // --- 6. Privacy & Data ---
+              _buildSectionHeader(
+                'DATA & PRIVACY · Privacy & Data',
+                colorScheme,
+              ),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: colorScheme.outline),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      offline
+                          ? Icons.cloud_off_outlined
+                          : Icons.cloud_done_outlined,
+                      color: colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        offline
+                            ? 'Offline tracking — your data stays on this device until you sign in and choose to sync it.'
+                            : 'Signed in — your data syncs to your account across devices.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colorScheme.secondary,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // --- 7. Help & support ---
+              _buildSectionHeader('HELP · Help & support', colorScheme),
+              Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: colorScheme.outline),
+                ),
+                // Own Material (not just a colored box): ExpansionTile
+                // paints its ink on the nearest Material, so a bare
+                // DecoratedBox would hide it and trip the debug assertion.
+                child: Material(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  child: const Column(
+                    children: [
+                      _HelpEntry(
+                        title: 'How does syncing work?',
+                        body:
+                            'When signed in, MenoMate saves each entry on this '
+                            'device first, then sends it to your account. If the '
+                            'connection drops, entries wait safely and sync '
+                            'later — nothing is lost.',
+                      ),
+                      _HelpEntry(
+                        title: 'What does offline tracking mean?',
+                        body:
+                            'You can track periods, symptoms, and wellness '
+                            'without an account. Everything stays on this '
+                            'device. Sign in later to move it into an account — '
+                            'only ever with your explicit choice.',
+                      ),
+                      _HelpEntry(
+                        title: 'Are predictions certain?',
+                        body:
+                            'No. Dates and phases are estimates based on your '
+                            'logged history and can vary from cycle to cycle. '
+                            'Treat them as context, not a diagnosis — and talk '
+                            'to a clinician you trust if something feels off.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // --- 8. About MenoMate ---
+              _buildSectionHeader('HELP · About MenoMate', colorScheme),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: colorScheme.outline),
+                ),
+                child: Column(
+                  children: [
+                    const Center(child: MenoMateBrandLogo(size: 56)),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Understand your cycle. Support your you.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colorScheme.secondary,
+                        height: 1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 36),
             ],
           ),
@@ -862,6 +1044,101 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
           letterSpacing: 0.5,
         ),
       ),
+    );
+  }
+}
+
+/// One logo choice: live preview of the actual mark, name, short
+/// description, and a radio for selection state. The whole tile taps
+/// (min 48dp target) with an accessible label — selected state never
+/// rests on color alone.
+class _LogoOptionTile extends ConsumerWidget {
+  final AppLogoVariant variant;
+
+  const _LogoOptionTile({required this.variant});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => ref.read(logoVariantProvider.notifier).setVariant(variant),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              // Natural width: the compact presentation carries a wordmark
+              // beside its mark and must never be squeezed into the
+              // circle-only box (debug overflow, clipped text otherwise).
+              MenoMateLogo(
+                size: variant == AppLogoVariant.compact ? 32 : 44,
+                variant: variant,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      kLogoVariantLabels[variant] ?? variant.name,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      kLogoVariantDescriptions[variant] ?? '',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.secondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              RadioGroup<AppLogoVariant>(
+                groupValue: ref.watch(logoVariantProvider),
+                onChanged: (value) {
+                  if (value != null) {
+                    ref.read(logoVariantProvider.notifier).setVariant(value);
+                  }
+                },
+                child: Radio<AppLogoVariant>(value: variant),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One expandable help answer. Static, honest product copy only — no
+/// links, no contact details that do not exist, no invented features.
+class _HelpEntry extends StatelessWidget {
+  final String title;
+  final String body;
+
+  const _HelpEntry({required this.title, required this.body});
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return ExpansionTile(
+      title: Text(
+        title,
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+      ),
+      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      children: [
+        Text(
+          body,
+          style: TextStyle(
+            fontSize: 13,
+            color: colorScheme.secondary,
+            height: 1.4,
+          ),
+        ),
+      ],
     );
   }
 }

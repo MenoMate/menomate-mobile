@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -54,6 +57,23 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       _errorMessage = null;
       // Keep _infoMessage so the email-confirmation guidance stays visible.
     });
+  }
+
+  /// True for transport-level failures (no route to the sign-in service),
+  /// as opposed to credential or account problems, which surface as
+  /// [AuthException] above. Message matching covers http-package client
+  /// errors, which wrap the same OS failures as text.
+  bool _isNetworkError(Object e) {
+    if (e is SocketException || e is TimeoutException || e is HttpException) {
+      return true;
+    }
+    final message = e.toString();
+    return message.contains('SocketException') ||
+        message.contains('Failed host lookup') ||
+        message.contains('Connection refused') ||
+        message.contains('Connection timed out') ||
+        message.contains('Network is unreachable') ||
+        message.contains('timed out');
   }
 
   Future<void> _submit() async {
@@ -121,8 +141,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // Transport failures (no route to the sign-in service or backend)
+        // read very differently from wrong credentials: say so plainly so
+        // a real-device misconfiguration is diagnosable on sight.
         setState(
-          () => _errorMessage = 'An unexpected connection error occurred.',
+          () => _errorMessage = _isNetworkError(e)
+              ? 'Couldn\'t reach the sign-in service. Check your connection and try again.'
+              : 'An unexpected connection error occurred.',
         );
       }
     } finally {
@@ -150,7 +175,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // --- App Branding Header ---
-                  const Center(child: MenoMateLogo(size: 68)),
+                  const Center(child: MenoMateBrandLogo(size: 68)),
                   const SizedBox(height: 16),
                   Text(
                     'MenoMate',

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../data/sync_policy.dart';
 import '../models/health_context.dart';
 import '../providers/data_providers.dart';
 import '../providers/health_providers.dart';
 import '../providers/offline_mode_provider.dart';
+import '../providers/reproductive_providers.dart';
 import '../widgets/offline_banner.dart';
 
 /// Focused screen for reproductive health context: contraception method +
@@ -186,24 +188,54 @@ class _HealthReproductiveScreenState
               _buildSectionHeader('Pregnancy & fertility', colorScheme),
               _card(
                 colorScheme,
-                _LabeledDropdown<String?>(
-                  label: 'Context (optional)',
-                  icon: Icons.child_care_outlined,
-                  value: _pregnancy,
-                  hint: 'Not set',
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Not set'),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _LabeledDropdown<String?>(
+                      label: 'Context (optional)',
+                      icon: Icons.child_care_outlined,
+                      value: _pregnancy,
+                      hint: 'Not set',
+                      items: [
+                        const DropdownMenuItem<String?>(
+                          value: null,
+                          child: Text('Not set'),
+                        ),
+                        for (final entry in kPregnancyContextLabels.entries)
+                          DropdownMenuItem<String?>(
+                            value: entry.key,
+                            child: Text(entry.value),
+                          ),
+                      ],
+                      onChanged: (val) => setState(() => _pregnancy = val),
                     ),
-                    for (final entry in kPregnancyContextLabels.entries)
-                      DropdownMenuItem<String?>(
-                        value: entry.key,
-                        child: Text(entry.value),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Context only — this selection never changes predictions and never turns on pregnancy mode.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.secondary,
+                        height: 1.4,
                       ),
+                    ),
                   ],
-                  onChanged: (val) => setState(() => _pregnancy = val),
                 ),
+              ),
+              const SizedBox(height: 20),
+              _buildSectionHeader('Pregnancy mode', colorScheme),
+              _ModeTile(
+                icon: Icons.pregnant_woman_rounded,
+                title: 'Pregnancy mode',
+                summary: _pregnancyModeSummary(ref),
+                onTap: () => context.push('/profile/health/pregnancy-mode'),
+              ),
+              const SizedBox(height: 12),
+              _buildSectionHeader('Reproductive-aging context', colorScheme),
+              _ModeTile(
+                icon: Icons.spa_outlined,
+                title: 'Aging context',
+                summary: _agingSummary(ref),
+                onTap: () => context.push('/profile/health/aging'),
               ),
               const SizedBox(height: 20),
               if (singletonState != null) SyncStatusChip(state: singletonState),
@@ -257,6 +289,72 @@ class _HealthReproductiveScreenState
       child: child,
     );
   }
+}
+
+/// Explicit-mode navigation tile: icon, title, live summary, chevron.
+/// Pregnancy mode and aging context have their own screens — separate from
+/// the legacy context dropdown above, which keeps its existing meaning.
+class _ModeTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String summary;
+  final VoidCallback onTap;
+
+  const _ModeTile({
+    required this.icon,
+    required this.title,
+    required this.summary,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colorScheme.outline),
+      ),
+      child: Material(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        child: ListTile(
+          leading: Icon(icon, color: colorScheme.primary),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          subtitle: Text(
+            summary,
+            style: TextStyle(fontSize: 12, color: colorScheme.secondary),
+          ),
+          trailing: Icon(Icons.chevron_right, color: colorScheme.secondary),
+          onTap: onTap,
+        ),
+      ),
+    );
+  }
+}
+
+/// '…' while loading, honest text once settled.
+String _pregnancyModeSummary(WidgetRef ref) {
+  final state = ref.watch(pregnancyProvider).value;
+  if (state == null) return '…';
+  if (state is Unavailable) return 'Couldn\u2019t load';
+  final ctx = state.dataOrNull;
+  if (ctx?.isActive == true) return 'On — explicit mode';
+  if (ctx != null && ctx.hasDating) return 'Paused — history kept';
+  return 'Off';
+}
+
+/// '…' while loading, honest text once settled.
+String _agingSummary(WidgetRef ref) {
+  final state = ref.watch(agingProvider).value;
+  if (state == null) return '…';
+  if (state is Unavailable) return 'Couldn\u2019t load';
+  final ctx = state.dataOrNull;
+  if (ctx?.hasContext == true) return 'You recorded this';
+  return 'Not set yet';
 }
 
 /// Labeled single-select matching the Settings dropdown language

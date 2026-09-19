@@ -5,6 +5,7 @@ import '../data/repositories/cycle_repository.dart';
 import '../data/repositories/daily_log_repository.dart';
 import '../data/repositories/health_context_repository.dart';
 import '../data/repositories/profile_repository.dart';
+import '../data/repositories/reproductive_repository.dart';
 import '../services/api_service.dart';
 import 'auth_provider.dart';
 import 'offline_mode_provider.dart';
@@ -43,6 +44,17 @@ final healthContextRepositoryProvider = Provider<HealthContextRepository>((
   ref,
 ) {
   return HealthContextRepository(
+    ref.watch(appDatabaseProvider),
+    ref.watch(apiServiceProvider),
+  );
+});
+
+/// Phase 5 reproductive repository: fertility observations (offline-first
+/// rows), read-only fertility estimates, explicit pregnancy mode, and
+/// user-declared aging context. Same local-first contract as the other
+/// repositories; never touches predictions.
+final reproductiveRepositoryProvider = Provider<ReproductiveRepository>((ref) {
+  return ReproductiveRepository(
     ref.watch(appDatabaseProvider),
     ref.watch(apiServiceProvider),
   );

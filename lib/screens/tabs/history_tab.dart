@@ -62,7 +62,7 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: Text(
-          'History & Insights',
+          'History & Calendar',
           style: TextStyle(
             color: colorScheme.onSurface,
             fontWeight: FontWeight.bold,

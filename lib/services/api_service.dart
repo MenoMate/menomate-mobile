@@ -13,6 +13,7 @@ import '../models/care.dart';
 import '../models/summary.dart';
 import '../models/device.dart';
 import '../models/therapy.dart';
+import '../models/reproductive.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) {
   final dio = ref.watch(dioProvider);
@@ -442,6 +443,248 @@ class ApiService {
     } catch (e) {
       debugPrint('Error fetching therapy history: $e');
       return [];
+    }
+  }
+
+  // --- Reproductive API (Phase 2–4 contracts; backend authoritative) ---
+  //
+  // Exact route names and response schemas from
+  // `MenoMate_core/app/api/v1/reproductive.py`. All payloads are Maps built
+  // by the domain models; no `user_id` is ever sent (the backend determines
+  // ownership from the session). Errors throw typed [ApiError] via
+  // [mapDioException]; `null` is never used to signal failure.
+
+  /// POST: records one observation; re-posting the same (date, type)
+  /// overwrites deterministically (200 vs 201 — both decode identically).
+  Future<FertilityObservation> createObservation(
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await _dio.post(
+        '/api/v1/reproductive/observations',
+        data: payload,
+      );
+      return FertilityObservation.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error creating fertility observation: $e');
+      rethrow;
+    }
+  }
+
+  Future<List<FertilityObservation>> listObservations({
+    String? startDate,
+    String? endDate,
+    String? observationType,
+  }) async {
+    try {
+      final query = <String, dynamic>{};
+      if (startDate != null) query['start_date'] = startDate;
+      if (endDate != null) query['end_date'] = endDate;
+      if (observationType != null) query['observation_type'] = observationType;
+      final response = await _dio.get(
+        '/api/v1/reproductive/observations',
+        queryParameters: query,
+      );
+      final List data = response.data as List;
+      return data
+          .map(
+            (json) =>
+                FertilityObservation.fromJson(json as Map<String, dynamic>),
+          )
+          .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error listing fertility observations: $e');
+      rethrow;
+    }
+  }
+
+  Future<FertilityObservation> patchObservation(
+    int serverId,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await _dio.patch(
+        '/api/v1/reproductive/observations/$serverId',
+        data: payload,
+      );
+      return FertilityObservation.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error updating fertility observation: $e');
+      rethrow;
+    }
+  }
+
+  /// DELETE is idempotent: a 404 means the row is already gone, which is
+  /// the desired end state, so it succeeds silently.
+  Future<void> deleteObservation(int serverId) async {
+    try {
+      await _dio.delete('/api/v1/reproductive/observations/$serverId');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return;
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error deleting fertility observation: $e');
+      rethrow;
+    }
+  }
+
+  /// GET the server-computed estimate. Always HTTP 200; INSUFFICIENT_DATA /
+  /// LOW_CONFIDENCE / SUPPRESSED answers carry null dates (never invented).
+  Future<FertilityEstimate> fetchFertilityEstimate({String? asOf}) async {
+    try {
+      final query = <String, dynamic>{};
+      if (asOf != null) query['as_of'] = asOf;
+      final response = await _dio.get(
+        '/api/v1/reproductive/estimates',
+        queryParameters: query,
+      );
+      return FertilityEstimate.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error fetching fertility estimate: $e');
+      rethrow;
+    }
+  }
+
+  /// GET the pregnancy-mode singleton. Never 404s: the backend returns an
+  /// inactive unset default when pregnancy mode was never entered.
+  Future<PregnancyContext> fetchPregnancy(String userId) async {
+    try {
+      final response = await _dio.get('/api/v1/reproductive/pregnancy');
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return PregnancyContext.fromJson(userId, data);
+      }
+      throw const ServerError('Pregnancy response malformed.');
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } on ApiError {
+      rethrow;
+    } catch (e) {
+      debugPrint('Error fetching pregnancy context: $e');
+      throw ServerError('Pregnancy fetch failed: $e');
+    }
+  }
+
+  /// PUT full replacement (omitted dating fields clear to null; `is_active`
+  /// defaults true server-side on activation).
+  Future<PregnancyContext> putPregnancy(
+    String userId,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await _dio.put(
+        '/api/v1/reproductive/pregnancy',
+        data: payload,
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return PregnancyContext.fromJson(userId, data);
+      }
+      throw const ServerError('Pregnancy response malformed.');
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } on ApiError {
+      rethrow;
+    } catch (e) {
+      debugPrint('Error saving pregnancy context: $e');
+      throw ServerError('Pregnancy save failed: $e');
+    }
+  }
+
+  /// PATCH partial update (only included fields change; explicit null
+  /// clears). Deactivation is explicit via `{is_active: false}`.
+  Future<PregnancyContext> patchPregnancy(
+    String userId,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await _dio.patch(
+        '/api/v1/reproductive/pregnancy',
+        data: payload,
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return PregnancyContext.fromJson(userId, data);
+      }
+      throw const ServerError('Pregnancy response malformed.');
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } on ApiError {
+      rethrow;
+    } catch (e) {
+      debugPrint('Error updating pregnancy context: $e');
+      throw ServerError('Pregnancy update failed: $e');
+    }
+  }
+
+  /// DELETE erases the singleton row (explicit exit with erasure). The
+  /// backend answers 204 even when nothing existed.
+  Future<void> deletePregnancy() async {
+    try {
+      await _dio.delete('/api/v1/reproductive/pregnancy');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return;
+      throw mapDioException(e);
+    } catch (e) {
+      debugPrint('Error deleting pregnancy context: $e');
+      rethrow;
+    }
+  }
+
+  /// GET the aging singleton. Never 404s: unset/cleared yields
+  /// `has_context` false with `user_declared` provenance.
+  Future<AgingContext> fetchAgingContext(String userId) async {
+    try {
+      final response = await _dio.get('/api/v1/reproductive/aging-context');
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return AgingContext.fromJson(userId, data);
+      }
+      throw const ServerError('Aging context response malformed.');
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } on ApiError {
+      rethrow;
+    } catch (e) {
+      debugPrint('Error fetching aging context: $e');
+      throw ServerError('Aging context fetch failed: $e');
+    }
+  }
+
+  /// PUT full replacement: notes set verbatim; omitted/null clears.
+  Future<AgingContext> putAgingContext(
+    String userId,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      final response = await _dio.put(
+        '/api/v1/reproductive/aging-context',
+        data: payload,
+      );
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        return AgingContext.fromJson(userId, data);
+      }
+      throw const ServerError('Aging context response malformed.');
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    } on ApiError {
+      rethrow;
+    } catch (e) {
+      debugPrint('Error saving aging context: $e');
+      throw ServerError('Aging context save failed: $e');
     }
   }
 }

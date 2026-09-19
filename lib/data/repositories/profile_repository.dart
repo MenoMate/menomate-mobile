@@ -61,6 +61,12 @@ class ProfileRepository {
     if (local == null) {
       try {
         final remote = await api.fetchProfile();
+        // Fail-closed for empty remote on first load: a nameless remote
+        // row for an existing account must not seed an empty local row
+        // that the router would read as "needs onboarding" forever.
+        // Store it (it is the server truth) — the router's explicit
+        // completion flag still protects existing users — but return it
+        // as-is so callers see the real payload.
         await _store(remote, SyncState.synced);
         return Fresh<Profile?>(remote);
       } on NetworkUnavailable catch (e) {
@@ -76,6 +82,24 @@ class ProfileRepository {
     final view = _assemble(local);
     try {
       final remote = await api.fetchProfile();
+      // ROOT-CAUSE FIX: never overwrite a good named local row with a
+      // transient nameless remote payload. A successful fetch with an
+      // empty name (legacy row, partial write, race) previously clobbered
+      // the local name and bounced an existing user into onboarding on
+      // the next redirect. Now the local row wins and the remote is
+      // ignored for storage; the UI keeps serving the cached name.
+      final localHasName = view.name != null && view.name!.trim().isNotEmpty;
+      final remoteHasName =
+          remote.name != null && remote.name!.trim().isNotEmpty;
+      if (localHasName && !remoteHasName) {
+        if (local.syncState == SyncState.conflict) {
+          return ConflictState<Profile?>(view, 'Profile needs review.');
+        }
+        if (local.syncState == SyncState.pending) {
+          return PendingSync<Profile?>(view);
+        }
+        return Cached<Profile?>(view, local.updatedAt);
+      }
       await _store(remote, SyncState.synced);
       return Fresh<Profile?>(remote);
     } on ApiError {

@@ -35,7 +35,7 @@ lib/
 ├── core/
 │   ├── api_client.dart        # Dio + AuthInterceptor (Supabase JWT Bearer)
 │   ├── device_timezone.dart   # IANA zone via native channel (no plugin)
-│   ├── env.dart               # Supabase URLanon key (edit for your project), API_BASE_URL dart-define
+│   ├── env.dart               # Injected config (SUPABASE_URL/ANON_KEY/API_BASE_URL dart-defines) + release-safe fallbacks
 │   ├── format.dart            # Day-count display helper
 │   ├── router.dart            # GoRouter: /splash /login /onboarding /home /logger + tab index
 │   └── theme.dart             # MenoMateTheme: sakura (light) + starry-night (dark), semantic tokens
@@ -78,16 +78,32 @@ lib/
 Drift/SQLite (`menomate.db`, schema v2): `LocalProfiles` (incl. IANA `timezone`), `LocalCycles` (ISO `yyyy-MM-dd` text dates, `localId`/`serverId` reconcile), `LocalDailyLogs` (+ `LocalSymptoms`), `PredictionCache` (7 server fields + `fetchedAt`). Regenerate after table edits:
 
 ```bash
-flutter pub run build_runner build --delete-conflicting-outputs
+dart run build_runner build --delete-conflicting-outputs
 ```
 
 Date rule (see `toIsoDate`/`parseIsoDate` docs): calendar parts only, device-local, never UTC-shifted.
 
 ## API/backend relationship
 
-- Base URL: `Env.apiUrl`, default `http://127.0.0.1:8000`, override with `--dart-define=API_BASE_URL=…` (no source edit).
+- Base URL: `Env.apiUrl` (`lib/core/env.dart`). Explicit `--dart-define=API_BASE_URL=…` always wins. Without it, **debug** builds default to `http://127.0.0.1:8000` while **release/profile** builds fall back to the production backend `https://menomate-api.onrender.com` — a release can never silently target localhost.
+- Release guard: `main()` refuses to start a release/profile build whose resolved API URL is a development-only endpoint (loopback, emulator alias, or LAN range) and shows a clear misconfiguration screen instead of issuing unusable requests. See `Env.isDevelopmentEndpoint`.
 - Auth: Supabase session token injected as `Authorization: Bearer` by the Dio interceptor; 401s surface as auth failures, 404 as no-data, rest as typed errors.
 - The app never touches Supabase PostgreSQL directly — only FastAPI routes, only its own user's data.
+- Symptom catalog lockstep: the loggable symptom list (`kLoggableSymptoms` in `lib/models/daily_log.dart`) is a hardcoded mirror of the backend catalog (`GET /api/v1/symptoms`). **Any backend change to the symptom catalog must update the mobile list in the same change** — the backend rejects unknown ids with 422.
+
+## Release builds
+
+Production backend: `https://menomate-api.onrender.com`. Supabase URL/anon key always come from injection (never hardcoded, never committed as active credentials).
+
+```bash
+flutter build apk --release \
+  --dart-define=API_BASE_URL=https://menomate-api.onrender.com \
+  --dart-define=SUPABASE_URL=<prod-supabase-url> \
+  --dart-define=SUPABASE_ANON_KEY=<prod-supabase-anon-key>
+# → build/app/outputs/flutter-apk/app-release.apk
+```
+
+Release checklist: production defines injected (verify the built config resolves to the production URL, never localhost) • `flutter analyze` clean • `flutter test` green (incl. `test/release_config_test.dart`, also runnable with the production define to verify injection wins) • generated code fresh (`dart run build_runner build --delete-conflicting-outputs`, commit the result).
 
 ## BLE
 
@@ -115,7 +131,7 @@ Prerequisites: Flutter SDK (developed on 3.47.x; `sdk: ^3.13.2`), Android SDK + 
 flutter pub get
 ```
 
-Configure `lib/core/env.dart` for your Supabase project (URL + **anon public key only** — client-safe; service-role keys must never enter this repo), or point at a backend:
+Supabase and backend endpoints arrive via `--dart-define` injection (see `.vscode/launch.json` debug configurations and "Release builds" above). URL + **anon public key only** — client-safe; service-role keys must never enter this repo. For a local backend:
 
 ```bash
 adb reverse tcp:8000 tcp:8000   # physical device over USB
@@ -140,9 +156,9 @@ Suite status (2026-09-13 snapshot): 115 passing — unit (library selection, saf
 | Name | Where | Notes |
 |---|---|---|
 | `Env.supabaseUrl` / `Env.supabaseAnonKey` | `lib/core/env.dart` | Edit per project. Anon key is public-client-safe by design; **never** put service-role or JWT secrets here |
-| `API_BASE_URL` | `--dart-define` | Default `http://127.0.0.1:8000`; staging/CI overrides without source edits |
+| `API_BASE_URL` | `--dart-define` | Explicit value always wins; debug default `http://127.0.0.1:8000`; release/profile fallback `https://menomate-api.onrender.com`; release guard blocks dev endpoints |
 
-Production notes: release builds need a reachable HTTPS backend URL; the checked-in Supabase project is a development project.
+Production notes: release builds need a reachable HTTPS backend URL; the checked-in Supabase project is a development project. `.vscode/launch.json` intentionally keeps working debug launches (dev project defines) — release credentials are injected at build time, never committed.
 
 ## Known limitations / future work
 

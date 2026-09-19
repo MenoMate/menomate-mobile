@@ -9,10 +9,12 @@ import 'package:menomate_mobile/models/summary.dart';
 import 'package:menomate_mobile/providers/cycle_provider.dart';
 import 'package:menomate_mobile/providers/profile_provider.dart';
 import 'package:menomate_mobile/screens/auth_screen.dart';
+import 'package:menomate_mobile/screens/calendar_screen.dart';
 import 'package:menomate_mobile/screens/home_screen.dart';
+import 'package:menomate_mobile/screens/log_hub_screen.dart';
 import 'package:menomate_mobile/screens/tabs/assistant_tab.dart';
-import 'package:menomate_mobile/screens/tabs/history_tab.dart';
 import 'package:menomate_mobile/screens/tabs/home_tab.dart';
+import 'package:menomate_mobile/screens/tabs/insights_tab.dart';
 import 'package:menomate_mobile/screens/tabs/settings_tab.dart';
 import 'package:menomate_mobile/screens/symptom_logger_screen.dart';
 import 'package:menomate_mobile/services/ble_service.dart';
@@ -35,21 +37,33 @@ class _FixedProfileNotifier extends ProfileNotifier {
 void main() {
   group('semantic token roles', () {
     test('rose / prediction / interaction are three distinct roles', () {
-      expect(MenoMateTheme.sakuraPrimaryDark,
-          isNot(MenoMateTheme.sakuraPredicted));
-      expect(MenoMateTheme.sakuraPrimaryDark,
-          isNot(MenoMateTheme.sakuraInteraction));
-      expect(MenoMateTheme.sakuraPredicted,
-          isNot(MenoMateTheme.sakuraInteraction));
-      expect(MenoMateTheme.starryPrimary,
-          isNot(MenoMateTheme.starryInteraction));
+      expect(
+        MenoMateTheme.sakuraPrimaryDark,
+        isNot(MenoMateTheme.sakuraPredicted),
+      );
+      expect(
+        MenoMateTheme.sakuraPrimaryDark,
+        isNot(MenoMateTheme.sakuraInteraction),
+      );
+      expect(
+        MenoMateTheme.sakuraPredicted,
+        isNot(MenoMateTheme.sakuraInteraction),
+      );
+      expect(
+        MenoMateTheme.starryPrimary,
+        isNot(MenoMateTheme.starryInteraction),
+      );
     });
 
     test('interactionColor follows brightness', () {
-      expect(MenoMateTheme.interactionColor(false),
-          MenoMateTheme.sakuraInteraction);
-      expect(MenoMateTheme.interactionColor(true),
-          MenoMateTheme.starryInteraction);
+      expect(
+        MenoMateTheme.interactionColor(false),
+        MenoMateTheme.sakuraInteraction,
+      );
+      expect(
+        MenoMateTheme.interactionColor(true),
+        MenoMateTheme.starryInteraction,
+      );
     });
 
     test('ringPhaseColor maps every phase to a theme token', () {
@@ -98,12 +112,13 @@ void main() {
         'follicular',
         'ovulation',
         'luteal',
-        'unknown'
+        'unknown',
       ]) {
         for (final isDark in [false, true]) {
           expect(
             neon.contains(
-                MenoMateTheme.ringPhaseColor(isDark: isDark, phase: phase)),
+              MenoMateTheme.ringPhaseColor(isDark: isDark, phase: phase),
+            ),
             isFalse,
             reason: 'neon ring color for $phase (dark=$isDark)',
           );
@@ -123,20 +138,26 @@ void main() {
       return paint.painter! as CycleRingPainter;
     }
 
-    testWidgets('menstrual ring is the rose token on a tinted track',
-        (tester) async {
+    testWidgets('menstrual ring is the rose token on a tinted track', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: InteractiveCycleRing(
-              phase: 'menstrual', currentDay: 2, cycleLength: 28),
+            phase: 'menstrual',
+            currentDay: 2,
+            cycleLength: 28,
+          ),
         ),
       );
 
       final painter = ringPainter(tester);
       expect(painter.activeColor, MenoMateTheme.sakuraPrimaryDark);
       expect(painter.activeColor, isNot(Colors.pinkAccent));
-      expect(painter.backgroundColor,
-          MenoMateTheme.sakuraPrimaryDark.withValues(alpha: 0.14));
+      expect(
+        painter.backgroundColor,
+        MenoMateTheme.sakuraPrimaryDark.withValues(alpha: 0.14),
+      );
     });
 
     testWidgets('dark ring resolves dark tokens', (tester) async {
@@ -144,14 +165,19 @@ void main() {
         MaterialApp(
           theme: MenoMateTheme.starryNightTheme,
           home: const InteractiveCycleRing(
-              phase: 'follicular', currentDay: 7, cycleLength: 28),
+            phase: 'follicular',
+            currentDay: 7,
+            cycleLength: 28,
+          ),
         ),
       );
 
       final painter = ringPainter(tester);
       expect(painter.activeColor, MenoMateTheme.starryRingFollicular);
-      expect(painter.backgroundColor,
-          MenoMateTheme.starryRingFollicular.withValues(alpha: 0.14));
+      expect(
+        painter.backgroundColor,
+        MenoMateTheme.starryRingFollicular.withValues(alpha: 0.14),
+      );
     });
   });
 
@@ -161,9 +187,7 @@ void main() {
         ProviderScope(
           child: MaterialApp(
             theme: MenoMateTheme.sakuraTheme,
-            home: Scaffold(
-              body: PeriodTrackerButton(isOngoing: ongoing),
-            ),
+            home: Scaffold(body: PeriodTrackerButton(isOngoing: ongoing)),
           ),
         ),
       );
@@ -172,31 +196,41 @@ void main() {
 
     testWidgets('start-logging uses primary rose', (tester) async {
       await pumpTracker(tester, false);
-      final style = tester.widget<ElevatedButton>(find.byType(ElevatedButton)).style;
-      expect(style?.backgroundColor?.resolve({}),
-          MenoMateTheme.sakuraTheme.colorScheme.primary);
+      final style = tester
+          .widget<ElevatedButton>(find.byType(ElevatedButton))
+          .style;
+      expect(
+        style?.backgroundColor?.resolve({}),
+        MenoMateTheme.sakuraTheme.colorScheme.primary,
+      );
     });
 
-    testWidgets('stop-logging rests on the soft rose container',
-        (tester) async {
+    testWidgets('stop-logging rests on the soft rose container', (
+      tester,
+    ) async {
       await pumpTracker(tester, true);
-      final style = tester.widget<ElevatedButton>(find.byType(ElevatedButton)).style;
-      expect(style?.backgroundColor?.resolve({}),
-          MenoMateTheme.sakuraTheme.colorScheme.primaryContainer);
+      final style = tester
+          .widget<ElevatedButton>(find.byType(ElevatedButton))
+          .style;
+      expect(
+        style?.backgroundColor?.resolve({}),
+        MenoMateTheme.sakuraTheme.colorScheme.primaryContainer,
+      );
     });
   });
 
   group('wellness tile stays in-system', () {
     Finder sageTile(ThemeData theme, Color bg) => find.byWidgetPredicate(
-          (w) =>
-              w is Container &&
-              (w.decoration as BoxDecoration?)?.color == bg &&
-              (w.decoration as BoxDecoration?)?.borderRadius ==
-                  BorderRadius.circular(16),
-        );
+      (w) =>
+          w is Container &&
+          (w.decoration as BoxDecoration?)?.color == bg &&
+          (w.decoration as BoxDecoration?)?.borderRadius ==
+              BorderRadius.circular(16),
+    );
 
-    testWidgets('logger icon tile uses pastel sage, light mode',
-        (tester) async {
+    testWidgets('logger icon tile uses pastel sage, light mode', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: MenoMateTheme.sakuraTheme,
@@ -204,20 +238,23 @@ void main() {
         ),
       );
 
-      expect(sageTile(MenoMateTheme.sakuraTheme, MenoMateTheme.sakuraSage),
-          findsOneWidget);
       expect(
-        find.byWidgetPredicate((w) =>
-            w is Icon &&
-            w.icon == Icons.favorite &&
-            w.color == MenoMateTheme.sakuraSageInk &&
-            w.size == 28),
+        sageTile(MenoMateTheme.sakuraTheme, MenoMateTheme.sakuraSage),
+        findsOneWidget,
+      );
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Icon &&
+              w.icon == Icons.favorite &&
+              w.color == MenoMateTheme.sakuraSageInk &&
+              w.size == 28,
+        ),
         findsOneWidget,
       );
     });
 
-    testWidgets('logger icon tile uses pastel sage, dark mode',
-        (tester) async {
+    testWidgets('logger icon tile uses pastel sage, dark mode', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: MenoMateTheme.starryNightTheme,
@@ -225,8 +262,10 @@ void main() {
         ),
       );
 
-      expect(sageTile(MenoMateTheme.starryNightTheme, MenoMateTheme.starrySage),
-          findsOneWidget);
+      expect(
+        sageTile(MenoMateTheme.starryNightTheme, MenoMateTheme.starrySage),
+        findsOneWidget,
+      );
     });
   });
 
@@ -257,13 +296,18 @@ void main() {
         ProviderScope(
           overrides: [
             currentCycleProvider.overrideWith(
-                (ref) => Future.value(const NoData<CurrentCycleResponse?>())),
-            historySummaryProvider.overrideWith((ref) =>
-                Future.value(const Unavailable<HistorySummaryResponse>(
-                    'Signed out.'))),
-            cycleListProvider.overrideWith((ref) =>
-                Future.value(
-                    const Unavailable<List<CycleResponse>>('Signed out.'))),
+              (ref) => Future.value(const NoData<CurrentCycleResponse?>()),
+            ),
+            historySummaryProvider.overrideWith(
+              (ref) => Future.value(
+                const Unavailable<HistorySummaryResponse>('Signed out.'),
+              ),
+            ),
+            cycleListProvider.overrideWith(
+              (ref) => Future.value(
+                const Unavailable<List<CycleResponse>>('Signed out.'),
+              ),
+            ),
             profileProvider.overrideWith(
               () => _FixedProfileNotifier(const NoData<Profile?>()),
             ),
@@ -276,20 +320,37 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     }
 
-    testWidgets('atmosphere wraps home; every tab scaffold stays transparent',
-        (tester) async {
+    testWidgets('atmosphere wraps home; every tab scaffold stays transparent', (
+      tester,
+    ) async {
       // One shared container: drive the real tab-index notifier so each
       // tab takes its turn onstage (IndexedStack prunes offstage
       // subtrees from traversal, so transparency is verified per tab).
-      final tabTypes = [HomeTab, AssistantTab, HistoryTab, SettingsTab];
+      // Six primary destinations: Home | Calendar | Log | Insights |
+      // Care | More (Settings).
+      final tabTypes = [
+        HomeTab,
+        CalendarScreen,
+        LogHubScreen,
+        InsightsTab,
+        AssistantTab,
+        SettingsTab,
+      ];
       final container = ProviderContainer(
         overrides: [
           currentCycleProvider.overrideWith(
-              (ref) => Future.value(const NoData<CurrentCycleResponse?>())),
-          historySummaryProvider.overrideWith((ref) => Future.value(
-              const Unavailable<HistorySummaryResponse>('Signed out.'))),
-          cycleListProvider.overrideWith((ref) => Future.value(
-              const Unavailable<List<CycleResponse>>('Signed out.'))),
+            (ref) => Future.value(const NoData<CurrentCycleResponse?>()),
+          ),
+          historySummaryProvider.overrideWith(
+            (ref) => Future.value(
+              const Unavailable<HistorySummaryResponse>('Signed out.'),
+            ),
+          ),
+          cycleListProvider.overrideWith(
+            (ref) => Future.value(
+              const Unavailable<List<CycleResponse>>('Signed out.'),
+            ),
+          ),
           profileProvider.overrideWith(
             () => _FixedProfileNotifier(const NoData<Profile?>()),
           ),
@@ -304,7 +365,9 @@ void main() {
         UncontrolledProviderScope(
           container: container,
           child: MaterialApp(
-              theme: MenoMateTheme.sakuraTheme, home: const HomeScreen()),
+            theme: MenoMateTheme.sakuraTheme,
+            home: const HomeScreen(),
+          ),
         ),
       );
       await tester.pump();
@@ -332,31 +395,43 @@ void main() {
               )
               .first,
         );
-        expect(scaffold.backgroundColor, Colors.transparent,
-            reason: 'tab $i scaffold must let the atmosphere show through');
+        expect(
+          scaffold.backgroundColor,
+          Colors.transparent,
+          reason: 'tab $i scaffold must let the atmosphere show through',
+        );
         assertNoWideBoxes(tester, 800);
-        expect(tester.takeException(), isNull,
-            reason: 'tab $i must settle without layout errors');
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'tab $i must settle without layout errors',
+        );
       }
     });
 
-    testWidgets('light nav selection is interaction indigo, not rose',
-        (tester) async {
+    testWidgets('light nav selection is interaction indigo, not rose', (
+      tester,
+    ) async {
       await pumpHome(tester, MenoMateTheme.sakuraTheme);
 
       final nav = tester.widget<BottomNavigationBar>(
-          find.byType(BottomNavigationBar));
+        find.byType(BottomNavigationBar),
+      );
       expect(nav.selectedItemColor, MenoMateTheme.sakuraInteraction);
-      expect(nav.selectedItemColor,
-          isNot(MenoMateTheme.sakuraTheme.colorScheme.primary));
+      expect(
+        nav.selectedItemColor,
+        isNot(MenoMateTheme.sakuraTheme.colorScheme.primary),
+      );
     });
 
-    testWidgets('dark nav selection is interaction indigo, not rose',
-        (tester) async {
+    testWidgets('dark nav selection is interaction indigo, not rose', (
+      tester,
+    ) async {
       await pumpHome(tester, MenoMateTheme.starryNightTheme);
 
       final nav = tester.widget<BottomNavigationBar>(
-          find.byType(BottomNavigationBar));
+        find.byType(BottomNavigationBar),
+      );
       expect(nav.selectedItemColor, MenoMateTheme.starryInteraction);
       expect(tester.takeException(), isNull);
     });
@@ -368,7 +443,10 @@ void main() {
         MenoMateTheme.sakuraInteraction,
       );
       expect(
-        MenoMateTheme.starryNightTheme.outlinedButtonTheme.style
+        MenoMateTheme
+            .starryNightTheme
+            .outlinedButtonTheme
+            .style
             ?.foregroundColor
             ?.resolve({}),
         MenoMateTheme.starryInteraction,
@@ -480,7 +558,8 @@ void main() {
     });
   });
 
-  group('connect device visibility', () {    Future<void> pumpTelemetry(WidgetTester tester, ThemeData theme) async {
+  group('connect device visibility', () {
+    Future<void> pumpTelemetry(WidgetTester tester, ThemeData theme) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -493,24 +572,27 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
     }
 
-    testWidgets('dark action button is high-contrast pale neutral',
-        (tester) async {
+    testWidgets('dark action button is high-contrast pale neutral', (
+      tester,
+    ) async {
       await pumpTelemetry(tester, MenoMateTheme.starryNightTheme);
 
-      final style =
-          tester.widget<ElevatedButton>(find.byType(ElevatedButton)).style;
-      expect(style?.backgroundColor?.resolve({}),
-          MenoMateTheme.starryText);
+      final style = tester
+          .widget<ElevatedButton>(find.byType(ElevatedButton))
+          .style;
+      expect(style?.backgroundColor?.resolve({}), MenoMateTheme.starryText);
       expect(style?.foregroundColor?.resolve({}), MenoMateTheme.starryBg);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('light action button stays white on the navy card',
-        (tester) async {
+    testWidgets('light action button stays white on the navy card', (
+      tester,
+    ) async {
       await pumpTelemetry(tester, MenoMateTheme.sakuraTheme);
 
-      final style =
-          tester.widget<ElevatedButton>(find.byType(ElevatedButton)).style;
+      final style = tester
+          .widget<ElevatedButton>(find.byType(ElevatedButton))
+          .style;
       expect(style?.backgroundColor?.resolve({}), Colors.white);
       expect(tester.takeException(), isNull);
     });
@@ -531,10 +613,10 @@ void main() {
     }
 
     Finder selectedChip(Color color) => find.byWidgetPredicate(
-          (w) =>
-              w is AnimatedContainer &&
-              (w.decoration as BoxDecoration?)?.color == color,
-        );
+      (w) =>
+          w is AnimatedContainer &&
+          (w.decoration as BoxDecoration?)?.color == color,
+    );
 
     testWidgets('mood selection is interaction indigo', (tester) async {
       await pumpLogger(tester);
@@ -548,7 +630,9 @@ void main() {
     // Daily Log rework: every category shares the indigo interaction
     // treatment (category meaning lives in the section icon, not the
     // selection color). Rose/amber selections are intentionally gone.
-    testWidgets('flow selection uses interaction indigo, not rose', (tester) async {
+    testWidgets('flow selection uses interaction indigo, not rose', (
+      tester,
+    ) async {
       await pumpLogger(tester);
       // 'Light' labels both the Flow and Discharge options; the Flow
       // section precedes Discharge, so .first is the flow chip.
@@ -562,18 +646,23 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('pain slider uses interaction indigo, not amber', (tester) async {
+    testWidgets('pain slider uses interaction indigo, not amber', (
+      tester,
+    ) async {
       await pumpLogger(tester);
       final slider = find.byType(Slider);
       expect(slider, findsOneWidget);
-      expect(tester.widget<Slider>(slider).activeColor,
-          MenoMateTheme.sakuraInteraction);
+      expect(
+        tester.widget<Slider>(slider).activeColor,
+        MenoMateTheme.sakuraInteraction,
+      );
       expect(selectedChip(MenoMateTheme.sakuraAmber), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('dark mode selection uses starry interaction indigo',
-        (tester) async {
+    testWidgets('dark mode selection uses starry interaction indigo', (
+      tester,
+    ) async {
       await pumpLogger(tester, theme: MenoMateTheme.starryNightTheme);
       await tester.tap(find.text('Happy'));
       await tester.pump();
@@ -584,8 +673,9 @@ void main() {
   });
 
   group('login harmonization', () {
-    testWidgets('auth card joins the radius family; link is indigo',
-        (tester) async {
+    testWidgets('auth card joins the radius family; link is indigo', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -612,10 +702,12 @@ void main() {
         if (w is! RichText) return false;
         final span = w.text;
         if (span is! TextSpan) return false;
-        return span.children?.any((c) =>
-                c is TextSpan &&
-                c.text == 'Create Account' &&
-                c.style?.color == MenoMateTheme.sakuraInteraction) ??
+        return span.children?.any(
+              (c) =>
+                  c is TextSpan &&
+                  c.text == 'Create Account' &&
+                  c.style?.color == MenoMateTheme.sakuraInteraction,
+            ) ??
             false;
       });
       expect(link, findsOneWidget);
@@ -646,8 +738,9 @@ void main() {
       );
     });
 
-    testWidgets('cycle overview card earns the rose navy in dark mode',
-        (tester) async {
+    testWidgets('cycle overview card earns the rose navy in dark mode', (
+      tester,
+    ) async {
       tester.view.physicalSize = const Size(800, 2000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
@@ -656,18 +749,19 @@ void main() {
         ProviderScope(
           overrides: [
             currentCycleProvider.overrideWith(
-              (ref) => Future.value(Fresh<CurrentCycleResponse?>(
-                CurrentCycleResponse(
-                  hasData: true,
-                  currentCycleDay: 2,
-                  phase: 'menstrual',
-                  isBleeding: true,
-                  isOngoing: true,
-                  latestPeriodStart:
-                      now.subtract(const Duration(days: 1)),
-                  predictionConfidence: 'low',
+              (ref) => Future.value(
+                Fresh<CurrentCycleResponse?>(
+                  CurrentCycleResponse(
+                    hasData: true,
+                    currentCycleDay: 2,
+                    phase: 'menstrual',
+                    isBleeding: true,
+                    isOngoing: true,
+                    latestPeriodStart: now.subtract(const Duration(days: 1)),
+                    predictionConfidence: 'low',
+                  ),
                 ),
-              )),
+              ),
             ),
             profileProvider.overrideWith(
               () => _FixedProfileNotifier(const NoData<Profile?>()),
@@ -695,8 +789,9 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('wellness card earns the sage navy in dark mode',
-        (tester) async {
+    testWidgets('wellness card earns the sage navy in dark mode', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         MaterialApp(
           theme: MenoMateTheme.starryNightTheme,
@@ -715,8 +810,9 @@ void main() {
       );
     });
 
-    testWidgets('telemetry title uses warm pale neutral, not pure white',
-        (tester) async {
+    testWidgets('telemetry title uses warm pale neutral, not pure white', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -727,8 +823,7 @@ void main() {
       );
       await tester.pump();
 
-      final title =
-          tester.widget<Text>(find.text('MenoMate Wearable'));
+      final title = tester.widget<Text>(find.text('MenoMate Wearable'));
       expect(title.style?.color, MenoMateTheme.starryText);
       expect(tester.takeException(), isNull);
     });

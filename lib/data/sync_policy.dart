@@ -102,6 +102,11 @@ ApiError mapDioException(DioException e) {
     final status = e.response!.statusCode ?? 0;
     final detail = _responseDetail(e.response!.data);
     if (status == 401) return AuthFailure(detail ?? 'Session expired.');
+    // 403 (valid session, forbidden resource) is an auth-scope failure:
+    // never blindly retried, surfaced like an expired session.
+    if (status == 403) {
+      return AuthFailure(detail ?? 'Access denied. Please sign in again.');
+    }
     if (status == 422) {
       return ValidationError(detail ?? 'Some entries need attention.');
     }
@@ -122,7 +127,8 @@ String? _responseDetail(dynamic data) {
 }
 
 /// Outcome of one sync attempt, shared by all repositories.
-enum SyncOutcome {  /// 2xx: mark row synced, reconcile server IDs.
+enum SyncOutcome {
+  /// 2xx: mark row synced, reconcile server IDs.
   synced,
 
   /// 400/409: mark only that row conflict, continue with later rows.
@@ -147,10 +153,10 @@ SyncOutcome classifySyncError(ApiError e) {
 extension DataStateX<T> on DataState<T> {
   /// The usable payload, or null for [NoData]/[Unavailable].
   T? get dataOrNull => switch (this) {
-        Fresh(data: final d) => d,
-        Cached(data: final d) => d,
-        PendingSync(data: final d) => d,
-        ConflictState(data: final d) => d,
-        _ => null,
-      };
+    Fresh(data: final d) => d,
+    Cached(data: final d) => d,
+    PendingSync(data: final d) => d,
+    ConflictState(data: final d) => d,
+    _ => null,
+  };
 }

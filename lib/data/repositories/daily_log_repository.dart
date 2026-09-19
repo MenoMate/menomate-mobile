@@ -232,6 +232,26 @@ class DailyLogRepository {
     }
   }
 
+  /// Local symptom-pattern counts: number of logged days per symptom type.
+  /// Pure local aggregate (no network), so it serves offline tracking and
+  /// signed-in mode identically. Row presence counts: a severity of 0 means
+  /// "present, unrated" (see the symptom logger), not absent.
+  Future<Map<String, int>> symptomCounts(String userId) async {
+    final symptomType = db.localSymptoms.symptomType;
+    final days = db.localSymptoms.id.count();
+    final rows =
+        await (db.selectOnly(db.localSymptoms)
+              ..addColumns([symptomType, days])
+              ..where(db.localSymptoms.userId.equals(userId))
+              ..groupBy([symptomType]))
+            .get();
+    return {
+      for (final row in rows)
+        if (row.read(symptomType) != null)
+          row.read(symptomType)!: row.read(days) ?? 0,
+    };
+  }
+
   /// Pushes pending dates oldest-first. Upsert-by-date is idempotent, so
   /// repeats converge. Continues past conflicts; stops on network/5xx/auth.
   Future<void> syncPending(String userId) async {

@@ -9,6 +9,7 @@ import '../models/profile.dart';
 import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
 import '../providers/offline_mode_provider.dart';
+import '../providers/onboarding_context_provider.dart';
 import '../providers/profile_provider.dart';
 import 'health_intro_screen.dart';
 
@@ -258,6 +259,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         height: 1.35,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Age range (optional)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    const _AgeRangeDropdown(),
                     if (_dobError != null) ...[
                       const SizedBox(height: 8),
                       Text(
@@ -343,6 +355,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           letterSpacing: 0.5,
         ),
       ),
+    );
+  }
+}
+
+/// Compact age-range row for the Personal information card. Self-contained:
+/// it reads the displayed value straight from [ageRangeProvider] and
+/// persists selections immediately, so it needs no save round-trip and
+/// never blocks the Profile form.
+class _AgeRangeDropdown extends ConsumerWidget {
+  const _AgeRangeDropdown();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(ageRangeProvider).value;
+    return DropdownButton<String?>(
+      value: selected,
+      isExpanded: true,
+      underline: const SizedBox.shrink(),
+      hint: const Text('Not set'),
+      items: [
+        const DropdownMenuItem<String?>(value: null, child: Text('Not set')),
+        for (final range in kAgeRanges)
+          DropdownMenuItem<String?>(value: range.key, child: Text(range.label)),
+      ],
+      onChanged: (val) {
+        ref.read(ageRangeProvider.notifier).setAgeRange(val);
+      },
     );
   }
 }

@@ -49,7 +49,7 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Center(child: MenoMateLogo(size: 68)),
+                  const Center(child: MenoMateBrandLogo(size: 68)),
                   const SizedBox(height: 16),
                   Text(
                     'Welcome to MenoMate',

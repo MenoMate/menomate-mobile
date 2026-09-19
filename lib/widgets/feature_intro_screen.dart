@@ -54,7 +54,7 @@ class FeatureIntroScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Center(child: MenoMateLogo(size: 56)),
+                  const Center(child: MenoMateBrandLogo(size: 56)),
                   const SizedBox(height: 20),
                   Center(
                     child: Container(

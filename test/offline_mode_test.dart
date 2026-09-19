@@ -388,6 +388,10 @@ void main() {
       );
       await tester.pump();
 
+      // Settle the flag first, mirroring the router splash gate in prod
+      // (tapping before the initial build resolves is not reachable in
+      // the app, and the transient write may be superseded by it).
+      await container.read(offlineModeProvider.future);
       // No Supabase session exists in tests; enabling must still work.
       await tester.tap(find.text('Continue Offline'));
       await tester.pump();
@@ -397,7 +401,7 @@ void main() {
     });
   });
 
-  group('router keeps offline users out of login', () {
+  group('router lets offline users reach login voluntarily', () {
     Future<GoRouter> pumpRouter(
       WidgetTester tester, {
       required bool offline,
@@ -448,7 +452,7 @@ void main() {
       expect(router.state.uri.toString(), '/onboarding');
     });
 
-    testWidgets('offline onboarded user lands on home, never login', (
+    testWidgets('offline onboarded user lands on home by default', (
       tester,
     ) async {
       final router = await pumpRouter(
@@ -457,6 +461,45 @@ void main() {
         profile: Fresh<Profile?>(_profile(kOfflineUserId)),
       );
       expect(router.state.uri.toString(), '/home');
+    });
+
+    testWidgets(
+      'offline onboarded user can open login (Settings sign-in path)',
+      (tester) async {
+        final router = await pumpRouter(
+          tester,
+          offline: true,
+          profile: Fresh<Profile?>(_profile(kOfflineUserId)),
+        );
+        expect(router.state.uri.toString(), '/home');
+
+        // The Settings "Sign In / Create Account" button pushes /login.
+        // The router must let it through instead of bouncing back to
+        // /home (which made the button look completely unresponsive).
+        router.push('/login');
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(router.state.uri.toString(), '/login');
+        expect(find.text('Email Address'), findsOneWidget);
+      },
+    );
+
+    testWidgets('offline user without profile can open login voluntarily', (
+      tester,
+    ) async {
+      final router = await pumpRouter(
+        tester,
+        offline: true,
+        profile: const NoData<Profile?>(),
+      );
+      expect(router.state.uri.toString(), '/onboarding');
+
+      router.push('/login');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(router.state.uri.toString(), '/login');
     });
   });
 
@@ -525,7 +568,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500));
 
       // Identity first: avatar initial, name once, status, sign out nearby.
-      expect(find.text('Account'), findsOneWidget);
+      expect(find.text('PROFILE · Account'), findsOneWidget);
       expect(find.text('A'), findsOneWidget);
       expect(find.text('Ama'), findsOneWidget);
       expect(find.text('Signed in — syncing across devices'), findsOneWidget);
@@ -533,8 +576,9 @@ void main() {
       // Name lives in Profile now — not duplicated as a settings field.
       expect(find.text('Your Name'), findsNothing);
       // Hub tile still routes to Profile & Health (header + tile share
-      // the label).
-      expect(find.text('Profile & Health'), findsNWidgets(2));
+      // the concept; header carries the PROFILE prefix).
+      expect(find.text('PROFILE · Profile & Health'), findsOneWidget);
+      expect(find.text('Profile & Health'), findsOneWidget);
     });
   });
 
