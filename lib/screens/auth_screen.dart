@@ -1,12 +1,10 @@
-import 'dart:async';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'package:go_router/go_router.dart';
 
+import '../core/auth_errors.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/offline_mode_provider.dart';
@@ -24,6 +22,7 @@ class AuthScreen extends ConsumerStatefulWidget {
 }
 
 class _AuthScreenState extends ConsumerState<AuthScreen> {
+  final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -37,6 +36,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -59,51 +59,51 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     });
   }
 
-  /// True for transport-level failures (no route to the sign-in service),
-  /// as opposed to credential or account problems, which surface as
-  /// [AuthException] above. Message matching covers http-package client
-  /// errors, which wrap the same OS failures as text.
-  bool _isNetworkError(Object e) {
-    if (e is SocketException || e is TimeoutException || e is HttpException) {
-      return true;
-    }
-    final message = e.toString();
-    return message.contains('SocketException') ||
-        message.contains('Failed host lookup') ||
-        message.contains('Connection refused') ||
-        message.contains('Connection timed out') ||
-        message.contains('Network is unreachable') ||
-        message.contains('timed out');
-  }
-
   Future<void> _submit() async {
     setState(() {
       _errorMessage = null;
       _infoMessage = null;
     });
 
+    final name = _nameController.text.trim();
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-    final confirmPassword = _confirmPasswordController.text.trim();
+    // Passwords are intentionally NOT trimmed: spaces can be significant
+    // and trimming silently changes what the user typed.
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
 
-    if (email.isEmpty || password.isEmpty) {
-      setState(
-        () => _errorMessage = 'Please enter both your email and password.',
-      );
+    final emailError = validateAuthEmail(email);
+    if (emailError != null) {
+      setState(() => _errorMessage = emailError);
       return;
     }
 
     if (!_isLoginMode) {
-      if (password.length < 6) {
-        setState(
-          () => _errorMessage = 'Password must be at least 6 characters long.',
-        );
+      if (name.isEmpty) {
+        setState(() => _errorMessage = 'Please tell us what to call you.');
+        return;
+      }
+      final passwordError = validateAuthPassword(
+        password,
+        isSignup: true,
+      );
+      if (passwordError != null) {
+        setState(() => _errorMessage = passwordError);
         return;
       }
       if (password != confirmPassword) {
         setState(
           () => _errorMessage = 'Passwords do not match. Please recheck.',
         );
+        return;
+      }
+    } else {
+      final passwordError = validateAuthPassword(
+        password,
+        isSignup: false,
+      );
+      if (passwordError != null) {
+        setState(() => _errorMessage = passwordError);
         return;
       }
     }
@@ -117,14 +117,25 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           email: email,
           password: password,
         );
+        // Navigation is router-driven: a valid session routes to
+        // onboarding (new user) or Home (completed user) on its own.
       } else {
         final response = await supabase.auth.signUp(
           email: email,
           password: password,
+          // Stored as Supabase user_metadata so onboarding can greet the
+          // user by name even before the backend profile exists.
+          data: {'name': name},
           emailRedirectTo: _emailRedirectTo,
         );
-        // No active session means email confirmation is required: surface
-        // this as an info state, not an error.
+        // Intended flow (hosted "Confirm Email" disabled): signup returns
+        // an authenticated session and the router proceeds to onboarding
+        // with no further action here.
+        //
+        // Fallback (hosted "Confirm Email" still enabled): no active
+        // session means confirmation is required — surface this as an
+        // info state, not an error. This is a hosted-dashboard setting
+        // the app cannot change; see README.
         if (response.session == null && response.user != null) {
           if (mounted) {
             setState(() {
@@ -137,18 +148,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       }
     } on AuthException catch (e) {
       if (mounted) {
-        setState(() => _errorMessage = e.message);
+        setState(() => _errorMessage = friendlyAuthErrorMessage(e));
       }
     } catch (e) {
       if (mounted) {
-        // Transport failures (no route to the sign-in service or backend)
-        // read very differently from wrong credentials: say so plainly so
-        // a real-device misconfiguration is diagnosable on sight.
-        setState(
-          () => _errorMessage = _isNetworkError(e)
-              ? 'Couldn\'t reach the sign-in service. Check your connection and try again.'
-              : 'An unexpected connection error occurred.',
-        );
+        // Transport failures and unexpected errors alike surface as clean
+        // user-facing messages — never raw exceptions, URLs, or secrets.
+        setState(() => _errorMessage = friendlyAuthErrorMessage(e));
       }
     } finally {
       if (mounted) {
@@ -319,6 +325,25 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   ),
                                 ),
                               ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        // Name Field (registration mode only)
+                        if (!_isLoginMode) ...[
+                          TextField(
+                            controller: _nameController,
+                            textCapitalization: TextCapitalization.words,
+                            textInputAction: TextInputAction.next,
+                            decoration: InputDecoration(
+                              labelText: 'What should we call you?',
+                              hintText: 'e.g. Sarah',
+                              prefixIcon: Icon(
+                                Icons.person_outline,
+                                color: colorScheme.secondary,
+                                size: 20,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 16),

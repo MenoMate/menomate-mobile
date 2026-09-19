@@ -595,6 +595,14 @@ void main() {
         'Maya',
       );
       await tapContinue(tester);
+      // Phase 1: multi-select interests come right after the name.
+      expect(find.text('What brings you to MenoMate?'), findsOneWidget);
+      // Multi-select: two interests can be active at once.
+      await tester.tap(find.text('Track my period & cycle'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Understand my body & symptoms'));
+      await tester.pumpAndSettle();
+      await tapContinue(tester);
       expect(find.text('What\u2019s your age range?'), findsOneWidget);
       expect(find.text('Skip'), findsOneWidget);
     });

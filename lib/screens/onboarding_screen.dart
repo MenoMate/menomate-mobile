@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/device_timezone.dart';
 import '../core/format.dart' show kMonthNames;
@@ -15,12 +16,14 @@ import '../models/health_context.dart'
         kContraceptionLabels,
         kPregnancyContextLabels,
         HealthContext;
+import '../models/interests.dart';
 import '../models/onboarding.dart';
 import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
 import '../providers/offline_mode_provider.dart';
 import '../providers/onboarding_context_provider.dart';
 import '../providers/onboarding_status_provider.dart';
+import '../providers/personalization_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/api_service.dart';
@@ -58,7 +61,19 @@ class _OnboardingData {
   bool weightMetric = true;
   int weightKg = 62;
   int weightLbs = 137;
-  String? goalKey;
+
+  /// Phase 1 personalization (multi-select interests + conditional
+  /// follow-ups). Local-only (see personalizationProvider); never sent to
+  /// the backend, never drives predictions or modes by itself.
+  Set<String> interests = {};
+  Set<String> symptomAreas = {};
+  Set<String> fertilityPrefs = {};
+
+  /// Explicit actual-pregnancy answer (null = unasked). Only an explicit
+  /// `true` may route to pregnancy mode later — the `pregnancy` interest
+  /// alone never does.
+  bool? isActuallyPregnant;
+
   String? regularityKey;
   int? cycleLength; // null = not sure
   int? periodLength; // null = not sure
@@ -77,11 +92,85 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _nameController = TextEditingController();
   final _birthYearController = TextEditingController();
 
-  int _index = 0;
+  // ---- Adaptive step model (Phase 1) ----
+  //
+  // Steps are identified by stable ids, not positions: the visible sequence
+  // is derived from the selected interests, so follow-up questions appear
+  // only when relevant. Backend-gated steps (last period start/end) are
+  // ALWAYS included — the onboarding endpoint requires them — while
+  // personalization follow-ups are conditional. Skipped interests (empty
+  // set) ask no personalization follow-ups; cycle-length questions stay
+  // unconditional because they feed the (nullable) backend payload.
+  static const String _sWelcome = 'welcome';
+  static const String _sName = 'name';
+  static const String _sInterests = 'interests';
+  static const String _sAge = 'age';
+  static const String _sHeight = 'height';
+  static const String _sWeight = 'weight';
+  static const String _sRegularity = 'regularity';
+  static const String _sCycleLen = 'cycle_len';
+  static const String _sPeriodLen = 'period_len';
+  static const String _sLastStart = 'last_start';
+  static const String _sStatus = 'status';
+  static const String _sRepro = 'repro';
+  static const String _sSymptomAreas = 'symptom_areas';
+  static const String _sFertility = 'fertility';
+  static const String _sPregnancy = 'pregnancy';
+  static const String _sBirth = 'birth';
+  static const String _sDone = 'done';
+
+  int _pos = 0;
   bool _isSubmitting = false;
   String? _inlineError;
 
-  static const int _totalSteps = 13; // 0..12 content + completion
+  /// Visible step ids for the current interest selection, in order.
+  List<String> get _visibleSteps {
+    final ids = <String>[
+      _sWelcome,
+      _sName,
+      _sInterests,
+      _sAge,
+      _sHeight,
+      _sWeight,
+      _sRegularity,
+      _sCycleLen,
+      _sPeriodLen,
+      _sLastStart,
+      _sStatus,
+      _sRepro,
+    ];
+    final personalization = Personalization(interests: _data.interests);
+    if (personalization.wantsSymptomAreas) ids.add(_sSymptomAreas);
+    if (personalization.wantsFertilityPrefs) ids.add(_sFertility);
+    if (personalization.wantsPregnancyState) ids.add(_sPregnancy);
+    ids.add(_sBirth);
+    ids.add(_sDone);
+    return ids;
+  }
+
+  String get _currentStep => _visibleSteps[_pos.clamp(0, _visibleSteps.length - 1)];
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill the name from the signup metadata when available so the
+    // user is not asked twice. Best-effort: Supabase may be uninitialized
+    // in tests, and the backend still requires the name regardless.
+    try {
+      final metaName = Supabase
+          .instance
+          .client
+          .auth
+          .currentUser
+          ?.userMetadata?['name'];
+      if (metaName is String && metaName.trim().isNotEmpty) {
+        _nameController.text = metaName.trim();
+        _data.name = metaName.trim();
+      }
+    } catch (_) {
+      // No session metadata available; the name step collects it.
+    }
+  }
 
   @override
   void dispose() {
@@ -97,22 +186,29 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   void _go(int next) {
+    final steps = _visibleSteps;
     setState(() {
-      _index = next.clamp(0, _totalSteps);
+      _pos = next.clamp(0, steps.length - 1);
       _inlineError = null;
     });
     _pageController.animateToPage(
-      _index,
+      _pos,
       duration: const Duration(milliseconds: 280),
       curve: Curves.easeOut,
     );
   }
 
-  void _next() => _go(_index + 1);
-  void _back() => _go(_index - 1);
+  /// Jump to a step by id when it is currently visible (no-op otherwise).
+  void _goToStep(String id) {
+    final at = _visibleSteps.indexOf(id);
+    if (at >= 0) _go(at);
+  }
 
-  bool get _isLastContent => _index == _totalSteps - 1;
-  bool get _isCompletion => _index == _totalSteps;
+  void _next() => _go(_pos + 1);
+  void _back() => _go(_pos - 1);
+
+  bool get _isLastContent => _pos == _visibleSteps.length - 2;
+  bool get _isCompletion => _pos == _visibleSteps.length - 1;
 
   Future<String?> _deviceZone() async {
     try {
@@ -135,21 +231,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   // ---- Per-step validation ----
 
   bool _validateCurrent() {
-    // Step indices: 0 welcome, 1 name, 2 age, 3 height, 4 weight, 5 goal,
-    // 6 regularity, 7 cycle, 8 period, 9 last-start, 10 status/end,
-    // 11 reproductive, 12 birth, 13 completion.
-    switch (_index) {
-      case 1: // name
+    // Required: name + last-start + status/end (+ birth pair coherence).
+    // Cycle/period lengths are always valid (null = not sure). Interest
+    // and follow-up steps never block: empty means skipped.
+    switch (_currentStep) {
+      case _sName:
         if (_nameController.text.trim().isEmpty) {
           setState(() => _inlineError = 'Please enter your name.');
           return false;
         }
         _data.name = _nameController.text.trim();
         return true;
-      case 7: // cycle length: always valid (null = not sure)
-      case 8: // period length
+      case _sCycleLen: // always valid (null = not sure)
+      case _sPeriodLen:
         return true;
-      case 9: // last start required
+      case _sLastStart:
         if (_data.lastStart == null) {
           setState(
             () => _inlineError = 'Please choose when your last period started.',
@@ -163,7 +259,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           return false;
         }
         return true;
-      case 10: // end date when ended
+      case _sStatus:
         if (_data.status == PeriodStatus.ended) {
           if (_data.lastEnd == null) {
             setState(
@@ -188,7 +284,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           }
         }
         return true;
-      case 12: // birth pair optional but must be both-or-blank
+      case _sBirth: // birth pair optional but must be both-or-blank
         final raw = _birthYearController.text.trim();
         final int? year = raw.isEmpty ? null : int.tryParse(raw);
         if (raw.isNotEmpty && year == null) {
@@ -232,8 +328,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           : (_data.weightLbs / 2.20462).round();
       await ctx.setHeightCm(heightCm).catchError((_) => null);
       await ctx.setWeightKg(weightKg).catchError((_) => null);
-      await ctx.setGoal(_data.goalKey).catchError((_) => null);
       await ctx.setRegularity(_data.regularityKey).catchError((_) => null);
+      // Phase 1 personalization (local-only; never sent to any backend).
+      final personal = ref.read(personalizationProvider.notifier);
+      await personal.setInterests(_data.interests).catchError((_) => null);
+      await personal
+          .setSymptomAreas(_data.symptomAreas)
+          .catchError((_) => null);
+      await personal
+          .setFertilityPrefs(_data.fertilityPrefs)
+          .catchError((_) => null);
+      await personal
+          .setIsActuallyPregnant(_data.isActuallyPregnant)
+          .catchError((_) => null);
     } catch (_) {
       // Never block onboarding on local-only context.
     }
@@ -277,25 +384,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       if (errors.isNotEmpty) {
         // Jump back to the offending step for correction.
         final firstKey = errors.keys.first;
-        int target = _index;
+        String? target;
         if (firstKey == 'name') {
-          target = 1;
+          target = _sName;
         } else if (firstKey == 'start') {
-          target = 9;
+          target = _sLastStart;
         } else if (firstKey == 'end') {
-          target = 10;
+          target = _sStatus;
         } else if (firstKey == 'cycle') {
-          target = 7;
+          target = _sCycleLen;
         } else if (firstKey == 'period') {
-          target = 8;
+          target = _sPeriodLen;
         } else if (firstKey == 'dob') {
-          target = 12;
+          target = _sBirth;
         }
         setState(() {
           _isSubmitting = false;
           _inlineError = errors.values.first;
         });
-        _go(target);
+        if (target != null) _goToStep(target);
         return;
       }
 
@@ -331,7 +438,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         // Completion flag is in-memory-first: never block Home on prefs.
         unawaited(ref.read(onboardingStatusProvider.notifier).markCompleted());
         refreshAllAppData(ref);
-        if (mounted) _go(_totalSteps);
+        if (mounted) _goToStep(_sDone);
         return;
       }
 
@@ -378,7 +485,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         await ref.read(profileProvider.notifier).reload();
         unawaited(ref.read(onboardingStatusProvider.notifier).markCompleted());
       }
-      if (mounted) _go(_totalSteps);
+      if (mounted) _goToStep(_sDone);
     } on ValidationError catch (e) {
       _showMessage('Please check your entries. ${e.message}');
     } on Conflict catch (e) {
@@ -387,7 +494,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         unawaited(ref.read(onboardingStatusProvider.notifier).markCompleted());
       } catch (_) {}
       _showMessage(e.message);
-      if (mounted) _go(_totalSteps);
+      if (mounted) _goToStep(_sDone);
     } on NetworkUnavailable {
       _showMessage('You\u2019re offline. Check your connection and try again.');
     } on AuthFailure {
@@ -435,15 +542,63 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   // ---- UI ----
 
+  /// Widget for one visible step id. Titles of pre-existing steps are
+  /// unchanged so existing flows and tests keep working.
+  Widget _stepWidget(BuildContext context, String id) {
+    switch (id) {
+      case _sWelcome:
+        return _welcomeStep(context);
+      case _sName:
+        return _nameStep(context);
+      case _sInterests:
+        return _interestsStep(context);
+      case _sAge:
+        return _ageRangeStep(context);
+      case _sHeight:
+        return _heightStep(context);
+      case _sWeight:
+        return _weightStep(context);
+      case _sRegularity:
+        return _regularityStep(context);
+      case _sCycleLen:
+        return _cycleLengthStep(context);
+      case _sPeriodLen:
+        return _periodLengthStep(context);
+      case _sLastStart:
+        return _lastPeriodStep(context);
+      case _sStatus:
+        return _periodStatusStep(context);
+      case _sRepro:
+        return _reproductiveStep(context);
+      case _sSymptomAreas:
+        return _symptomAreasStep(context);
+      case _sFertility:
+        return _fertilityPrefsStep(context);
+      case _sPregnancy:
+        return _pregnancyStateStep(context);
+      case _sBirth:
+        return _birthStep(context);
+      case _sDone:
+      default:
+        return _completionStep(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final steps = _visibleSteps;
+    // The visible list can shrink/grow when interests change: clamp the
+    // position and jump the controller so they never disagree.
+    if (_pos >= steps.length) {
+      _pos = steps.length - 1;
+    }
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Getting started'),
-        leading: _index > 0 && !_isCompletion
+        leading: _pos > 0 && !_isCompletion
             ? IconButton(
                 icon: const Icon(Icons.arrow_back),
                 tooltip: 'Back',
@@ -451,10 +606,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               )
             : null,
         actions: [
-          if (_isOptionalStep(_index) && !_isCompletion)
+          if (_isOptionalStep(_currentStep) && !_isCompletion)
             TextButton(
               onPressed: () {
-                _clearOptionalStep(_index);
+                _clearOptionalStep(_currentStep);
                 if (_isLastContent) {
                   unawaited(_submit());
                 } else {
@@ -468,27 +623,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _ProgressBar(index: _index, total: _totalSteps + 1),
+            _ProgressBar(index: _pos + 1, total: steps.length),
             Expanded(
               child: PageView(
                 controller: _pageController,
                 physics: const NeverScrollableScrollPhysics(),
-                onPageChanged: (i) => setState(() => _index = i),
+                onPageChanged: (i) => setState(() => _pos = i),
                 children: [
-                  _welcomeStep(context),
-                  _nameStep(context),
-                  _ageRangeStep(context),
-                  _heightStep(context),
-                  _weightStep(context),
-                  _goalStep(context),
-                  _regularityStep(context),
-                  _cycleLengthStep(context),
-                  _periodLengthStep(context),
-                  _lastPeriodStep(context),
-                  _periodStatusStep(context),
-                  _reproductiveStep(context),
-                  _birthStep(context),
-                  _completionStep(context),
+                  for (final id in steps) _stepWidget(context, id),
                 ],
               ),
             ),
@@ -499,40 +641,58 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  bool _isOptionalStep(int i) {
-    // Required: welcome(0) via primary CTA, name(1), last-start(9),
-    // status(10). Completion(13) has no Back/Skip. All others skippable.
-    return !(i == 0 || i == 1 || i == 9 || i == 10 || i == 13);
+  bool _isOptionalStep(String id) {
+    // Required: welcome (via primary CTA), name, last-start, status, done.
+    // Everything else — including interests and every follow-up — is
+    // skippable. Skipped interests simply ask no follow-ups.
+    return id != _sWelcome &&
+        id != _sName &&
+        id != _sLastStart &&
+        id != _sStatus &&
+        id != _sDone;
   }
 
-  void _clearOptionalStep(int i) {
-    switch (i) {
-      case 2:
+  void _clearOptionalStep(String id) {
+    switch (id) {
+      case _sAge:
         _data.ageRange = null;
         break;
-      case 3:
+      case _sHeight:
+      case _sWeight:
         break;
-      case 4:
+      case _sInterests:
+        _data.interests = {};
+        _data.symptomAreas = {};
+        _data.fertilityPrefs = {};
+        _data.isActuallyPregnant = null;
         break;
-      case 5:
-        _data.goalKey = null;
-        break;
-      case 6:
+      case _sRegularity:
         _data.regularityKey = null;
         break;
-      case 7:
+      case _sCycleLen:
         _data.cycleLength = null;
         break;
-      case 8:
+      case _sPeriodLen:
         _data.periodLength = null;
         break;
-      case 11:
+      case _sSymptomAreas:
+        _data.symptomAreas = {};
+        break;
+      case _sFertility:
+        _data.fertilityPrefs = {};
+        break;
+      case _sPregnancy:
+        _data.isActuallyPregnant = null;
+        break;
+      case _sRepro:
         _data.contraceptionMethod = null;
         _data.pregnancyContext = null;
         break;
-      case 12:
+      case _sBirth:
         _data.birthMonth = null;
         _birthYearController.clear();
+        break;
+      default:
         break;
     }
     setState(() => _inlineError = null);
@@ -609,7 +769,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : Text(
-                        _index == 0
+                        _currentStep == _sWelcome
                             ? 'Let\u2019s get started'
                             : _isLastContent
                             ? 'Complete onboarding'
@@ -617,7 +777,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       ),
               ),
             ),
-            if (_index > 0) ...[
+            if (_currentStep != _sWelcome) ...[
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
@@ -865,35 +1025,57 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  Widget _goalStep(BuildContext context) {
+  /// Phase 1 multi-select interests ("What brings you to MenoMate?").
+  /// Any subset is valid; empty means skipped. The selection only decides
+  /// which follow-up steps appear — it never changes the backend payload,
+  /// predictions, or modes. Replaces the old single-choice goal step.
+  Widget _interestsStep(BuildContext context) {
     return _stepShell(
       context,
-      title: 'What\u2019s your main goal with MenoMate?',
-      subtitle: 'Pick one. Only tracking + learning are active today.',
+      title: 'What brings you to MenoMate?',
+      subtitle:
+          'You can choose more than one. You can change these later. Skip for now if you prefer.',
       child: Column(
         children: [
-          for (final g in kOnboardingGoals)
+          for (final interest in kUserInterests)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: InkWell(
                 borderRadius: BorderRadius.circular(14),
-                onTap: () => setState(() => _data.goalKey = g.key),
+                onTap: () => setState(() {
+                  final next = Set<String>.from(_data.interests);
+                  if (next.contains(interest.key)) {
+                    next.remove(interest.key);
+                  } else {
+                    next.add(interest.key);
+                  }
+                  _data.interests = next;
+                  // Keep follow-ups consistent with the new selection:
+                  // answers for unselected areas are cleared so stale
+                  // preferences can never leak into personalization.
+                  final view = Personalization(interests: next);
+                  if (!view.wantsSymptomAreas) _data.symptomAreas = {};
+                  if (!view.wantsFertilityPrefs) _data.fertilityPrefs = {};
+                  if (!view.wantsPregnancyState) {
+                    _data.isActuallyPregnant = null;
+                  }
+                }),
                 child: Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: _data.goalKey == g.key
+                      color: _data.interests.contains(interest.key)
                           ? Theme.of(context).colorScheme.primary
                           : Theme.of(context).colorScheme.outline,
-                      width: _data.goalKey == g.key ? 2 : 1,
+                      width: _data.interests.contains(interest.key) ? 2 : 1,
                     ),
                     color: Theme.of(context).colorScheme.surface,
                   ),
                   child: Row(
                     children: [
                       Icon(
-                        _data.goalKey == g.key
+                        _data.interests.contains(interest.key)
                             ? Icons.check_circle
                             : Icons.circle_outlined,
                       ),
@@ -903,14 +1085,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              g.label,
+                              interest.label,
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              g.description,
+                              interest.description,
                               style: Theme.of(context).textTheme.bodySmall
                                   ?.copyWith(
                                     color: Theme.of(context)
@@ -923,6 +1105,115 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       ),
                     ],
                   ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Body-awareness follow-up: which areas interest the user. Shown only
+  /// when the body_awareness interest is selected. Interest flags only —
+  /// implies no condition or diagnosis, ever.
+  Widget _symptomAreasStep(BuildContext context) {
+    return _stepShell(
+      context,
+      title: 'Which areas interest you most?',
+      subtitle:
+          'Pick any. This shapes what MenoMate highlights — nothing is diagnosed. Optional.',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final area in SymptomAreas.all)
+            FilterChip(
+              label: Text(kSymptomAreaLabels[area] ?? area),
+              selected: _data.symptomAreas.contains(area),
+              onSelected: (sel) => setState(() {
+                final next = Set<String>.from(_data.symptomAreas);
+                if (sel) {
+                  next.add(area);
+                } else {
+                  next.remove(area);
+                }
+                _data.symptomAreas = next;
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Fertility/TTC follow-up: which signs the user wants to track. Shown
+  /// only when fertility_awareness or trying_to_conceive is selected.
+  /// Pure logging preferences — the backend remains the sole estimator
+  /// and nothing is calculated on this device.
+  Widget _fertilityPrefsStep(BuildContext context) {
+    return _stepShell(
+      context,
+      title: 'Want to track fertility signs?',
+      subtitle:
+          'Pick any. MenoMate only records what you log — estimates always come from the server. Optional.',
+      child: Column(
+        children: [
+          for (final pref in FertilityPrefs.all)
+            CheckboxListTile(
+              value: _data.fertilityPrefs.contains(pref),
+              title: Text(kFertilityPrefLabels[pref] ?? pref),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+              onChanged: (sel) => setState(() {
+                final next = Set<String>.from(_data.fertilityPrefs);
+                if (sel == true) {
+                  next.add(pref);
+                } else {
+                  next.remove(pref);
+                }
+                _data.fertilityPrefs = next;
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Pregnancy STATE question (actual pregnancy?). Shown only when the
+  /// pregnancy interest is selected. An explicit "yes" records the state
+  /// for later phases — nothing is activated automatically here, and
+  /// selecting the interest alone changes nothing.
+  Widget _pregnancyStateStep(BuildContext context) {
+    return _stepShell(
+      context,
+      title: 'Are you currently pregnant?',
+      subtitle:
+          'Only an explicit yes records a pregnancy state. Learning about pregnancy leaves everything unchanged. Optional — Skip if unsure.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final option in [
+            (true, 'Yes, I am pregnant'),
+            (false, 'No, just learning / planning ahead'),
+          ])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () =>
+                    setState(() => _data.isActuallyPregnant = option.$1),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _data.isActuallyPregnant == option.$1
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.outline,
+                      width: _data.isActuallyPregnant == option.$1 ? 2 : 1,
+                    ),
+                  ),
+                  child: Text(option.$2),
                 ),
               ),
             ),
@@ -1295,7 +1586,7 @@ class _ProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = ((index + 1) / (total + 1)).clamp(0.0, 1.0);
+    final progress = (index / total).clamp(0.0, 1.0);
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
       child: Column(
@@ -1307,12 +1598,12 @@ class _ProgressBar extends StatelessWidget {
               value: progress,
               minHeight: 6,
               semanticsLabel:
-                  'Onboarding progress, step ${index + 1} of ${total + 1}',
+                  'Onboarding progress, step $index of $total',
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Step ${index + 1} of ${total + 1}',
+            'Step $index of $total',
             style: Theme.of(context).textTheme.bodySmall
                 ?.copyWith(color: Theme.of(context).colorScheme.secondary),
           ),

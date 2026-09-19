@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Network: Supabase Auth + FastAPI backend. INTERNET must be declared
+         explicitly: `flutter run` injects it for debug builds, but release
+         builds get no such injection — without it every socket (including
+         DNS resolution) fails on-device with "Failed host lookup".
+         ACCESS_NETWORK_STATE arrives via the connectivity_plus plugin. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Bluetooth permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />

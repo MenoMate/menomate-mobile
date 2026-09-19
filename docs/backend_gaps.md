@@ -47,16 +47,21 @@ Rule: UI → Riverpod → Repository → Drift/API. No invented fields.
 - FRONTEND WORK: Same as height.
 
 ### FEATURE: Goals (track/understand/conceive/pregnancy/perimenopause)
-- CURRENT STATUS: Single-select cards; stored local-only
-  (`onboarding_ctx.goal`); only track+understand map to live features.
-  Others show "Requires backend support" and change nothing.
-- BACKEND GAP: No goals table/endpoint/mode.
-- REQUIRED DATA MODEL: `user_goals {user_id, goal_key, created_at}` or
-  `profiles.primary_goal`.
-- REQUIRED API: `GET/PUT /api/v1/profile/goal` (or goals resource).
+- CURRENT STATUS (Phase 1): replaced by multi-select interests
+  (`menomate.personalization.*.<userId>`, local-only). The old single-select
+  `onboarding_ctx.goal` is no longer written by onboarding (provider field
+  retained for back-compat). Interests only decide which follow-up
+  questions to ask; they change no backend payload, mode, or behavior.
+- BACKEND GAP: No interests/preferences table/endpoint/mode.
+- REQUIRED DATA MODEL: `user_interests {user_id, interest_key, created_at}`
+  + `profiles.tracking_mode` (`cycle` | `pregnancy`, server-gated).
+- REQUIRED API: `GET/PUT /api/v1/profile/preferences` (interests +
+  symptom areas + fertility-sign prefs) and an explicit, server-validated
+  pregnancy-mode transition (never inferred from interests).
 - SYNC IMPLICATION: Local-first pending + server-authoritative mode.
-- FRONTEND WORK: Gate pregnancy/perimenopause experiences on real flag;
-  keep architecture extensible (see `kOnboardingGoals.supportedNow`).
+- FRONTEND WORK: `personalizationProvider` (lib/providers/) is the single
+  migration point — swap its writes for repository saves when the contract
+  lands; keep `kUserInterests` ids stable as the wire vocabulary.
 
 ### FEATURE: Fertility / ovulation / fertile window
 - CURRENT STATUS: Not shown. Only backend `phase` string displayed;

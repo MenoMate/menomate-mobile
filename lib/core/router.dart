@@ -61,6 +61,13 @@ final routerNotifierProvider = Provider<RouterNotifier>((ref) {
 /// Provider that exposes a stable GoRouter instance.
 /// It uses [RouterNotifier] as a refreshListenable to re-evaluate [redirect]
 /// without tearing down navigation state or rebuilding active screens.
+///
+/// Phase 1 navigation foundation: the auth/onboarding gates below
+/// (unauthenticated → /welcome+/login; new user → /onboarding; completed →
+/// /home; logout → entry) are the contract later phases build on. The
+/// target information architecture (HOME / LOG / LEARN / CARE / PROFILE,
+/// with History living under Profile instead of bottom navigation) is a
+/// future-phase migration — no destination changes are made here.
 final routerProvider = Provider<GoRouter>((ref) {
   final notifier = ref.watch(routerNotifierProvider);
 
