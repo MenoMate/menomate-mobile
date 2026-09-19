@@ -5,11 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../providers/offline_mode_provider.dart';
 import '../widgets/menomate_logo.dart';
 
-/// First-run path choice: full local tracking without an account, or
-/// sign-in for cloud sync. "Continue Offline" is a complete local-first
-/// way to use MenoMate — never demo wording, never "Guest Mode".
-/// No navigation here is manual except pushing /login; the router reacts
-/// to the persisted offline choice (or the new session) on its own.
+/// First-run welcome (Phase 2): branding + promise, never a registration
+/// wall. "Get started" begins onboarding immediately with local-only
+/// tracking — no account required. "Already have an account? Log in" is a
+/// small secondary action. No navigation here is manual except pushing
+/// /login; the router reacts to the persisted offline choice (or the new
+/// session) on its own.
 class WelcomeScreen extends ConsumerStatefulWidget {
   const WelcomeScreen({super.key});
 
@@ -20,7 +21,7 @@ class WelcomeScreen extends ConsumerStatefulWidget {
 class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
   bool _busy = false;
 
-  Future<void> _continueOffline() async {
+  Future<void> _getStarted() async {
     if (_busy) return;
     setState(() => _busy = true);
     try {
@@ -49,90 +50,82 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Center(child: MenoMateBrandLogo(size: 68)),
-                  const SizedBox(height: 16),
+                  const Center(child: MenoMateBrandLogo(size: 76)),
+                  const SizedBox(height: 24),
                   Text(
-                    'Welcome to MenoMate',
+                    'Your body has a rhythm.\nLet\u2019s make sense of it.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       letterSpacing: -0.5,
+                      height: 1.2,
                       color: colorScheme.onSurface,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 12),
                   Text(
-                    'Track your cycle and wellness your way.',
+                    'Track your cycle, understand changes in your body, '
+                    'and discover insights that are personal to you.',
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: colorScheme.secondary,
-                      height: 1.3,
+                      height: 1.45,
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: colorScheme.surface,
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: colorScheme.outline, width: 1),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.04),
-                          blurRadius: 18,
-                          offset: const Offset(0, 6),
-                        ),
-                      ],
+                  const SizedBox(height: 36),
+                  SizedBox(
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: _busy ? null : _getStarted,
+                      child: _busy
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Get started',
+                              style: TextStyle(fontSize: 16),
+                            ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SizedBox(
-                          height: 50,
-                          child: ElevatedButton(
-                            onPressed: _busy ? null : _continueOffline,
-                            child: _busy
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Text('Continue Offline'),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Use MenoMate without creating an account. '
-                          'Your tracking data stays on this device.',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall?.copyWith(
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'No account needed — your data stays on this device '
+                    'until you choose to sync it.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colorScheme.secondary,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Center(
+                    child: TextButton(
+                      onPressed: _busy ? null : () => context.push('/login'),
+                      child: Text.rich(
+                        TextSpan(
+                          style: theme.textTheme.bodyMedium?.copyWith(
                             color: colorScheme.secondary,
-                            height: 1.35,
                           ),
+                          children: [
+                            const TextSpan(
+                              text: 'Already have an account? ',
+                            ),
+                            TextSpan(
+                              text: 'Log in',
+                              style: TextStyle(
+                                color: colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 20),
-                        SizedBox(
-                          height: 50,
-                          child: OutlinedButton(
-                            onPressed: _busy
-                                ? null
-                                : () => context.push('/login'),
-                            child: const Text('Sign In / Create Account'),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Sync your data and use MenoMate across devices.',
-                          textAlign: TextAlign.center,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.secondary,
-                            height: 1.35,
-                          ),
-                        ),
-                      ],
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ),
                 ],

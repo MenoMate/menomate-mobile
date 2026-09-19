@@ -34,6 +34,10 @@ class PersonalizationNotifier extends AsyncNotifier<Personalization> {
           prefs.getStringList(_prefsKey(userId, 'symptom_areas')) ?? const [];
       final fertility =
           prefs.getStringList(_prefsKey(userId, 'fertility')) ?? const [];
+      final categories =
+          prefs.getStringList(_prefsKey(userId, 'categories')) ?? const [];
+      final concerns =
+          prefs.getStringList(_prefsKey(userId, 'concerns')) ?? const [];
       return Personalization(
         interests: interests.toSet(),
         mode: modeRaw == TrackingMode.pregnancy.name
@@ -41,6 +45,9 @@ class PersonalizationNotifier extends AsyncNotifier<Personalization> {
             : TrackingMode.cycle,
         symptomAreas: areas.toSet(),
         fertilityPrefs: fertility.toSet(),
+        trackingCategories: categories.toSet(),
+        healthConcerns: concerns.toSet(),
+        tracksElsewhere: prefs.getBool(_prefsKey(userId, 'elsewhere')) ?? false,
         isActuallyPregnant: prefs.getBool(_prefsKey(userId, 'pregnant')),
       );
     } catch (_) {
@@ -96,6 +103,30 @@ class PersonalizationNotifier extends AsyncNotifier<Personalization> {
     final clean = prefs.where(FertilityPrefs.all.contains).toSet();
     state = AsyncData(cur.copyWith(fertilityPrefs: clean));
     await _save('fertility', clean.toList());
+  }
+
+  /// Log categories the user wants to track. Display hints only.
+  Future<void> setTrackingCategories(Set<String> categories) async {
+    final cur = state.value ?? Personalization();
+    final clean = categories.where(TrackingCategories.all.contains).toSet();
+    state = AsyncData(cur.copyWith(trackingCategories: clean));
+    await _save('categories', clean.toList());
+  }
+
+  /// Health concerns for personalization. Stored verbatim as concern
+  /// flags — never interpreted as diagnoses, never sent anywhere.
+  Future<void> setHealthConcerns(Set<String> concerns) async {
+    final cur = state.value ?? Personalization();
+    final clean = concerns.where(HealthConcerns.all.contains).toSet();
+    state = AsyncData(cur.copyWith(healthConcerns: clean));
+    await _save('concerns', clean.toList());
+  }
+
+  /// Whether the user already tracks periods elsewhere (migration hint).
+  Future<void> setTracksElsewhere(bool value) async {
+    final cur = state.value ?? Personalization();
+    state = AsyncData(cur.copyWith(tracksElsewhere: value));
+    await _save('elsewhere', value);
   }
 
   Future<void> setIsActuallyPregnant(bool? value) async {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -21,29 +22,39 @@ import '../models/onboarding.dart';
 import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
 import '../providers/offline_mode_provider.dart';
-import '../providers/onboarding_context_provider.dart';
+import '../providers/onboarding_context_provider.dart'
+    show kPeriodRegularityOptions;
 import '../providers/onboarding_status_provider.dart';
 import '../providers/personalization_provider.dart';
 import '../providers/profile_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/api_service.dart';
 
-/// Genuine one-question-per-screen onboarding.
+/// Phase 2 first-run experience: Welcome → name → interests → cycle → what
+/// to track → personalization → (conditional) reproductive context →
+/// (conditional) pregnancy state → basics → Ready → Home.
 ///
-/// Replaces the old scrolling form entirely. Each step collects ONE
-/// meaningful answer with progress, Back/Continue/Skip, validation,
-/// keyboard-safe layout and accessibility labels.
+/// Principles (see product direction):
+/// - ASK NOW only what improves the first experience; the rest is
+///   discoverable later inside the app (ASK LATER).
+/// - No account is ever forced: local users complete the same flow with
+///   local-only persistence; "Create an account" is a secondary action.
+/// - Personalization (interests, categories, concerns, prefs) is local-only
+///   (see personalizationProvider + docs/backend_gaps.md): it decides which
+///   questions to ask and will personalize later phases — it never changes
+///   backend payloads, predictions, estimates, or modes.
+/// - Pregnancy / trying-to-conceive are interests until the user gives an
+///   explicit actual-pregnancy answer. Nothing here activates pregnancy
+///   mode, computes fertility, or diagnoses.
+/// - Backend truth: name + last period start/end + usual lengths +
+///   timezone go to `POST /api/v1/onboarding/complete`; birth pair goes to
+///   the profile; contraception/pregnancy-context go to health-context.
+///   Everything else stays on-device.
 ///
-/// Backend truth:
-/// - name, last_period_start/end, usual_cycle/period_days, timezone,
-///   units, birth_year/month go to the real backend via the existing
-///   repository/API architecture.
-/// - contraception_method + pregnancy_context are saved for real via the
-///   HealthContext repository AFTER onboarding completes (supported API).
-/// - height, weight, goal, regularity, age-range have NO backend field:
-///   collected for UX completeness, stored ONLY on-device via
-///   [onboardingContextProvider]/[ageRangeProvider], never sent anywhere.
-///   See docs/backend_gaps.md. No temperature question exists anywhere.
+/// Deterministic + recoverable: completion is flagged only after a
+/// successful submit; an interrupted run simply restarts the flow and
+/// re-asks (persisted personalization is reloaded, never corrupted).
+/// Existing onboarded users never see this screen (router gate).
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -53,35 +64,30 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 
 class _OnboardingData {
   String name = '';
-  String? ageRange;
-  bool heightMetric = true;
-  int heightCm = 165;
-  int heightFt = 5;
-  int heightIn = 5;
-  bool weightMetric = true;
-  int weightKg = 62;
-  int weightLbs = 137;
 
-  /// Phase 1 personalization (multi-select interests + conditional
-  /// follow-ups). Local-only (see personalizationProvider); never sent to
-  /// the backend, never drives predictions or modes by itself.
+  /// Multi-select interests (canonical ids). Empty = skipped.
   Set<String> interests = {};
-  Set<String> symptomAreas = {};
-  Set<String> fertilityPrefs = {};
 
-  /// Explicit actual-pregnancy answer (null = unasked). Only an explicit
-  /// `true` may route to pregnancy mode later — the `pregnancy` interest
-  /// alone never does.
-  bool? isActuallyPregnant;
-
-  String? regularityKey;
-  int? cycleLength; // null = not sure
-  int? periodLength; // null = not sure
   DateTime? lastStart;
   PeriodStatus status = PeriodStatus.ended;
   DateTime? lastEnd;
+  int? cycleLength; // null = not sure
+  int? periodLength; // null = not sure
+  String? regularityKey;
+  bool tracksElsewhere = false;
+
+  Set<String> trackingCategories = {};
+  Set<String> symptomAreas = {};
+  Set<String> fertilityPrefs = {};
+  Set<String> healthConcerns = {};
+
   String? contraceptionMethod;
   String? pregnancyContext;
+
+  /// Explicit actual-pregnancy answer (null = unasked). Only an explicit
+  /// `true` may route to pregnancy mode later.
+  bool? isActuallyPregnant;
+
   int? birthMonth;
   String birthYearRaw = '';
 }
@@ -92,70 +98,58 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _nameController = TextEditingController();
   final _birthYearController = TextEditingController();
 
-  // ---- Adaptive step model (Phase 1) ----
+  // ---- Adaptive step model ----
   //
-  // Steps are identified by stable ids, not positions: the visible sequence
-  // is derived from the selected interests, so follow-up questions appear
-  // only when relevant. Backend-gated steps (last period start/end) are
-  // ALWAYS included — the onboarding endpoint requires them — while
-  // personalization follow-ups are conditional. Skipped interests (empty
-  // set) ask no personalization follow-ups; cycle-length questions stay
-  // unconditional because they feed the (nullable) backend payload.
-  static const String _sWelcome = 'welcome';
+  // Steps are stable ids; the visible sequence derives from interests.
+  // Backend-gated inputs (name, last period) are ALWAYS asked. Everything
+  // else is conditional or skippable.
   static const String _sName = 'name';
   static const String _sInterests = 'interests';
-  static const String _sAge = 'age';
-  static const String _sHeight = 'height';
-  static const String _sWeight = 'weight';
-  static const String _sRegularity = 'regularity';
-  static const String _sCycleLen = 'cycle_len';
-  static const String _sPeriodLen = 'period_len';
-  static const String _sLastStart = 'last_start';
-  static const String _sStatus = 'status';
+  static const String _sCycle = 'cycle';
+  static const String _sTracking = 'tracking';
+  static const String _sPersonal = 'personal';
   static const String _sRepro = 'repro';
-  static const String _sSymptomAreas = 'symptom_areas';
-  static const String _sFertility = 'fertility';
   static const String _sPregnancy = 'pregnancy';
-  static const String _sBirth = 'birth';
+  static const String _sBasics = 'basics';
+  static const String _sReady = 'ready';
   static const String _sDone = 'done';
 
   int _pos = 0;
   bool _isSubmitting = false;
   String? _inlineError;
 
-  /// Visible step ids for the current interest selection, in order.
   List<String> get _visibleSteps {
     final ids = <String>[
-      _sWelcome,
       _sName,
       _sInterests,
-      _sAge,
-      _sHeight,
-      _sWeight,
-      _sRegularity,
-      _sCycleLen,
-      _sPeriodLen,
-      _sLastStart,
-      _sStatus,
-      _sRepro,
+      _sCycle,
+      _sTracking,
+      _sPersonal,
     ];
-    final personalization = Personalization(interests: _data.interests);
-    if (personalization.wantsSymptomAreas) ids.add(_sSymptomAreas);
-    if (personalization.wantsFertilityPrefs) ids.add(_sFertility);
-    if (personalization.wantsPregnancyState) ids.add(_sPregnancy);
-    ids.add(_sBirth);
+    final view = Personalization(interests: _data.interests);
+    if (view.wantsFertilityPrefs ||
+        view.wantsPregnancyState ||
+        _data.interests.contains(UserInterests.fertilityAwareness)) {
+      ids.add(_sRepro);
+    }
+    if (view.wantsPregnancyState) ids.add(_sPregnancy);
+    ids.add(_sBasics);
+    ids.add(_sReady);
     ids.add(_sDone);
     return ids;
   }
 
-  String get _currentStep => _visibleSteps[_pos.clamp(0, _visibleSteps.length - 1)];
+  String get _currentStep =>
+      _visibleSteps[_pos.clamp(0, _visibleSteps.length - 1)];
+
+  bool get _isReady => _currentStep == _sReady;
+  bool get _isCompletion => _currentStep == _sDone;
 
   @override
   void initState() {
     super.initState();
-    // Pre-fill the name from the signup metadata when available so the
-    // user is not asked twice. Best-effort: Supabase may be uninitialized
-    // in tests, and the backend still requires the name regardless.
+    // Pre-fill the name from signup metadata when available so the user
+    // is not asked twice. Best-effort; the backend requires it regardless.
     try {
       final metaName = Supabase
           .instance
@@ -169,6 +163,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       }
     } catch (_) {
       // No session metadata available; the name step collects it.
+    }
+    // Reload previously stored personalization so an interrupted run
+    // resumes with earlier answers intact rather than corrupted.
+    unawaited(_restorePersonalization());
+  }
+
+  Future<void> _restorePersonalization() async {
+    try {
+      final stored = await ref.read(personalizationProvider.future);
+      if (!mounted) return;
+      setState(() {
+        _data.interests = Set<String>.from(stored.interests);
+        _data.symptomAreas = Set<String>.from(stored.symptomAreas);
+        _data.fertilityPrefs = Set<String>.from(stored.fertilityPrefs);
+        _data.trackingCategories =
+            Set<String>.from(stored.trackingCategories);
+        _data.healthConcerns = Set<String>.from(stored.healthConcerns);
+        _data.tracksElsewhere = stored.tracksElsewhere;
+        _data.isActuallyPregnant = stored.isActuallyPregnant;
+      });
+    } catch (_) {
+      // Best-effort only; the flow works from blank answers.
     }
   }
 
@@ -198,7 +214,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  /// Jump to a step by id when it is currently visible (no-op otherwise).
   void _goToStep(String id) {
     final at = _visibleSteps.indexOf(id);
     if (at >= 0) _go(at);
@@ -206,9 +221,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   void _next() => _go(_pos + 1);
   void _back() => _go(_pos - 1);
-
-  bool get _isLastContent => _pos == _visibleSteps.length - 2;
-  bool get _isCompletion => _pos == _visibleSteps.length - 1;
 
   Future<String?> _deviceZone() async {
     try {
@@ -231,9 +243,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   // ---- Per-step validation ----
 
   bool _validateCurrent() {
-    // Required: name + last-start + status/end (+ birth pair coherence).
-    // Cycle/period lengths are always valid (null = not sure). Interest
-    // and follow-up steps never block: empty means skipped.
     switch (_currentStep) {
       case _sName:
         if (_nameController.text.trim().isEmpty) {
@@ -242,13 +251,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         }
         _data.name = _nameController.text.trim();
         return true;
-      case _sCycleLen: // always valid (null = not sure)
-      case _sPeriodLen:
-        return true;
-      case _sLastStart:
+      case _sCycle:
         if (_data.lastStart == null) {
           setState(
-            () => _inlineError = 'Please choose when your last period started.',
+            () => _inlineError =
+                'Please choose when your last period started.',
           );
           return false;
         }
@@ -258,8 +265,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           );
           return false;
         }
-        return true;
-      case _sStatus:
         if (_data.status == PeriodStatus.ended) {
           if (_data.lastEnd == null) {
             setState(
@@ -274,8 +279,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             );
             return false;
           }
-          if (_data.lastStart != null &&
-              _data.lastEnd!.isBefore(_data.lastStart!)) {
+          if (_data.lastEnd!.isBefore(_data.lastStart!)) {
             setState(
               () => _inlineError =
                   'End date can\u2019t be before the start date.',
@@ -284,7 +288,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           }
         }
         return true;
-      case _sBirth: // birth pair optional but must be both-or-blank
+      case _sBasics:
         final raw = _birthYearController.text.trim();
         final int? year = raw.isEmpty ? null : int.tryParse(raw);
         if (raw.isNotEmpty && year == null) {
@@ -298,45 +302,38 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         }
         return true;
       default:
+        // Interests, tracking, personalization, repro, pregnancy, ready:
+        // empty means skipped — never blocking.
         return true;
     }
   }
 
   void _onContinue() {
     if (!_validateCurrent()) return;
-    // Persist local-only context best-effort as the user progresses.
-    unawaited(_persistLocalContext());
-    if (_isLastContent) {
-      unawaited(_submit());
-    } else {
-      _next();
-    }
+    unawaited(_persistPersonalization());
+    _next();
   }
 
-  Future<void> _persistLocalContext() async {
+  /// Persist personalization answers (local-only). Best-effort; never
+  /// blocks the flow. Called as the user progresses and again on submit.
+  Future<void> _persistPersonalization() async {
     try {
-      await ref
-          .read(ageRangeProvider.notifier)
-          .setAgeRange(_data.ageRange)
-          .catchError((_) => null);
-      final ctx = ref.read(onboardingContextProvider.notifier);
-      final heightCm = _data.heightMetric
-          ? _data.heightCm
-          : ((_data.heightFt * 12 + _data.heightIn) * 2.54).round();
-      final weightKg = _data.weightMetric
-          ? _data.weightKg
-          : (_data.weightLbs / 2.20462).round();
-      await ctx.setHeightCm(heightCm).catchError((_) => null);
-      await ctx.setWeightKg(weightKg).catchError((_) => null);
-      await ctx.setRegularity(_data.regularityKey).catchError((_) => null);
-      // Phase 1 personalization (local-only; never sent to any backend).
       final personal = ref.read(personalizationProvider.notifier);
       await personal.setInterests(_data.interests).catchError((_) => null);
+      await personal
+          .setTrackingCategories(_data.trackingCategories)
+          .catchError((_) => null);
       await personal
           .setSymptomAreas(_data.symptomAreas)
           .catchError((_) => null);
       await personal
           .setFertilityPrefs(_data.fertilityPrefs)
+          .catchError((_) => null);
+      await personal
+          .setHealthConcerns(_data.healthConcerns)
+          .catchError((_) => null);
+      await personal
+          .setTracksElsewhere(_data.tracksElsewhere)
           .catchError((_) => null);
       await personal
           .setIsActuallyPregnant(_data.isActuallyPregnant)
@@ -353,9 +350,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       _inlineError = null;
     });
     try {
-      // Local-only context never blocks submission (SharedPreferences may
-      // be slow/unavailable in tests/devices): fire-and-forget.
-      unawaited(_persistLocalContext());
+      unawaited(_persistPersonalization());
 
       final cycleParsed = _data.cycleLength == null
           ? const ParsedUsualDays.unset()
@@ -382,21 +377,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         if (dobError != null) errors['dob'] = dobError;
       }
       if (errors.isNotEmpty) {
-        // Jump back to the offending step for correction.
         final firstKey = errors.keys.first;
         String? target;
         if (firstKey == 'name') {
           target = _sName;
-        } else if (firstKey == 'start') {
-          target = _sLastStart;
-        } else if (firstKey == 'end') {
-          target = _sStatus;
-        } else if (firstKey == 'cycle') {
-          target = _sCycleLen;
-        } else if (firstKey == 'period') {
-          target = _sPeriodLen;
+        } else if (firstKey == 'start' || firstKey == 'end') {
+          target = _sCycle;
+        } else if (firstKey == 'cycle' || firstKey == 'period') {
+          target = _sCycle;
         } else if (firstKey == 'dob') {
-          target = _sBirth;
+          target = _sBasics;
         }
         setState(() {
           _isSubmitting = false;
@@ -433,9 +423,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   ? toIsoDate(_data.lastEnd!)
                   : resolvePeriodEndIso(_data.status, null),
             );
-        // Save supported reproductive context locally for real.
         await _saveReproductiveContext(userId, localOnly: true);
-        // Completion flag is in-memory-first: never block Home on prefs.
         unawaited(ref.read(onboardingStatusProvider.notifier).markCompleted());
         refreshAllAppData(ref);
         if (mounted) _goToStep(_sDone);
@@ -509,9 +497,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   /// Persist supported reproductive context for real. Contraception and
-  /// pregnancy context ARE backend-supported via the health-context API,
-  /// so this is genuine persistence — not a fake mode. Skipped when the
-  /// user left both blank.
+  /// pregnancy context ARE backend-supported via the health-context API.
+  /// Skipped when the user left both blank. Never derived from interests:
+  /// only explicit selections on the repro step are saved.
   Future<void> _saveReproductiveContext(
     String userId, {
     required bool localOnly,
@@ -521,7 +509,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
     try {
       final repo = ref.read(healthContextRepositoryProvider);
-      // Load current (if any) to preserve sibling health_notes.
       final current = await repo.loadHealthContext(userId);
       final existing = current.dataOrNull;
       await repo.saveHealthContext(
@@ -540,44 +527,69 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
-  // ---- UI ----
+  // ---- Shell ----
 
-  /// Widget for one visible step id. Titles of pre-existing steps are
-  /// unchanged so existing flows and tests keep working.
+  bool _isOptionalStep(String id) {
+    // Required: name + cycle (backend-gated). Ready/Done have their own
+    // buttons. Everything else is skippable.
+    return id != _sName && id != _sCycle && id != _sReady && id != _sDone;
+  }
+
+  void _clearOptionalStep(String id) {
+    switch (id) {
+      case _sInterests:
+        _data.interests = {};
+        _data.symptomAreas = {};
+        _data.fertilityPrefs = {};
+        _data.trackingCategories = {};
+        _data.healthConcerns = {};
+        _data.isActuallyPregnant = null;
+        break;
+      case _sTracking:
+        _data.trackingCategories = {};
+        break;
+      case _sPersonal:
+        _data.symptomAreas = {};
+        _data.fertilityPrefs = {};
+        _data.healthConcerns = {};
+        break;
+      case _sRepro:
+        _data.contraceptionMethod = null;
+        _data.pregnancyContext = null;
+        break;
+      case _sPregnancy:
+        _data.isActuallyPregnant = null;
+        break;
+      case _sBasics:
+        _data.birthMonth = null;
+        _birthYearController.clear();
+        break;
+      default:
+        break;
+    }
+    setState(() => _inlineError = null);
+  }
+
   Widget _stepWidget(BuildContext context, String id) {
     switch (id) {
-      case _sWelcome:
-        return _welcomeStep(context);
       case _sName:
         return _nameStep(context);
       case _sInterests:
         return _interestsStep(context);
-      case _sAge:
-        return _ageRangeStep(context);
-      case _sHeight:
-        return _heightStep(context);
-      case _sWeight:
-        return _weightStep(context);
-      case _sRegularity:
-        return _regularityStep(context);
-      case _sCycleLen:
-        return _cycleLengthStep(context);
-      case _sPeriodLen:
-        return _periodLengthStep(context);
-      case _sLastStart:
-        return _lastPeriodStep(context);
-      case _sStatus:
-        return _periodStatusStep(context);
+      case _sCycle:
+        return _cycleStep(context);
+      case _sTracking:
+        return _trackingStep(context);
+      case _sPersonal:
+        return _personalStep(context);
       case _sRepro:
         return _reproductiveStep(context);
-      case _sSymptomAreas:
-        return _symptomAreasStep(context);
-      case _sFertility:
-        return _fertilityPrefsStep(context);
       case _sPregnancy:
         return _pregnancyStateStep(context);
-      case _sBirth:
-        return _birthStep(context);
+      case _sBasics:
+        return _basicsStep(context);
+      case _sReady:
+        return _readyStep(context);
       case _sDone:
       default:
         return _completionStep(context);
@@ -589,11 +601,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final steps = _visibleSteps;
-    // The visible list can shrink/grow when interests change: clamp the
-    // position and jump the controller so they never disagree.
     if (_pos >= steps.length) {
       _pos = steps.length - 1;
     }
+    final isChromeStep = !_isReady && !_isCompletion;
 
     return Scaffold(
       appBar: AppBar(
@@ -610,11 +621,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             TextButton(
               onPressed: () {
                 _clearOptionalStep(_currentStep);
-                if (_isLastContent) {
-                  unawaited(_submit());
-                } else {
-                  _next();
-                }
+                _next();
               },
               child: const Text('Skip'),
             ),
@@ -623,7 +630,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            _ProgressBar(index: _pos + 1, total: steps.length),
+            // The chrome (progress + bottom action area) stays mounted on
+            // EVERY step, even when Ready/Done render their own buttons.
+            // Removing widgets here would shift the PageView's position in
+            // the Column, destroying its element mid-navigation and
+            // resetting the page — so these are placeholders, never gaps.
+            _ProgressBar(
+              index: isChromeStep ? _pos + 1 : steps.length - 1,
+              total: steps.length - 1,
+            ),
             Expanded(
               child: PageView(
                 controller: _pageController,
@@ -634,68 +649,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 ],
               ),
             ),
-            if (!_isCompletion) _bottomBar(context, colorScheme),
+            if (isChromeStep)
+              _bottomBar(context, colorScheme)
+            else
+              const SizedBox.shrink(),
           ],
         ),
       ),
     );
-  }
-
-  bool _isOptionalStep(String id) {
-    // Required: welcome (via primary CTA), name, last-start, status, done.
-    // Everything else — including interests and every follow-up — is
-    // skippable. Skipped interests simply ask no follow-ups.
-    return id != _sWelcome &&
-        id != _sName &&
-        id != _sLastStart &&
-        id != _sStatus &&
-        id != _sDone;
-  }
-
-  void _clearOptionalStep(String id) {
-    switch (id) {
-      case _sAge:
-        _data.ageRange = null;
-        break;
-      case _sHeight:
-      case _sWeight:
-        break;
-      case _sInterests:
-        _data.interests = {};
-        _data.symptomAreas = {};
-        _data.fertilityPrefs = {};
-        _data.isActuallyPregnant = null;
-        break;
-      case _sRegularity:
-        _data.regularityKey = null;
-        break;
-      case _sCycleLen:
-        _data.cycleLength = null;
-        break;
-      case _sPeriodLen:
-        _data.periodLength = null;
-        break;
-      case _sSymptomAreas:
-        _data.symptomAreas = {};
-        break;
-      case _sFertility:
-        _data.fertilityPrefs = {};
-        break;
-      case _sPregnancy:
-        _data.isActuallyPregnant = null;
-        break;
-      case _sRepro:
-        _data.contraceptionMethod = null;
-        _data.pregnancyContext = null;
-        break;
-      case _sBirth:
-        _data.birthMonth = null;
-        _birthYearController.clear();
-        break;
-      default:
-        break;
-    }
-    setState(() => _inlineError = null);
   }
 
   Widget _stepShell(
@@ -747,9 +708,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Widget _bottomBar(BuildContext context, ColorScheme colorScheme) {
-    // Column (not Row) so long CTA labels like "Complete onboarding"
-    // never overflow narrow phones: each button is full-width with a
-    // comfortable 48dp+ target.
     return SafeArea(
       top: false,
       child: Padding(
@@ -768,16 +726,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Text(
-                        _currentStep == _sWelcome
-                            ? 'Let\u2019s get started'
-                            : _isLastContent
-                            ? 'Complete onboarding'
-                            : 'Continue',
-                      ),
+                    : const Text('Continue'),
               ),
             ),
-            if (_currentStep != _sWelcome) ...[
+            if (_pos > 0) ...[
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
@@ -793,67 +745,75 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  // ---- Steps ----
-
-  Widget _welcomeStep(BuildContext context) {
+  Widget _selectableCard(
+    BuildContext context, {
+    required bool selected,
+    required String title,
+    String? subtitle,
+    required VoidCallback onTap,
+  }) {
     final theme = Theme.of(context);
-    return _stepShell(
-      context,
-      title: 'Welcome to MenoMate',
-      subtitle:
-          'A safe, supportive space for your menstrual health and beyond.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Center(child: MenoMateLogo(size: 72)),
-          const SizedBox(height: 20),
-          _benefitRow(
-            context,
-            Icons.track_changes_outlined,
-            'Track your cycle',
-          ),
-          _benefitRow(
-            context,
-            Icons.insights_outlined,
-            'Gain personalized insights',
-          ),
-          _benefitRow(context, Icons.spa_outlined, 'Access supportive care'),
-          _benefitRow(context, Icons.favorite_outline, 'Feel more in control'),
-          const SizedBox(height: 12),
-          Text(
-            'One question per screen. Skip where optional.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.secondary,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.outline,
+              width: selected ? 2 : 1,
             ),
+            color: theme.colorScheme.surface,
           ),
-        ],
+          child: Row(
+            children: [
+              Icon(
+                selected ? Icons.check_circle : Icons.circle_outlined,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.secondary,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _benefitRow(BuildContext context, IconData icon, String label) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Icon(icon, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          ),
-        ],
-      ),
-    );
-  }
+  // ---- Steps ----
 
   Widget _nameStep(BuildContext context) {
     return _stepShell(
       context,
       title: 'What should we call you?',
-      subtitle: 'Your name personalizes your Home greeting.',
+      subtitle: 'Your name personalizes your MenoMate space.',
       child: TextField(
         controller: _nameController,
         autofocus: false,
+        textCapitalization: TextCapitalization.words,
         textInputAction: TextInputAction.next,
         decoration: const InputDecoration(
           labelText: 'What should we call you?',
@@ -865,279 +825,36 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  Widget _ageRangeStep(BuildContext context) {
-    return _stepShell(
-      context,
-      title: 'What\u2019s your age range?',
-      subtitle:
-          'Stored only on this device. You can update it in Profile. Optional.',
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final r in kAgeRanges)
-            ChoiceChip(
-              label: Text(r.label),
-              selected: _data.ageRange == r.key,
-              onSelected: (sel) =>
-                  setState(() => _data.ageRange = sel ? r.key : null),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _heightStep(BuildContext context) {
-    final theme = Theme.of(context);
-    return _stepShell(
-      context,
-      title: 'How tall are you?',
-      subtitle: 'Saved on this device for now — sync arrives once the backend supports height. Optional.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: true, label: Text('cm')),
-              ButtonSegment(value: false, label: Text('ft')),
-            ],
-            selected: {_data.heightMetric},
-            onSelectionChanged: (s) =>
-                setState(() => _data.heightMetric = s.first),
-          ),
-          const SizedBox(height: 16),
-          if (_data.heightMetric)
-            DropdownButtonFormField<int>(
-              isExpanded: true,
-              initialValue: _data.heightCm,
-              decoration: const InputDecoration(
-                labelText: 'Height (cm)',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                for (var cm = 140; cm <= 200; cm++)
-                  DropdownMenuItem(value: cm, child: Text('$cm cm')),
-              ],
-              onChanged: (v) => setState(() => _data.heightCm = v ?? 165),
-            )
-          else
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                DropdownButtonFormField<int>(
-                  isExpanded: true,
-                  initialValue: _data.heightFt,
-                  decoration: const InputDecoration(
-                    labelText: 'Feet',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    for (var f = 4; f <= 7; f++)
-                      DropdownMenuItem(value: f, child: Text('$f ft')),
-                  ],
-                  onChanged: (v) => setState(() => _data.heightFt = v ?? 5),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  isExpanded: true,
-                  initialValue: _data.heightIn,
-                  decoration: const InputDecoration(
-                    labelText: 'Inches',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: [
-                    for (var i = 0; i <= 11; i++)
-                      DropdownMenuItem(value: i, child: Text('$i in')),
-                  ],
-                  onChanged: (v) => setState(() => _data.heightIn = v ?? 5),
-                ),
-              ],
-            ),
-          const SizedBox(height: 8),
-          Text(
-            'Backend pending: height has no API field yet.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.secondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _weightStep(BuildContext context) {
-    final theme = Theme.of(context);
-    return _stepShell(
-      context,
-      title: 'How much do you weigh?',
-      subtitle: 'Saved on this device for now — sync arrives once the backend supports weight. Optional.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: true, label: Text('kg')),
-              ButtonSegment(value: false, label: Text('lbs')),
-            ],
-            selected: {_data.weightMetric},
-            onSelectionChanged: (s) =>
-                setState(() => _data.weightMetric = s.first),
-          ),
-          const SizedBox(height: 16),
-          if (_data.weightMetric)
-            DropdownButtonFormField<int>(
-              isExpanded: true,
-              initialValue: _data.weightKg,
-              decoration: const InputDecoration(
-                labelText: 'Weight (kg)',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                for (var kg = 35; kg <= 150; kg++)
-                  DropdownMenuItem(value: kg, child: Text('$kg kg')),
-              ],
-              onChanged: (v) => setState(() => _data.weightKg = v ?? 62),
-            )
-          else
-            DropdownButtonFormField<int>(
-              isExpanded: true,
-              initialValue: _data.weightLbs,
-              decoration: const InputDecoration(
-                labelText: 'Weight (lbs)',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                for (var lb = 77; lb <= 330; lb += 1)
-                  if (lb % 1 == 0)
-                    DropdownMenuItem(value: lb, child: Text('$lb lbs')),
-              ],
-              onChanged: (v) => setState(() => _data.weightLbs = v ?? 137),
-            ),
-          const SizedBox(height: 8),
-          Text(
-            'Backend pending: weight has no API field yet.',
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.secondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Phase 1 multi-select interests ("What brings you to MenoMate?").
-  /// Any subset is valid; empty means skipped. The selection only decides
-  /// which follow-up steps appear — it never changes the backend payload,
-  /// predictions, or modes. Replaces the old single-choice goal step.
+  /// "What brings you to MenoMate?" Multi-select interests. Any subset is
+  /// valid; empty means skipped. Nothing here locks the user into a mode.
   Widget _interestsStep(BuildContext context) {
     return _stepShell(
       context,
       title: 'What brings you to MenoMate?',
       subtitle:
-          'You can choose more than one. You can change these later. Skip for now if you prefer.',
+          'You can choose more than one. You can change these later. Choosing never locks you into a mode.',
       child: Column(
         children: [
           for (final interest in kUserInterests)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () => setState(() {
-                  final next = Set<String>.from(_data.interests);
-                  if (next.contains(interest.key)) {
-                    next.remove(interest.key);
-                  } else {
-                    next.add(interest.key);
-                  }
-                  _data.interests = next;
-                  // Keep follow-ups consistent with the new selection:
-                  // answers for unselected areas are cleared so stale
-                  // preferences can never leak into personalization.
-                  final view = Personalization(interests: next);
-                  if (!view.wantsSymptomAreas) _data.symptomAreas = {};
-                  if (!view.wantsFertilityPrefs) _data.fertilityPrefs = {};
-                  if (!view.wantsPregnancyState) {
-                    _data.isActuallyPregnant = null;
-                  }
-                }),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: _data.interests.contains(interest.key)
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.outline,
-                      width: _data.interests.contains(interest.key) ? 2 : 1,
-                    ),
-                    color: Theme.of(context).colorScheme.surface,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _data.interests.contains(interest.key)
-                            ? Icons.check_circle
-                            : Icons.circle_outlined,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              interest.label,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              interest.description,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .secondary,
-                                  ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Body-awareness follow-up: which areas interest the user. Shown only
-  /// when the body_awareness interest is selected. Interest flags only —
-  /// implies no condition or diagnosis, ever.
-  Widget _symptomAreasStep(BuildContext context) {
-    return _stepShell(
-      context,
-      title: 'Which areas interest you most?',
-      subtitle:
-          'Pick any. This shapes what MenoMate highlights — nothing is diagnosed. Optional.',
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          for (final area in SymptomAreas.all)
-            FilterChip(
-              label: Text(kSymptomAreaLabels[area] ?? area),
-              selected: _data.symptomAreas.contains(area),
-              onSelected: (sel) => setState(() {
-                final next = Set<String>.from(_data.symptomAreas);
-                if (sel) {
-                  next.add(area);
+            _selectableCard(
+              context,
+              selected: _data.interests.contains(interest.key),
+              title: interest.label,
+              subtitle: interest.description,
+              onTap: () => setState(() {
+                final next = Set<String>.from(_data.interests);
+                if (next.contains(interest.key)) {
+                  next.remove(interest.key);
                 } else {
-                  next.remove(area);
+                  next.add(interest.key);
                 }
-                _data.symptomAreas = next;
+                _data.interests = next;
+                final view = Personalization(interests: next);
+                if (!view.wantsSymptomAreas) _data.symptomAreas = {};
+                if (!view.wantsFertilityPrefs) _data.fertilityPrefs = {};
+                if (!view.wantsPregnancyState) {
+                  _data.isActuallyPregnant = null;
+                }
               }),
             ),
         ],
@@ -1145,178 +862,25 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  /// Fertility/TTC follow-up: which signs the user wants to track. Shown
-  /// only when fertility_awareness or trying_to_conceive is selected.
-  /// Pure logging preferences — the backend remains the sole estimator
-  /// and nothing is calculated on this device.
-  Widget _fertilityPrefsStep(BuildContext context) {
-    return _stepShell(
-      context,
-      title: 'Want to track fertility signs?',
-      subtitle:
-          'Pick any. MenoMate only records what you log — estimates always come from the server. Optional.',
-      child: Column(
-        children: [
-          for (final pref in FertilityPrefs.all)
-            CheckboxListTile(
-              value: _data.fertilityPrefs.contains(pref),
-              title: Text(kFertilityPrefLabels[pref] ?? pref),
-              controlAffinity: ListTileControlAffinity.leading,
-              contentPadding: EdgeInsets.zero,
-              onChanged: (sel) => setState(() {
-                final next = Set<String>.from(_data.fertilityPrefs);
-                if (sel == true) {
-                  next.add(pref);
-                } else {
-                  next.remove(pref);
-                }
-                _data.fertilityPrefs = next;
-              }),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Pregnancy STATE question (actual pregnancy?). Shown only when the
-  /// pregnancy interest is selected. An explicit "yes" records the state
-  /// for later phases — nothing is activated automatically here, and
-  /// selecting the interest alone changes nothing.
-  Widget _pregnancyStateStep(BuildContext context) {
-    return _stepShell(
-      context,
-      title: 'Are you currently pregnant?',
-      subtitle:
-          'Only an explicit yes records a pregnancy state. Learning about pregnancy leaves everything unchanged. Optional — Skip if unsure.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final option in [
-            (true, 'Yes, I am pregnant'),
-            (false, 'No, just learning / planning ahead'),
-          ])
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () =>
-                    setState(() => _data.isActuallyPregnant = option.$1),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: _data.isActuallyPregnant == option.$1
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.outline,
-                      width: _data.isActuallyPregnant == option.$1 ? 2 : 1,
-                    ),
-                  ),
-                  child: Text(option.$2),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _regularityStep(BuildContext context) {
-    return _stepShell(
-      context,
-      title: 'Are your periods regular?',
-      subtitle: 'A rough sense is fine. Optional.',
-      child: Column(
-        children: [
-          for (final o in kPeriodRegularityOptions)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () => setState(() => _data.regularityKey = o.$1),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: _data.regularityKey == o.$1
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.outline,
-                      width: _data.regularityKey == o.$1 ? 2 : 1,
-                    ),
-                  ),
-                  child: Text(o.$2),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _cycleLengthStep(BuildContext context) {
-    return _stepShell(
-      context,
-      title: 'Usual cycle length?',
-      subtitle:
-          'Days between period starts (20–45). Leave as Not sure if unsure.',
-      child: Column(
-        children: [
-          DropdownButtonFormField<int?>(
-            isExpanded: true,
-            initialValue: _data.cycleLength,
-            decoration: const InputDecoration(
-              labelText: 'Cycle length',
-              border: OutlineInputBorder(),
-            ),
-            items: [
-              const DropdownMenuItem<int?>(
-                value: null,
-                child: Text('Not sure'),
-              ),
-              for (var d = 20; d <= 45; d++)
-                DropdownMenuItem<int?>(value: d, child: Text('$d days')),
-            ],
-            onChanged: (v) => setState(() => _data.cycleLength = v),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _periodLengthStep(BuildContext context) {
-    return _stepShell(
-      context,
-      title: 'Usual period length?',
-      subtitle: 'Days bleeding lasts (1–12). Leave as Not sure if unsure.',
-      child: DropdownButtonFormField<int?>(
-        isExpanded: true,
-        initialValue: _data.periodLength,
-        decoration: const InputDecoration(
-          labelText: 'Period length',
-          border: OutlineInputBorder(),
-        ),
-        items: [
-          const DropdownMenuItem<int?>(value: null, child: Text('Not sure')),
-          for (var d = 1; d <= 12; d++)
-            DropdownMenuItem<int?>(value: d, child: Text('$d days')),
-        ],
-        onChanged: (v) => setState(() => _data.periodLength = v),
-      ),
-    );
-  }
-
-  Widget _lastPeriodStep(BuildContext context) {
+  /// Baseline cycle information. Last-period start is backend-required;
+  /// everything else accepts "not sure". One screen, no interrogation.
+  Widget _cycleStep(BuildContext context) {
+    final theme = Theme.of(context);
     final fmt = DateFormat.yMMMd();
     return _stepShell(
       context,
-      title: 'When did your last period start?',
-      subtitle: 'Pick the date. If you don\u2019t remember, use today as approximate.',
+      title: 'About your cycle',
+      subtitle:
+          'Just the basics so MenoMate starts in the right place. Unsure about anything? Leave it as not sure.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text(
+            'When did your last period start?',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
           OutlinedButton.icon(
             icon: const Icon(Icons.calendar_today),
             label: Text(
@@ -1356,20 +920,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               ),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _periodStatusStep(BuildContext context) {
-    final fmt = DateFormat.yMMMd();
-    return _stepShell(
-      context,
-      title: 'Has your last period ended?',
-      subtitle: 'Choose Ongoing or pick when it ended.',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+          const SizedBox(height: 8),
           SegmentedButton<PeriodStatus>(
             segments: const [
               ButtonSegment(
@@ -1420,16 +971,241 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               },
             ),
           ],
+          const SizedBox(height: 20),
+          Text(
+            'Usual cycle length',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<int?>(
+            isExpanded: true,
+            initialValue: _data.cycleLength,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('I don\u2019t know'),
+              ),
+              for (var d = 20; d <= 45; d++)
+                DropdownMenuItem<int?>(value: d, child: Text('$d days')),
+            ],
+            onChanged: (v) => setState(() => _data.cycleLength = v),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Usual period length',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<int?>(
+            isExpanded: true,
+            initialValue: _data.periodLength,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              const DropdownMenuItem<int?>(
+                value: null,
+                child: Text('I don\u2019t know'),
+              ),
+              for (var d = 1; d <= 12; d++)
+                DropdownMenuItem<int?>(value: d, child: Text('$d days')),
+            ],
+            onChanged: (v) => setState(() => _data.periodLength = v),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Are your periods generally regular?',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final o in kPeriodRegularityOptions)
+                ChoiceChip(
+                  label: Text(o.$2),
+                  selected: _data.regularityKey == o.$1,
+                  onSelected: (sel) => setState(
+                    () => _data.regularityKey = sel ? o.$1 : null,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            value: _data.tracksElsewhere,
+            title: const Text('I already track my periods elsewhere'),
+            subtitle: const Text(
+              'MenoMate starts fresh — past history isn\u2019t imported.',
+            ),
+            controlAffinity: ListTileControlAffinity.leading,
+            contentPadding: EdgeInsets.zero,
+            onChanged: (v) =>
+                setState(() => _data.tracksElsewhere = v ?? false),
+          ),
         ],
       ),
     );
   }
 
+  /// "What would you like to track?" Categories, not a questionnaire.
+  /// Display hints only — implies nothing medical.
+  Widget _trackingStep(BuildContext context) {
+    return _stepShell(
+      context,
+      title: 'What would you like to track?',
+      subtitle:
+          'Pick the categories you care about. You can adjust these anytime inside the app. Optional.',
+      child: Column(
+        children: [
+          for (final entry in kTrackingCategoryLabels.entries)
+            _selectableCard(
+              context,
+              selected: _data.trackingCategories.contains(entry.key),
+              title: entry.value,
+              onTap: () => setState(() {
+                final next = Set<String>.from(_data.trackingCategories);
+                if (next.contains(entry.key)) {
+                  next.remove(entry.key);
+                } else {
+                  next.add(entry.key);
+                }
+                _data.trackingCategories = next;
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Personalization: conditional symptom/fertility sections plus health
+  /// concerns as context (never diagnoses). Always skippable as a whole.
+  Widget _personalStep(BuildContext context) {
+    final theme = Theme.of(context);
+    final view = Personalization(interests: _data.interests);
+    return _stepShell(
+      context,
+      title: 'Make it yours',
+      subtitle:
+          'A few optional details so MenoMate highlights what matters to you. Skip anything.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (view.wantsSymptomAreas) ...[
+            Text(
+              'Which areas interest you most?',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final area in SymptomAreas.all)
+                  FilterChip(
+                    label: Text(kSymptomAreaLabels[area] ?? area),
+                    selected: _data.symptomAreas.contains(area),
+                    onSelected: (sel) => setState(() {
+                      final next = Set<String>.from(_data.symptomAreas);
+                      if (sel) {
+                        next.add(area);
+                      } else {
+                        next.remove(area);
+                      }
+                      _data.symptomAreas = next;
+                    }),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+          if (view.wantsFertilityPrefs) ...[
+            Text(
+              'Want to track fertility signs?',
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'MenoMate only records what you log — estimates always come from the server.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.secondary,
+              ),
+            ),
+            for (final pref in FertilityPrefs.all)
+              CheckboxListTile(
+                value: _data.fertilityPrefs.contains(pref),
+                title: Text(kFertilityPrefLabels[pref] ?? pref),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                onChanged: (sel) => setState(() {
+                  final next = Set<String>.from(_data.fertilityPrefs);
+                  if (sel == true) {
+                    next.add(pref);
+                  } else {
+                    next.remove(pref);
+                  }
+                  _data.fertilityPrefs = next;
+                }),
+              ),
+            const SizedBox(height: 12),
+          ],
+          Text(
+            'Anything you\u2019d like support with?',
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'These are interests for relevant information — selecting one never means you have a condition and nothing here is a diagnosis.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.secondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final entry in kHealthConcernLabels.entries)
+                FilterChip(
+                  label: Text(entry.value),
+                  selected: _data.healthConcerns.contains(entry.key),
+                  onSelected: (sel) => setState(() {
+                    final next = Set<String>.from(_data.healthConcerns);
+                    if (sel) {
+                      next.add(entry.key);
+                    } else {
+                      next.remove(entry.key);
+                    }
+                    _data.healthConcerns = next;
+                  }),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Reproductive context (backend-supported enums only). Shown when
+  /// fertility/pregnancy interests suggest it. Explicit selections are
+  /// saved for real; blank stays blank. Never derived from interests.
   Widget _reproductiveStep(BuildContext context) {
     return _stepShell(
       context,
       title: 'Relevant reproductive context?',
-      subtitle: 'Saved for real to your health profile when provided. Optional — Skip to continue.',
+      subtitle:
+          'Saved to your health profile when provided. Optional — Skip to continue.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1485,11 +1261,56 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     );
   }
 
-  Widget _birthStep(BuildContext context) {
+  /// Pregnancy STATE (actual pregnancy?). Only an explicit "yes" records
+  /// the state for later phases. Interest alone changes nothing.
+  Widget _pregnancyStateStep(BuildContext context) {
     return _stepShell(
       context,
-      title: 'Birth month & year?',
-      subtitle: 'Optional. Both together or both blank.',
+      title: 'Are you currently pregnant?',
+      subtitle:
+          'Only an explicit yes records a pregnancy state. Learning or planning leaves everything unchanged. Optional — Skip if unsure.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final option in [
+            (true, 'Yes, I am pregnant'),
+            (false, 'No, just learning / planning ahead'),
+          ])
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(14),
+                onTap: () =>
+                    setState(() => _data.isActuallyPregnant = option.$1),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: _data.isActuallyPregnant == option.$1
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.outline,
+                      width: _data.isActuallyPregnant == option.$1 ? 2 : 1,
+                    ),
+                  ),
+                  child: Text(option.$2),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Optional profile basics: birth month/year only (backend-supported).
+  /// Height/weight are intentionally NOT asked: the product does not use
+  /// them, so per ASK NOW / ASK LATER they stay out of first-run.
+  Widget _basicsStep(BuildContext context) {
+    return _stepShell(
+      context,
+      title: 'Just the basics',
+      subtitle: 'Optional. Helps tailor information by life stage.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1497,7 +1318,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             isExpanded: true,
             initialValue: _data.birthMonth,
             decoration: const InputDecoration(
-              labelText: 'Month',
+              labelText: 'Birth month (optional)',
               border: OutlineInputBorder(),
             ),
             items: [
@@ -1517,12 +1338,93 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           TextField(
             controller: _birthYearController,
             decoration: const InputDecoration(
-              labelText: 'Year',
+              labelText: 'Birth year (optional)',
               hintText: 'e.g. 1990',
               border: OutlineInputBorder(),
             ),
             keyboardType: TextInputType.number,
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Ready: personalized-feeling summary + explicit entry. "Enter MenoMate"
+  /// submits onboarding; "Create an account" is a small secondary action
+  /// for local users only (authenticated users already have one).
+  /// Registration is never forced.
+  Widget _readyStep(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final isLocal = ref.watch(isOfflineTrackingProvider);
+    final interestCount = _data.interests.length;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Center(child: MenoMateLogo(size: 72)),
+          const SizedBox(height: 20),
+          Text(
+            'You\u2019re all set, ${_data.name.isEmpty ? 'there' : _data.name}.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            interestCount == 0
+                ? 'Your MenoMate space is ready. As you use it, we\u2019ll learn what matters to you.'
+                : 'Your MenoMate space is ready — tuned for ${interestCount == 1 ? 'your focus' : 'your $interestCount focuses'}. As you use it, we\u2019ll learn what matters to you.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colorScheme.secondary,
+              height: 1.45,
+            ),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _isSubmitting ? null : _submit,
+              child: _isSubmitting
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Enter MenoMate'),
+            ),
+          ),
+          if (_inlineError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _inlineError!,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.error,
+              ),
+            ),
+          ],
+          if (isLocal) ...[
+            const SizedBox(height: 12),
+            Center(
+              child: TextButton(
+                onPressed: _isSubmitting
+                    ? null
+                    : () => context.push('/login'),
+                child: const Text('Create an account to sync your data'),
+              ),
+            ),
+            Text(
+              'Optional — your tracking stays on this device until then.',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.secondary,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -1538,7 +1440,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           const Center(child: MenoMateLogo(size: 72)),
           const SizedBox(height: 20),
           Text(
-            'You\u2019re all set!',
+            'Welcome in!',
             textAlign: TextAlign.center,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
@@ -1546,7 +1448,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'MenoMate is ready to support you. You can always update your information later in Settings.',
+            'Your information is saved. You can always update it later in Settings.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.secondary,
@@ -1597,8 +1499,7 @@ class _ProgressBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 6,
-              semanticsLabel:
-                  'Onboarding progress, step $index of $total',
+              semanticsLabel: 'Onboarding progress, step $index of $total',
             ),
           ),
           const SizedBox(height: 4),

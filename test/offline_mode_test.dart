@@ -362,15 +362,16 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.text('Continue Offline'), findsOneWidget);
-      expect(find.text('Sign In / Create Account'), findsOneWidget);
+      // Primary: start without an account. Secondary: log in.
+      expect(find.text('Get started'), findsOneWidget);
+      expect(find.textContaining('Log in'), findsOneWidget);
       expect(find.textContaining('Guest'), findsNothing);
       expect(find.textContaining('demo'), findsNothing);
       expect(find.textContaining('Try MenoMate'), findsNothing);
       expect(find.textContaining('stays on this device'), findsOneWidget);
     });
 
-    testWidgets('Continue Offline enables offline mode, no account needed', (
+    testWidgets('Get started enables offline mode, no account needed', (
       tester,
     ) async {
       SharedPreferences.setMockInitialValues({});
@@ -393,7 +394,7 @@ void main() {
       // the app, and the transient write may be superseded by it).
       await container.read(offlineModeProvider.future);
       // No Supabase session exists in tests; enabling must still work.
-      await tester.tap(find.text('Continue Offline'));
+      await tester.tap(find.text('Get started'));
       await tester.pump();
       expect(await container.read(offlineModeProvider.future), isTrue);
       expect(container.read(currentUserIdProvider), kOfflineUserId);

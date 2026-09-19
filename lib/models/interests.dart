@@ -153,6 +153,84 @@ const Map<String, String> kFertilityPrefLabels = {
   FertilityPrefs.cervicalObservations: 'Cervical observations',
 };
 
+/// Log categories ("what would you like to track?"). Category flags only:
+/// they decide which logging shortcuts and hints to surface later. They
+/// create no medical conclusions and never change log validation.
+/// LOG vs HOME separation is preserved: these are things the user records;
+/// everything MenoMate interprets (cycle day, estimates, patterns) stays
+/// server-computed and is never logged.
+class TrackingCategories {
+  static const periodFlow = 'period_flow';
+  static const symptoms = 'symptoms';
+  static const mood = 'mood';
+  static const sleepEnergy = 'sleep_energy';
+  static const discharge = 'discharge';
+  static const fertilitySigns = 'fertility_signs';
+  static const lifestyle = 'lifestyle';
+  static const sexualWellbeing = 'sexual_wellbeing';
+
+  static const List<String> all = [
+    periodFlow,
+    symptoms,
+    mood,
+    sleepEnergy,
+    discharge,
+    fertilitySigns,
+    lifestyle,
+    sexualWellbeing,
+  ];
+}
+
+const Map<String, String> kTrackingCategoryLabels = {
+  TrackingCategories.periodFlow: 'Period & flow',
+  TrackingCategories.symptoms: 'Symptoms',
+  TrackingCategories.mood: 'Mood',
+  TrackingCategories.sleepEnergy: 'Sleep & energy',
+  TrackingCategories.discharge: 'Discharge',
+  TrackingCategories.fertilitySigns: 'Fertility signs',
+  TrackingCategories.lifestyle: 'Lifestyle',
+  TrackingCategories.sexualWellbeing: 'Sexual wellbeing',
+};
+
+/// Health concerns for personalization ("what would you like support
+/// with?"). CONCERNS / INTERESTS / CONTEXT — never diagnoses. Selecting
+/// one means the user wants relevant information and logging support; it
+/// never implies the user has the condition, never labels them, and never
+/// drives predictions, phases, or clinical claims. Deliberately separate
+/// from [HealthCondition] records (real backend-supported context).
+class HealthConcerns {
+  static const pcos = 'concern_pcos';
+  static const endometriosis = 'concern_endometriosis';
+  static const fibroids = 'concern_fibroids';
+  static const painfulPeriods = 'concern_painful_periods';
+  static const heavyBleeding = 'concern_heavy_bleeding';
+  static const irregularCycles = 'concern_irregular_cycles';
+  static const hormonal = 'concern_hormonal';
+  static const fertility = 'concern_fertility';
+
+  static const List<String> all = [
+    pcos,
+    endometriosis,
+    fibroids,
+    painfulPeriods,
+    heavyBleeding,
+    irregularCycles,
+    hormonal,
+    fertility,
+  ];
+}
+
+const Map<String, String> kHealthConcernLabels = {
+  HealthConcerns.pcos: 'PCOS',
+  HealthConcerns.endometriosis: 'Endometriosis',
+  HealthConcerns.fibroids: 'Fibroids',
+  HealthConcerns.painfulPeriods: 'Painful periods',
+  HealthConcerns.heavyBleeding: 'Heavy bleeding',
+  HealthConcerns.irregularCycles: 'Irregular cycles',
+  HealthConcerns.hormonal: 'Hormonal concerns',
+  HealthConcerns.fertility: 'Fertility concerns',
+};
+
 /// Local-first personalization snapshot for one tracking identity.
 class Personalization {
   /// Selected interest ids (canonical keys). Empty = skipped, not "none".
@@ -167,6 +245,17 @@ class Personalization {
   /// Fertility/TTC follow-up answers (canonical pref keys).
   final Set<String> fertilityPrefs;
 
+  /// Log categories the user wants to track (canonical category keys).
+  final Set<String> trackingCategories;
+
+  /// Health concerns for personalization (canonical concern keys).
+  /// Concerns only — never diagnoses, never labels, never predictions.
+  final Set<String> healthConcerns;
+
+  /// Whether the user already tracks periods elsewhere (migration hint).
+  /// Informational only; changes nothing about the flow or the payload.
+  final bool tracksElsewhere;
+
   /// Explicit actual-pregnancy answer. Null = unasked/unanswered.
   /// Only an explicit `true` may route to pregnancy mode later.
   final bool? isActuallyPregnant;
@@ -176,6 +265,9 @@ class Personalization {
     this.mode = TrackingMode.cycle,
     Set<String>? symptomAreas,
     Set<String>? fertilityPrefs,
+    Set<String>? trackingCategories,
+    Set<String>? healthConcerns,
+    this.tracksElsewhere = false,
     this.isActuallyPregnant,
   })  : interests = Set.unmodifiable(
           (interests ?? const {}).where(UserInterests.all.contains),
@@ -185,6 +277,13 @@ class Personalization {
         ),
         fertilityPrefs = Set.unmodifiable(
           (fertilityPrefs ?? const {}).where(FertilityPrefs.all.contains),
+        ),
+        trackingCategories = Set.unmodifiable(
+          (trackingCategories ?? const {})
+              .where(TrackingCategories.all.contains),
+        ),
+        healthConcerns = Set.unmodifiable(
+          (healthConcerns ?? const {}).where(HealthConcerns.all.contains),
         );
 
   /// Follow-up sections to ask, derived ONLY from explicit interests.
@@ -208,6 +307,9 @@ class Personalization {
     TrackingMode? mode,
     Set<String>? symptomAreas,
     Set<String>? fertilityPrefs,
+    Set<String>? trackingCategories,
+    Set<String>? healthConcerns,
+    bool? tracksElsewhere,
     bool? isActuallyPregnant,
     bool clearPregnancyAnswer = false,
   }) {
@@ -216,6 +318,9 @@ class Personalization {
       mode: mode ?? this.mode,
       symptomAreas: symptomAreas ?? this.symptomAreas,
       fertilityPrefs: fertilityPrefs ?? this.fertilityPrefs,
+      trackingCategories: trackingCategories ?? this.trackingCategories,
+      healthConcerns: healthConcerns ?? this.healthConcerns,
+      tracksElsewhere: tracksElsewhere ?? this.tracksElsewhere,
       isActuallyPregnant: clearPregnancyAnswer
           ? null
           : (isActuallyPregnant ?? this.isActuallyPregnant),
