@@ -10,6 +10,7 @@ import 'package:menomate_mobile/providers/profile_provider.dart';
 import 'package:menomate_mobile/content/insight_library.dart';
 import 'package:menomate_mobile/screens/tabs/home_tab.dart';
 import 'package:menomate_mobile/widgets/daily_insight_card.dart';
+import 'package:menomate_mobile/widgets/interactive_cycle_ring.dart';
 
 class _FixedProfileNotifier extends ProfileNotifier {
   final DataState<Profile?> fixed;
@@ -22,11 +23,10 @@ class _FixedProfileNotifier extends ProfileNotifier {
 class _FixedInsightNotifier extends DailyInsightNotifier {
   @override
   AsyncValue<InsightPair?> build() => AsyncData<InsightPair?>(
-        selectInsightPair(
-          const InsightInput(
-              hasData: true, phase: 'menstrual', menstrualDay: 2),
-        ),
-      );
+    selectInsightPair(
+      const InsightInput(hasData: true, phase: 'menstrual', menstrualDay: 2),
+    ),
+  );
 }
 
 /// Home cycle card: tracked period/bleeding status is rendered separately
@@ -79,16 +79,16 @@ void main() {
 
     expect(find.text('Period in progress'), findsOneWidget);
     expect(find.text('Day 3'), findsOneWidget);
-    expect(find.text('MENSTRUAL'), findsOneWidget);
+    expect(find.text('Menstrual'), findsOneWidget);
     expect(find.text('Log Period Ended Today'), findsOneWidget);
   });
 
   // 2. Ended-today with menstrual phase: ended status, phase untouched.
-  testWidgets('ended-today cycle keeps MENSTRUAL phase with ended status',
-      (tester) async {
+  testWidgets('ended-today cycle keeps friendly phase with ended status', (
+    tester,
+  ) async {
     final today = DateTime.now();
-    final todayDay =
-        DateTime(today.year, today.month, today.day);
+    final todayDay = DateTime(today.year, today.month, today.day);
     await pumpHome(
       tester,
       Fresh<CurrentCycleResponse?>(
@@ -106,19 +106,19 @@ void main() {
     );
 
     expect(
-      find.text(
-          'Period ended ${DateFormat('MMM d').format(todayDay)} · 1 day'),
+      find.text('Period ended ${DateFormat('MMM d').format(todayDay)} · 1 day'),
       findsOneWidget,
     );
     // No Flutter-side conversion to FOLLICULAR occurred.
-    expect(find.text('MENSTRUAL'), findsOneWidget);
-    expect(find.text('FOLLICULAR'), findsNothing);
+    expect(find.text('Menstrual'), findsOneWidget);
+    expect(find.text('Follicular'), findsNothing);
     expect(find.text('Log Period Started Today'), findsOneWidget);
   });
 
   // 3. Ended cycle with follicular server phase: both unchanged.
-  testWidgets('ended cycle keeps FOLLICULAR phase with ended status',
-      (tester) async {
+  testWidgets('ended cycle keeps friendly phase with ended status', (
+    tester,
+  ) async {
     await pumpHome(
       tester,
       Fresh<CurrentCycleResponse?>(
@@ -136,12 +136,13 @@ void main() {
     );
 
     expect(find.text('Period ended Aug 5 · 5 days'), findsOneWidget);
-    expect(find.text('FOLLICULAR'), findsOneWidget);
+    expect(find.text('Follicular'), findsOneWidget);
   });
 
-  // 4. Ended status and MENSTRUAL phase coexist explicitly.
-  testWidgets('period-ended status and MENSTRUAL render simultaneously',
-      (tester) async {
+  // 4. Ended status and menstrual phase coexist explicitly.
+  testWidgets('period-ended status and phase render simultaneously', (
+    tester,
+  ) async {
     await pumpHome(
       tester,
       Fresh<CurrentCycleResponse?>(
@@ -159,12 +160,13 @@ void main() {
     );
 
     expect(find.text('Period ended Aug 3 · 3 days'), findsOneWidget);
-    expect(find.text('MENSTRUAL'), findsOneWidget);
+    expect(find.text('Menstrual'), findsOneWidget);
   });
 
   // 5. Cached/offline ended state renders without network.
-  testWidgets('cached ended state renders ended status verbatim',
-      (tester) async {
+  testWidgets('cached ended state renders ended status verbatim', (
+    tester,
+  ) async {
     await pumpHome(
       tester,
       Cached<CurrentCycleResponse?>(
@@ -183,10 +185,73 @@ void main() {
     );
 
     expect(find.text('Period ended Aug 3 · 3 days'), findsOneWidget);
-    expect(find.text('MENSTRUAL'), findsOneWidget);
+    expect(find.text('Menstrual'), findsOneWidget);
   });
 
-  // 6. No-data state unchanged, with no invented status line.
+  // 6. Phase info affordance explains estimates without new claims.
+  testWidgets('phase info button opens the phases explainer', (tester) async {
+    await pumpHome(
+      tester,
+      Fresh<CurrentCycleResponse?>(
+        CurrentCycleResponse(
+          hasData: true,
+          currentCycleDay: 12,
+          phase: 'luteal',
+          isBleeding: false,
+          isOngoing: false,
+          latestPeriodStart: DateTime(2026, 8, 1),
+          latestPeriodEnd: DateTime(2026, 8, 5),
+          averageCycleLength: 28,
+          predictionConfidence: 'low',
+        ),
+      ),
+    );
+
+    expect(find.text('Luteal'), findsOneWidget);
+    await tester.tap(find.byTooltip('About cycle phases'));
+    await tester.pumpAndSettle();
+    expect(find.text('About cycle phases'), findsOneWidget);
+    expect(
+      find.textContaining('estimated from your logged history'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Got it'));
+    await tester.pumpAndSettle();
+    expect(find.text('About cycle phases'), findsNothing);
+  });
+
+  // 7. Ring center (phase label + info affordance) survives large text.
+  // Scoped to the ring itself: sibling home cards carry their own
+  // overflow budgets, covered separately at default scale.
+  testWidgets('ring center holds at 2x text scale without overflow', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2000);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
+          child: Scaffold(
+            body: InteractiveCycleRing(
+              phase: 'luteal',
+              currentDay: 12,
+              cycleLength: 28,
+              onPhaseInfoTap: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Luteal'), findsOneWidget);
+    expect(find.byTooltip('About cycle phases'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  // 8. No-data state unchanged, with no invented status line.
   testWidgets('no cycle data keeps existing empty behavior', (tester) async {
     await pumpHome(tester, const NoData<CurrentCycleResponse?>());
 

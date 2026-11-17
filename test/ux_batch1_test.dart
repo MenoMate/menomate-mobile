@@ -28,11 +28,10 @@ class _FixedProfileNotifier extends ProfileNotifier {
 class _FixedInsightNotifier extends DailyInsightNotifier {
   @override
   AsyncValue<InsightPair?> build() => AsyncData<InsightPair?>(
-        selectInsightPair(
-          const InsightInput(
-              hasData: true, phase: 'menstrual', menstrualDay: 2),
-        ),
-      );
+    selectInsightPair(
+      const InsightInput(hasData: true, phase: 'menstrual', menstrualDay: 2),
+    ),
+  );
 }
 
 void _tallViewport(WidgetTester tester) {
@@ -77,8 +76,9 @@ void main() {
   });
 
   // Item 1: no floating therapy control on Home; wearable card stays.
-  testWidgets('Home has no floating therapy action; wearable section stays',
-      (tester) async {
+  testWidgets('Home has no floating therapy action; wearable section stays', (
+    tester,
+  ) async {
     await _pumpHome(
       tester,
       cycle: Fresh<CurrentCycleResponse?>(
@@ -128,50 +128,58 @@ void main() {
         ProviderScope(
           overrides: [
             historySummaryProvider.overrideWith(
-              (ref) => Future.value(Fresh<HistorySummaryResponse>(
-                HistorySummaryResponse(
-                  totalPeriodsLogged: 0,
-                  history: const [],
-                  symptomFrequencies: const {},
+              (ref) => Future.value(
+                Fresh<HistorySummaryResponse>(
+                  HistorySummaryResponse(
+                    totalPeriodsLogged: 0,
+                    history: const [],
+                    symptomFrequencies: const {},
+                  ),
                 ),
-              )),
+              ),
             ),
             cycleListProvider.overrideWith(
-              (ref) => Future.value(Fresh<List<CycleResponse>>([
-                CycleResponse(
-                  id: 1,
-                  userId: 'user-a',
-                  periodStart:
-                      DateTime(now.year, now.month, loggedMid - 1),
-                  periodEnd: DateTime(now.year, now.month, loggedMid + 1),
-                  periodLengthDays: 3,
-                  createdAt: now,
-                  updatedAt: now,
-                ),
-              ])),
+              (ref) => Future.value(
+                Fresh<List<CycleResponse>>([
+                  CycleResponse(
+                    id: 1,
+                    userId: 'user-a',
+                    periodStart: DateTime(now.year, now.month, loggedMid - 1),
+                    periodEnd: DateTime(now.year, now.month, loggedMid + 1),
+                    periodLengthDays: 3,
+                    createdAt: now,
+                    updatedAt: now,
+                  ),
+                ]),
+              ),
             ),
             currentCycleProvider.overrideWith(
-              (ref) => Future.value(Fresh<CurrentCycleResponse?>(
-                CurrentCycleResponse(
-                  hasData: true,
-                  currentCycleDay: now.day,
-                  phase: 'menstrual',
-                  isBleeding: true,
-                  isOngoing: true,
-                  latestPeriodStart:
-                      DateTime(now.year, now.month, loggedMid - 1),
-                  averagePeriodLength: spanLen,
-                  predictedNextPeriod: DateTime(
-                      now.year, now.month, predictedAnchor),
-                  predictionConfidence: 'low',
+              (ref) => Future.value(
+                Fresh<CurrentCycleResponse?>(
+                  CurrentCycleResponse(
+                    hasData: true,
+                    currentCycleDay: now.day,
+                    phase: 'menstrual',
+                    isBleeding: true,
+                    isOngoing: true,
+                    latestPeriodStart: DateTime(
+                      now.year,
+                      now.month,
+                      loggedMid - 1,
+                    ),
+                    averagePeriodLength: spanLen,
+                    predictedNextPeriod: DateTime(
+                      now.year,
+                      now.month,
+                      predictedAnchor,
+                    ),
+                    predictionConfidence: 'low',
+                  ),
                 ),
-              )),
+              ),
             ),
           ],
-          child: MaterialApp(
-            theme: theme,
-            home: const HistoryTab(),
-          ),
+          child: MaterialApp(theme: theme, home: const HistoryTab()),
         ),
       );
       await tester.pumpAndSettle();
@@ -180,17 +188,20 @@ void main() {
     Container decoratedDayCell(WidgetTester tester, String label) {
       final cells = find.ancestor(
         of: find.text(label),
-        matching: find.byWidgetPredicate((w) =>
-            w is Container &&
-            w.decoration is BoxDecoration &&
-            (w.decoration as BoxDecoration).shape == BoxShape.circle),
+        matching: find.byWidgetPredicate(
+          (w) =>
+              w is Container &&
+              w.decoration is BoxDecoration &&
+              (w.decoration as BoxDecoration).shape == BoxShape.circle,
+        ),
       );
       expect(cells, findsOneWidget);
       return tester.widget<Container>(cells);
     }
 
-    testWidgets('light: logged/today/predicted/selected all distinct tokens',
-        (tester) async {
+    testWidgets('light: logged/today/predicted/selected all distinct tokens', (
+      tester,
+    ) async {
       await pumpHistory(tester, theme: MenoMateTheme.sakuraTheme);
       final colors = MenoMateTheme.sakuraTheme.colorScheme;
       final neutral = todayNeutralFill(colors);
@@ -199,15 +210,11 @@ void main() {
       // violet, and identical for cells and the legend dot by construction.
       expect(neutral, isNot(colors.primary));
       expect(neutral, isNot(colors.tertiary));
-      expect(
-        neutral,
-        colors.onSurface.withValues(alpha: 0.10),
-      );
+      expect(neutral, colors.onSurface.withValues(alpha: 0.10));
 
       // TableCalendar must have an explicit selected builder: without it
       // the package-default indigo selected decoration leaks into the app.
-      final calendar =
-          tester.widget<TableCalendar>(find.byType(TableCalendar));
+      final calendar = tester.widget<TableCalendar>(find.byType(TableCalendar));
       expect(calendar.calendarBuilders.selectedBuilder, isNotNull);
 
       // Today is selected by default: neutral fill + onSurface text/rim.
@@ -233,34 +240,36 @@ void main() {
       // Predicted day: tertiary span styling.
       final predictedCell = decoratedDayCell(tester, '$predictedAnchor');
       final predictedDeco = predictedCell.decoration as BoxDecoration;
-      expect(
-        predictedDeco.color,
-        colors.tertiary.withValues(alpha: 0.25),
-      );
+      expect(predictedDeco.color, colors.tertiary.withValues(alpha: 0.25));
 
       // Legend Today dot uses the exact same neutral as today cells:
       // exactly two neutral circles exist (today cell + legend dot),
       // so the three meanings separate without relying on the rim.
       final neutralCircles = tester
           .widgetList<Container>(find.byType(Container))
-          .where((c) =>
-              c.decoration is BoxDecoration &&
-              (c.decoration as BoxDecoration).shape == BoxShape.circle &&
-              (c.decoration as BoxDecoration).color == neutral);
+          .where(
+            (c) =>
+                c.decoration is BoxDecoration &&
+                (c.decoration as BoxDecoration).shape == BoxShape.circle &&
+                (c.decoration as BoxDecoration).color == neutral,
+          );
       expect(neutralCircles.length, 2);
 
       // No package-default indigo anywhere in the subtree.
       const indigoDefault = Color(0xFF5C6BC0);
       final indigoCells = tester
           .widgetList<Container>(find.byType(Container))
-          .where((c) =>
-              c.decoration is BoxDecoration &&
-              (c.decoration as BoxDecoration).color == indigoDefault);
+          .where(
+            (c) =>
+                c.decoration is BoxDecoration &&
+                (c.decoration as BoxDecoration).color == indigoDefault,
+          );
       expect(indigoCells, isEmpty);
     });
 
-    testWidgets('light: selected non-today day keeps token rim styling',
-        (tester) async {
+    testWidgets('light: selected non-today day keeps token rim styling', (
+      tester,
+    ) async {
       await pumpHistory(tester, theme: MenoMateTheme.sakuraTheme);
       final colors = MenoMateTheme.sakuraTheme.colorScheme;
 
@@ -277,8 +286,9 @@ void main() {
       );
     });
 
-    testWidgets('dark: today neutral tracks dark tokens, no indigo',
-        (tester) async {
+    testWidgets('dark: today neutral tracks dark tokens, no indigo', (
+      tester,
+    ) async {
       await pumpHistory(tester, theme: MenoMateTheme.starryNightTheme);
       final colors = MenoMateTheme.starryNightTheme.colorScheme;
       final neutral = todayNeutralFill(colors);
@@ -299,9 +309,11 @@ void main() {
       const indigoDefault = Color(0xFF5C6BC0);
       final indigoCells = tester
           .widgetList<Container>(find.byType(Container))
-          .where((c) =>
-              c.decoration is BoxDecoration &&
-              (c.decoration as BoxDecoration).color == indigoDefault);
+          .where(
+            (c) =>
+                c.decoration is BoxDecoration &&
+                (c.decoration as BoxDecoration).color == indigoDefault,
+          );
       expect(indigoCells, isEmpty);
     });
   });
@@ -313,30 +325,32 @@ void main() {
       ProviderScope(
         overrides: [
           historySummaryProvider.overrideWith(
-            (ref) => Future.value(Fresh<HistorySummaryResponse>(
-              HistorySummaryResponse(
-                totalPeriodsLogged: 2,
-                averageCycleLength: 28,
-                averagePeriodLength: 5,
-                history: [
-                  HistoryPeriodEntry(
-                    id: 1,
-                    periodStart: DateTime(2026, 9, 1),
-                    periodEnd: DateTime(2026, 9, 5),
-                    periodLengthDays: 5,
-                    cycleLengthDays: 28,
-                  ),
-                  HistoryPeriodEntry(
-                    id: 2,
-                    periodStart: DateTime(2026, 9, 12),
-                    periodEnd: DateTime(2026, 9, 12),
-                    periodLengthDays: 1,
-                    cycleLengthDays: 0,
-                  ),
-                ],
-                symptomFrequencies: const {},
+            (ref) => Future.value(
+              Fresh<HistorySummaryResponse>(
+                HistorySummaryResponse(
+                  totalPeriodsLogged: 2,
+                  averageCycleLength: 28,
+                  averagePeriodLength: 5,
+                  history: [
+                    HistoryPeriodEntry(
+                      id: 1,
+                      periodStart: DateTime(2026, 9, 1),
+                      periodEnd: DateTime(2026, 9, 5),
+                      periodLengthDays: 5,
+                      cycleLengthDays: 28,
+                    ),
+                    HistoryPeriodEntry(
+                      id: 2,
+                      periodStart: DateTime(2026, 9, 12),
+                      periodEnd: DateTime(2026, 9, 12),
+                      periodLengthDays: 1,
+                      cycleLengthDays: 0,
+                    ),
+                  ],
+                  symptomFrequencies: const {},
+                ),
               ),
-            )),
+            ),
           ),
           cycleListProvider.overrideWith(
             (ref) => Future.value(const Fresh<List<CycleResponse>>([])),
@@ -366,10 +380,7 @@ void main() {
       find.text('Period: 5 days  ·  Cycle Interval: 28 days'),
       findsOneWidget,
     );
-    expect(
-      find.text('Period: 1 day  ·  Cycle Interval: –'),
-      findsOneWidget,
-    );
+    expect(find.text('Period: 1 day  ·  Cycle Interval: –'), findsOneWidget);
 
     await tester.tap(find.text('Calendar'));
     await tester.pumpAndSettle();
@@ -378,8 +389,9 @@ void main() {
   });
 
   // Item 5: exactly one Care prompt system with canonical wording.
-  testWidgets('Care shows one canonical prompt set, no duplicate bar',
-      (tester) async {
+  testWidgets('Care shows one canonical prompt set, no duplicate bar', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const ProviderScope(child: MaterialApp(home: AssistantTab())),
     );
@@ -396,7 +408,12 @@ void main() {
     // Orphan fifth prompt gone.
     expect(find.text('Prepare for my next period'), findsNothing);
     // Removed bottom-bar wordings gone.
-    for (final label in ['Cycle insight', 'Pain help', 'Patterns', 'Next period']) {
+    for (final label in [
+      'Cycle insight',
+      'Pain help',
+      'Patterns',
+      'Next period',
+    ]) {
       expect(find.text(label), findsNothing);
     }
   });
@@ -422,8 +439,9 @@ void main() {
   });
 
   // Item 6+7(test 7): compact prediction line, subtle suffix, values intact.
-  testWidgets('Home prediction is one compact line with subtle suffix',
-      (tester) async {
+  testWidgets('Home prediction is one compact line with subtle suffix', (
+    tester,
+  ) async {
     await _pumpHome(
       tester,
       cycle: Fresh<CurrentCycleResponse?>(
@@ -445,7 +463,7 @@ void main() {
 
     // Dominant hero unchanged.
     expect(find.text('Day 5'), findsOneWidget);
-    expect(find.text('LUTEAL'), findsOneWidget);
+    expect(find.text('Luteal'), findsOneWidget);
     // One compact line; confidence demoted to suffix text.
     expect(
       find.textContaining('Next period: Oct 2 (in ~20 days)'),
@@ -499,10 +517,11 @@ void main() {
       c.read(dailyInsightProvider);
     }
 
-    test('single local resolution reused across rebuilds and churn',
-        () async {
+    test('single local resolution reused across rebuilds and churn', () async {
       final container = makeContainer(
-        Fresh<CurrentCycleResponse?>(cycleFor(phase: 'menstrual', day: 2, bleeding: true)),
+        Fresh<CurrentCycleResponse?>(
+          cycleFor(phase: 'menstrual', day: 2, bleeding: true),
+        ),
       );
       addTearDown(container.dispose);
 
@@ -517,49 +536,47 @@ void main() {
 
       // Rebuilds/re-reads never re-resolve.
       await settleReads(container);
-      expect(
-        identical(container.read(dailyInsightProvider), first),
-        isTrue,
-      );
+      expect(identical(container.read(dailyInsightProvider), first), isTrue);
 
       // Even invalidating the cycle provider (pull-to-refresh path)
       // does not re-resolve the insight.
       container.invalidate(currentCycleProvider);
       await settleReads(container);
-      expect(
-        identical(container.read(dailyInsightProvider), first),
-        isTrue,
-      );
+      expect(identical(container.read(dailyInsightProvider), first), isTrue);
     });
 
-    test('resolution follows the served context, refresh re-resolves',
-        () async {
-      final container = makeContainer(
-        Fresh<CurrentCycleResponse?>(cycleFor(phase: 'luteal')),
-      );
-      addTearDown(container.dispose);
+    test(
+      'resolution follows the served context, refresh re-resolves',
+      () async {
+        final container = makeContainer(
+          Fresh<CurrentCycleResponse?>(cycleFor(phase: 'luteal')),
+        );
+        addTearDown(container.dispose);
 
-      await settleReads(container);
-      final state = container.read(dailyInsightProvider);
-      expect(state, isA<AsyncData<InsightPair?>>());
-      expect(
-        (state as AsyncData<InsightPair?>).value?.action.body,
-        contains('magnesium-rich'),
-      );
+        await settleReads(container);
+        final state = container.read(dailyInsightProvider);
+        expect(state, isA<AsyncData<InsightPair?>>());
+        expect(
+          (state as AsyncData<InsightPair?>).value?.action.body,
+          contains('magnesium-rich'),
+        );
 
-      // Explicit refresh still works (re-resolution path intact).
-      await container.read(dailyInsightProvider.notifier).refresh();
-      await settleReads(container);
-      expect(
-        container.read(dailyInsightProvider),
-        isA<AsyncData<InsightPair?>>(),
-      );
-    });
+        // Explicit refresh still works (re-resolution path intact).
+        await container.read(dailyInsightProvider.notifier).refresh();
+        await settleReads(container);
+        expect(
+          container.read(dailyInsightProvider),
+          isA<AsyncData<InsightPair?>>(),
+        );
+      },
+    );
 
     test('cycle read failure still yields the safe fallback pair', () async {
       final container = ProviderContainer(
         overrides: [
-          currentCycleProvider.overrideWith((ref) => Future<DataState<CurrentCycleResponse?>>.error('offline')),
+          currentCycleProvider.overrideWith(
+            (ref) => Future<DataState<CurrentCycleResponse?>>.error('offline'),
+          ),
         ],
       );
       addTearDown(container.dispose);

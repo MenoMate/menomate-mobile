@@ -2,6 +2,16 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "MenoMate (Prod Backend)",
+      "request": "launch",
+      "type": "dart",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=https://menomate-api.onrender.com",
+        "--dart-define=SUPABASE_URL=https://gtqkccbklagczhirsemc.supabase.co",
+        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_aUn-thS94erjuftTje_KlQ_Nuz38Qb6"
+      ]
+    },
+    {
       "name": "MenoMate (Web Server - Recommended)",
       "request": "launch",
       "type": "dart",
@@ -10,6 +20,11 @@
         "web-server",
         "--web-port",
         "8080"
+      ],
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=https://menomate-api.onrender.com",
+        "--dart-define=SUPABASE_URL=https://gtqkccbklagczhirsemc.supabase.co",
+        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_aUn-thS94erjuftTje_KlQ_Nuz38Qb6"
       ]
     },
     {
@@ -19,6 +34,11 @@
       "args": [
         "-d",
         "chrome"
+      ],
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=https://menomate-api.onrender.com",
+        "--dart-define=SUPABASE_URL=https://gtqkccbklagczhirsemc.supabase.co",
+        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_aUn-thS94erjuftTje_KlQ_Nuz38Qb6"
       ]
     },
     {
@@ -28,6 +48,11 @@
       "args": [
         "-d",
         "edge"
+      ],
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=https://menomate-api.onrender.com",
+        "--dart-define=SUPABASE_URL=https://gtqkccbklagczhirsemc.supabase.co",
+        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_aUn-thS94erjuftTje_KlQ_Nuz38Qb6"
       ]
     },
     {
@@ -37,6 +62,11 @@
       "args": [
         "-d",
         "windows"
+      ],
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=https://menomate-api.onrender.com",
+        "--dart-define=SUPABASE_URL=https://gtqkccbklagczhirsemc.supabase.co",
+        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_aUn-thS94erjuftTje_KlQ_Nuz38Qb6"
       ]
     }
   ]

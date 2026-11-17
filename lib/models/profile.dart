@@ -5,9 +5,16 @@ class Profile {
   final int? usualPeriodDays;
   final String? theme;
   final String? units;
+
   /// Canonical IANA timezone identifier (e.g. "Asia/Kolkata"), null for
   /// legacy users until the device syncs it. See core/device_timezone.dart.
   final String? timezone;
+
+  /// Month/year precision only — the app never asks for or stores a birth
+  /// day. Null pair means "not provided"; see validateBirthPair in
+  /// models/health_context.dart (mirrors the backend pair contract).
+  final int? birthYear;
+  final int? birthMonth;
 
   Profile({
     required this.userId,
@@ -17,6 +24,8 @@ class Profile {
     this.theme,
     this.units,
     this.timezone,
+    this.birthYear,
+    this.birthMonth,
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) {
@@ -28,6 +37,8 @@ class Profile {
       theme: json['theme'] as String?,
       units: json['units'] as String?,
       timezone: json['timezone'] as String?,
+      birthYear: (json['birth_year'] as num?)?.toInt(),
+      birthMonth: (json['birth_month'] as num?)?.toInt(),
     );
   }
 
@@ -40,6 +51,8 @@ class Profile {
       'theme': theme,
       'units': units,
       'timezone': timezone,
+      'birth_year': birthYear,
+      'birth_month': birthMonth,
     };
   }
 }

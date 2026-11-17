@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
 import '../data/app_database.dart';
 import '../data/sync_policy.dart';
 import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
+import '../providers/offline_mode_provider.dart';
 
 class PeriodTrackerButton extends ConsumerStatefulWidget {
   final bool isOngoing;
@@ -20,7 +22,8 @@ class PeriodTrackerButton extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<PeriodTrackerButton> createState() => _PeriodTrackerButtonState();
+  ConsumerState<PeriodTrackerButton> createState() =>
+      _PeriodTrackerButtonState();
 }
 
 class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
@@ -41,19 +44,24 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
 
     try {
       final userId = ref.read(currentUserIdProvider);
+      final offline = ref.read(isOfflineTrackingProvider);
       if (userId == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('Signed out. Please sign in again.')),
+              content: Text('Sign in or continue offline to log your period.'),
+            ),
           );
         }
         return;
       }
 
       final repo = ref.read(cycleRepositoryProvider);
-      final result =
-          await repo.startPeriod(userId, toIsoDate(DateTime.now()));
+      final result = await repo.startPeriod(
+        userId,
+        toIsoDate(DateTime.now()),
+        localOnly: offline,
+      );
 
       refreshAllAppData(ref);
 
@@ -65,8 +73,7 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
           Unavailable(message: final m) => m,
           _ => base,
         };
-        final isError =
-            result is ConflictState || result is Unavailable;
+        final isError = result is ConflictState || result is Unavailable;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
@@ -105,11 +112,13 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
 
     try {
       final userId = ref.read(currentUserIdProvider);
+      final offline = ref.read(isOfflineTrackingProvider);
       if (userId == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('Signed out. Please sign in again.')),
+              content: Text('Sign in or continue offline to log your period.'),
+            ),
           );
         }
         return;
@@ -118,7 +127,11 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
       // Local-first: the action is stored immediately and pushed when
       // reachable, so an offline tap is never lost.
       final repo = ref.read(cycleRepositoryProvider);
-      final result = await repo.endOngoingPeriod(userId, isoDate);
+      final result = await repo.endOngoingPeriod(
+        userId,
+        isoDate,
+        localOnly: offline,
+      );
 
       refreshAllAppData(ref);
 
@@ -132,8 +145,7 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
           Unavailable(message: final m) => m,
           _ => base,
         };
-        final isError =
-            result is ConflictState || result is Unavailable;
+        final isError = result is ConflictState || result is Unavailable;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
@@ -201,11 +213,20 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
                   )
-                : Icon(widget.isOngoing ? Icons.stop_circle_rounded : Icons.water_drop_rounded),
+                : Icon(
+                    widget.isOngoing
+                        ? Icons.stop_circle_rounded
+                        : Icons.water_drop_rounded,
+                  ),
             label: Text(
-              widget.isOngoing ? 'Log Period Ended Today' : 'Log Period Started Today',
+              widget.isOngoing
+                  ? 'Log Period Ended Today'
+                  : 'Log Period Started Today',
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(
@@ -218,8 +239,7 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
               foregroundColor: widget.isOngoing
                   ? Theme.of(context).colorScheme.onPrimaryContainer
                   : Colors.white,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),

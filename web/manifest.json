@@ -1,11 +1,11 @@
 {
-    "name": "menomate_mobile",
-    "short_name": "menomate_mobile",
+    "name": "MenoMate",
+    "short_name": "MenoMate",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FDFAF6",
+    "theme_color": "#E88FA8",
+    "description": "MenoMate — cycle tracking, daily logging, and cycle insights.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

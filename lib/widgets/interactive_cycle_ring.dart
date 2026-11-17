@@ -1,5 +1,8 @@
 import 'dart:math';
+
 import 'package:flutter/material.dart';
+
+import '../core/format.dart';
 import '../core/theme.dart';
 
 class InteractiveCycleRing extends StatelessWidget {
@@ -7,11 +10,16 @@ class InteractiveCycleRing extends StatelessWidget {
   final int currentDay;
   final int cycleLength;
 
+  /// Optional "about phases" affordance shown beside the phase label.
+  /// Null renders the label alone (e.g. in tests or static previews).
+  final VoidCallback? onPhaseInfoTap;
+
   const InteractiveCycleRing({
     super.key,
     required this.phase,
     required this.currentDay,
     required this.cycleLength,
+    this.onPhaseInfoTap,
   });
 
   @override
@@ -19,11 +27,15 @@ class InteractiveCycleRing extends StatelessWidget {
     // Calm pastel phase ramp from the shared theme tokens (never neon
     // accents); the track follows the theme outline in both modes.
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final phaseColor =
-        MenoMateTheme.ringPhaseColor(isDark: isDark, phase: phase);
+    final phaseColor = MenoMateTheme.ringPhaseColor(
+      isDark: isDark,
+      phase: phase,
+    );
 
     // Safely calculate progress between 0.0 and 1.0
-    final progress = cycleLength > 0 ? (currentDay / cycleLength).clamp(0.0, 1.0) : 0.0;
+    final progress = cycleLength > 0
+        ? (currentDay / cycleLength).clamp(0.0, 1.0)
+        : 0.0;
 
     return Center(
       child: Container(
@@ -40,28 +52,56 @@ class InteractiveCycleRing extends StatelessWidget {
             backgroundColor: phaseColor.withValues(alpha: 0.14),
           ),
           child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Day $currentDay',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).colorScheme.onSurface,
+            // Graceful at large text scales: shrink the hero content
+            // instead of clipping it. Identical rendering at 1x.
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Day $currentDay',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  phase.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: phaseColor,
-                    letterSpacing: 1.2,
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          formatPhaseLabel(phase),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: phaseColor,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
+                      ),
+                      if (onPhaseInfoTap != null)
+                        IconButton(
+                          icon: const Icon(Icons.info_outline),
+                          iconSize: 18,
+                          tooltip: 'About cycle phases',
+                          color: phaseColor,
+                          // Shrink-wrapped so the row survives large text
+                          // scales; the tooltip keeps it discoverable.
+                          style: IconButton.styleFrom(
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            padding: const EdgeInsets.all(8),
+                          ),
+                          onPressed: onPhaseInfoTap,
+                        ),
+                    ],
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

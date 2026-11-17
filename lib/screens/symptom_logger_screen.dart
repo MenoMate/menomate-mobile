@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+
 import '../data/sync_policy.dart';
 import '../core/theme.dart';
 import '../models/daily_log.dart';
 import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
+import '../providers/offline_mode_provider.dart';
 import '../widgets/offline_banner.dart';
 
 class SymptomLoggerScreen extends ConsumerStatefulWidget {
@@ -19,7 +21,8 @@ class SymptomLoggerScreen extends ConsumerStatefulWidget {
   const SymptomLoggerScreen({super.key, this.initialDate});
 
   @override
-  ConsumerState<SymptomLoggerScreen> createState() => _SymptomLoggerScreenState();
+  ConsumerState<SymptomLoggerScreen> createState() =>
+      _SymptomLoggerScreenState();
 }
 
 class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
@@ -50,13 +53,22 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
 
   /// Canonical mood vocabulary (backend MoodEnum). Order is display order.
   static const List<String> _moodOptions = [
-    'happy', 'calm', 'neutral', 'sad', 'irritable', 'anxious', 'tired'
+    'happy',
+    'calm',
+    'neutral',
+    'sad',
+    'irritable',
+    'anxious',
+    'tired',
   ];
 
   /// Single-selection flow (backend FlowEnum minus the retired `none`:
   /// unselected now means "not recorded").
   static const List<String> _flowOptions = [
-    'spotting', 'light', 'medium', 'heavy'
+    'spotting',
+    'light',
+    'medium',
+    'heavy',
   ];
 
   late String _dateString;
@@ -75,13 +87,14 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
 
   Future<void> _loadDailyLog() async {
     final userId = ref.read(currentUserIdProvider);
-    DataState<DailyLogResponse?> state =
-        const Unavailable('Signed out.');
+    final offline = ref.read(isOfflineTrackingProvider);
+    DataState<DailyLogResponse?> state = const Unavailable('Signed out.');
     if (userId != null) {
       try {
-        state = await ref
-            .read(dailyLogRepositoryProvider)
-            .loadLog(userId, _dateString);
+        final repo = ref.read(dailyLogRepositoryProvider);
+        state = offline
+            ? await repo.loadLogLocal(userId, _dateString)
+            : await repo.loadLog(userId, _dateString);
       } catch (_) {
         state = const Unavailable('Couldn\'t load this log.');
       }
@@ -111,7 +124,8 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
         _severities
           ..clear()
           ..addEntries(
-              log.symptoms.map((s) => MapEntry(s.symptomType, s.severity)));
+            log.symptoms.map((s) => MapEntry(s.symptomType, s.severity)),
+          );
         _notesController.text = log.notes ?? '';
       }
       _isLoading = false;
@@ -138,9 +152,12 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
 
   Future<void> _saveLog() async {
     final userId = ref.read(currentUserIdProvider);
+    final offline = ref.read(isOfflineTrackingProvider);
     if (userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Signed out. Please sign in again.')),
+        const SnackBar(
+          content: Text('Sign in or continue offline to save your log.'),
+        ),
       );
       return;
     }
@@ -154,7 +171,10 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
       // Canonical order keeps the stored array deterministic.
       mood: _moods.isEmpty
           ? null
-          : [for (final m in _moodOptions) if (_moods.contains(m)) m],
+          : [
+              for (final m in _moodOptions)
+                if (_moods.contains(m)) m,
+            ],
       flow: _flow,
       discharge: _discharge,
       notes: _notesController.text.isNotEmpty ? _notesController.text : null,
@@ -172,7 +192,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     try {
       result = await ref
           .read(dailyLogRepositoryProvider)
-          .saveLog(userId, payload);
+          .saveLog(userId, payload, localOnly: offline);
     } catch (_) {
       result = const Unavailable('Couldn\'t save right now.');
     }
@@ -196,22 +216,19 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     switch (result) {
       case Fresh():
         refreshAllAppData(ref);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Daily log saved')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Daily log saved')));
       case PendingSync():
         refreshAllAppData(ref);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Saved on this device')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Saved on this device')));
       case ConflictState(message: final m):
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Saved on this device, needs review: $m')),
         );
       case Unavailable(message: final m):
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(m)),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
       case NoData():
       case Cached():
         refreshAllAppData(ref);
@@ -227,9 +244,7 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     final colorScheme = Theme.of(context).colorScheme;
@@ -238,8 +253,9 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     // both modes. Category meaning lives in the section icon, not in
     // per-category selection colors.
     final selectedFill = MenoMateTheme.interactionColor(isDark);
-    final cycleAccent =
-        isDark ? MenoMateTheme.starryPrimary : MenoMateTheme.sakuraPrimaryDark;
+    final cycleAccent = isDark
+        ? MenoMateTheme.starryPrimary
+        : MenoMateTheme.sakuraPrimaryDark;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -252,7 +268,10 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
         ),
         title: Text(
           'Daily Check-In',
-          style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: colorScheme.onSurface,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ),
       body: SingleChildScrollView(
@@ -275,7 +294,12 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
 
             _buildGroupLabel('Cycle', context),
             const SizedBox(height: 12),
-            _buildFieldLabel(context, Icons.water_drop_outlined, 'Menstrual flow', cycleAccent),
+            _buildFieldLabel(
+              context,
+              Icons.water_drop_outlined,
+              'Menstrual flow',
+              cycleAccent,
+            ),
             const SizedBox(height: 8),
             _buildChipWrap<String>(
               values: _flowOptions,
@@ -287,7 +311,12 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
               selectedFill: selectedFill,
             ),
             const SizedBox(height: 16),
-            _buildFieldLabel(context, Icons.opacity_outlined, 'Discharge', cycleAccent),
+            _buildFieldLabel(
+              context,
+              Icons.opacity_outlined,
+              'Discharge',
+              cycleAccent,
+            ),
             const SizedBox(height: 8),
             _buildChipWrap<DischargeOption>(
               values: kDischargeOptions,
@@ -301,7 +330,12 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
 
             _buildGroupLabel('Wellbeing', context),
             const SizedBox(height: 12),
-            _buildFieldLabel(context, Icons.sentiment_satisfied_outlined, 'Mood', null),
+            _buildFieldLabel(
+              context,
+              Icons.sentiment_satisfied_outlined,
+              'Mood',
+              null,
+            ),
             const SizedBox(height: 8),
             _buildChipWrap<String>(
               values: _moodOptions,
@@ -332,7 +366,9 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
             ),
             if (_symptoms.isNotEmpty) ...[
               const SizedBox(height: 8),
-              for (final sym in kLoggableSymptoms.where((s) => _symptoms.contains(s.id)))
+              for (final sym in kLoggableSymptoms.where(
+                (s) => _symptoms.contains(s.id),
+              ))
                 _buildSeverityRow(sym, context, selectedFill),
             ],
             const SizedBox(height: 16),
@@ -352,7 +388,10 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
                 else
                   Text(
                     'Not logged',
-                    style: TextStyle(fontSize: 12, color: colorScheme.secondary),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colorScheme.secondary,
+                    ),
                   ),
                 if (_pain != null)
                   TextButton(
@@ -407,8 +446,15 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
               child: ElevatedButton(
                 onPressed: _isSaving ? null : _saveLog,
                 child: _isSaving
-                  ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('Save Log'),
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text('Save Log'),
               ),
             ),
           ],
@@ -472,32 +518,39 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
       runSpacing: 8,
       children: [
         for (final value in values)
-          Builder(builder: (context) {
-            final selected = isSelected(value);
-            return GestureDetector(
-              onTap: () => onTap(value),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 150),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: selected ? selectedFill : colorScheme.surface,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: selected ? selectedFill : colorScheme.outline,
-                    width: selected ? 1.5 : 1,
+          Builder(
+            builder: (context) {
+              final selected = isSelected(value);
+              return GestureDetector(
+                onTap: () => onTap(value),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: selected ? selectedFill : colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: selected ? selectedFill : colorScheme.outline,
+                      width: selected ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Text(
+                    labelOf(value),
+                    style: TextStyle(
+                      color: selected ? Colors.white : colorScheme.onSurface,
+                      fontWeight: selected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
-                child: Text(
-                  labelOf(value),
-                  style: TextStyle(
-                    color: selected ? Colors.white : colorScheme.onSurface,
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-            );
-          }),
+              );
+            },
+          ),
       ],
     );
   }

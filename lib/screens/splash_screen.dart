@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../data/sync_policy.dart';
 import '../models/profile.dart';
 import '../providers/profile_provider.dart';
+import '../widgets/menomate_logo.dart';
 
 class SplashScreen extends ConsumerWidget {
   const SplashScreen({super.key});
@@ -25,6 +27,8 @@ class SplashScreen extends ConsumerWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                const MenoMateBrandLogo(size: 64),
+                const SizedBox(height: 20),
                 Icon(
                   Icons.cloud_off_rounded,
                   size: 56,
@@ -55,7 +59,10 @@ class SplashScreen extends ConsumerWidget {
                   icon: const Icon(Icons.refresh_rounded),
                   label: const Text('Retry'),
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
                   ),
                 ),
               ],
@@ -67,7 +74,14 @@ class SplashScreen extends ConsumerWidget {
 
     return const Scaffold(
       body: Center(
-        child: CircularProgressIndicator(),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            MenoMateBrandLogo(size: 72),
+            SizedBox(height: 24),
+            CircularProgressIndicator(),
+          ],
+        ),
       ),
     );
   }

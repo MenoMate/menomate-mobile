@@ -10,6 +10,14 @@ import '../models/care.dart';
 /// - info → normal user/assistant bubbles.
 /// Actions route on semantic [CareAction.id] via the [onAction] callback;
 /// labels are display-only and never matched.
+///
+/// Every assistant message carries a short limitation footer: the backend
+/// `disclaimer` when provided, otherwise a safe default. The footer also
+/// notes whether the reply is AI-generated or from the local library, so
+/// Care is never mistaken for a clinician.
+const _defaultCareDisclaimer =
+    'General wellness information only — not medical advice.';
+
 class CareMessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
   final bool bleConnected;
@@ -30,6 +38,16 @@ class CareMessageBubble extends StatelessWidget {
         (message['actions'] as List<CareAction>?) ?? const [];
     final String? therapyProfile = message['therapyProfile'] as String?;
     final String tier = message['tier'] as String? ?? 'info';
+    // Limitation footer for every assistant message. Connectivity notices
+    // carry no intent, so they get the disclaimer without a source label.
+    final String rawDisclaimer = message['disclaimer'] as String? ?? '';
+    final String disclaimer = rawDisclaimer.trim().isEmpty
+        ? _defaultCareDisclaimer
+        : rawDisclaimer.trim();
+    final bool? isAi = message['isAi'] as bool?;
+    final String? sourceLabel = message['intent'] == null
+        ? null
+        : (isAi == true ? 'AI-generated' : 'MenoMate library');
 
     if (!isUser && tier == 'urgent') {
       return _buildTierCard(
@@ -43,6 +61,8 @@ class CareMessageBubble extends StatelessWidget {
         icon: Icons.warning_amber_rounded,
         chipBackground: Colors.redAccent,
         chipForeground: Colors.white,
+        disclaimer: disclaimer,
+        sourceLabel: sourceLabel,
       );
     }
 
@@ -58,6 +78,8 @@ class CareMessageBubble extends StatelessWidget {
         icon: Icons.info_outline,
         chipBackground: Colors.orange.shade700,
         chipForeground: Colors.white,
+        disclaimer: disclaimer,
+        sourceLabel: sourceLabel,
       );
     }
 
@@ -68,13 +90,19 @@ class CareMessageBubble extends StatelessWidget {
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
         margin: const EdgeInsets.symmetric(vertical: 6),
-        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.82),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.82,
+        ),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: isUser ? colorScheme.primary : colorScheme.surface,
           borderRadius: BorderRadius.circular(18).copyWith(
-            bottomRight: isUser ? const Radius.circular(2) : const Radius.circular(18),
-            bottomLeft: isUser ? const Radius.circular(18) : const Radius.circular(2),
+            bottomRight: isUser
+                ? const Radius.circular(2)
+                : const Radius.circular(18),
+            bottomLeft: isUser
+                ? const Radius.circular(18)
+                : const Radius.circular(2),
           ),
           border: isUser ? null : Border.all(color: colorScheme.outline),
           boxShadow: [
@@ -114,18 +142,61 @@ class CareMessageBubble extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 6,
                 children: actions
-                    .map((action) => ActionChip(
-                          label: Text(action.label, style: const TextStyle(fontSize: 11)),
-                          backgroundColor: colorScheme.primary.withValues(alpha: 0.1),
-                          side: BorderSide(color: colorScheme.primary.withValues(alpha: 0.3)),
-                          labelStyle: TextStyle(color: colorScheme.primary, fontWeight: FontWeight.w600),
-                          onPressed: () => onAction(action),
-                        ))
+                    .map(
+                      (action) => ActionChip(
+                        label: Text(
+                          action.label,
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        backgroundColor: colorScheme.primary.withValues(
+                          alpha: 0.1,
+                        ),
+                        side: BorderSide(
+                          color: colorScheme.primary.withValues(alpha: 0.3),
+                        ),
+                        labelStyle: TextStyle(
+                          color: colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        onPressed: () => onAction(action),
+                      ),
+                    )
                     .toList(),
+              ),
+            ],
+
+            // Limitation footer (assistant messages only).
+            if (!isUser) ...[
+              const SizedBox(height: 10),
+              _buildDisclaimerFooter(
+                context,
+                disclaimer: disclaimer,
+                sourceLabel: sourceLabel,
               ),
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// Small, quiet limitation line. Never styled as a clinical endorsement:
+  /// secondary ink, no emphasis, no doctor-like framing.
+  Widget _buildDisclaimerFooter(
+    BuildContext context, {
+    required String disclaimer,
+    required String? sourceLabel,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final text = sourceLabel == null
+        ? disclaimer
+        : '$sourceLabel · $disclaimer';
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 11,
+        height: 1.35,
+        color: colorScheme.secondary.withValues(alpha: 0.85),
       ),
     );
   }
@@ -141,6 +212,8 @@ class CareMessageBubble extends StatelessWidget {
     required IconData icon,
     required Color chipBackground,
     required Color chipForeground,
+    String? disclaimer,
+    String? sourceLabel,
   }) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -148,7 +221,10 @@ class CareMessageBubble extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withValues(alpha: backgroundAlpha),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: borderAlpha), width: 1.5),
+        border: Border.all(
+          color: color.withValues(alpha: borderAlpha),
+          width: 1.5,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,27 +235,43 @@ class CareMessageBubble extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13),
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            text,
-            style: TextStyle(color: color, fontSize: 13, height: 1.4),
-          ),
+          Text(text, style: TextStyle(color: color, fontSize: 13, height: 1.4)),
           if (actions.isNotEmpty) ...[
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               children: actions
-                  .map((action) => ActionChip(
-                        label: Text(action.label,
-                            style: TextStyle(color: chipForeground, fontSize: 12)),
-                        backgroundColor: chipBackground,
-                        onPressed: () => onAction(action),
-                      ))
+                  .map(
+                    (action) => ActionChip(
+                      label: Text(
+                        action.label,
+                        style: TextStyle(color: chipForeground, fontSize: 12),
+                      ),
+                      backgroundColor: chipBackground,
+                      onPressed: () => onAction(action),
+                    ),
+                  )
                   .toList(),
+            ),
+          ],
+          if (disclaimer != null && disclaimer.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              sourceLabel == null ? disclaimer : '$sourceLabel · $disclaimer',
+              style: TextStyle(
+                color: color.withValues(alpha: 0.9),
+                fontSize: 11,
+                height: 1.35,
+              ),
             ),
           ],
         ],
@@ -217,7 +309,10 @@ class CareMessageBubble extends StatelessWidget {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.grey.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(10),
@@ -241,14 +336,22 @@ class CareMessageBubble extends StatelessWidget {
                 const Spacer(),
                 TextButton.icon(
                   onPressed: () => onAction(
-                    const CareAction(id: 'connect_wearable', label: 'Connect Wearable'),
+                    const CareAction(
+                      id: 'connect_wearable',
+                      label: 'Connect Wearable',
+                    ),
                   ),
                   icon: const Icon(Icons.bluetooth_searching, size: 16),
-                  label: const Text('Connect Wearable',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  label: const Text(
+                    'Connect Wearable',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                   ),
                 ),
               ],
@@ -279,17 +382,21 @@ class CareMessageBubble extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ElevatedButton.icon(
-            onPressed: () => onAction(CareAction(
-              id: 'view_therapy',
-              label: 'Start $profileCapitalized Thermal Therapy',
-            )),
+            onPressed: () => onAction(
+              CareAction(
+                id: 'view_therapy',
+                label: 'Start $profileCapitalized Thermal Therapy',
+              ),
+            ),
             icon: const Icon(Icons.waves, size: 16),
             label: Text('Start $profileCapitalized Thermal Therapy'),
             style: ElevatedButton.styleFrom(
               backgroundColor: colorScheme.primary,
               foregroundColor: Colors.white,
               visualDensity: VisualDensity.compact,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ],
