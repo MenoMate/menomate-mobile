@@ -191,8 +191,7 @@ void main() {
     });
   });
 
-  group('onboarding completion gate (navigation decisions)', () {
-    test('new user without name or flag needs onboarding', () {
+  group('onboarding completion gate (navigation decisions)', () {    test('new user without name or flag needs onboarding', () {
       expect(isProfileOnboarded(null, false), isFalse);
       expect(
         isProfileOnboarded(Profile(userId: 'u', name: '  '), false),
@@ -213,6 +212,99 @@ void main() {
         isTrue,
       );
       expect(isProfileOnboarded(null, true), isTrue);
+    });
+  });
+
+  group('tracking categories (Phase 2)', () {
+    test('all eight canonical categories exist with labels', () {
+      expect(TrackingCategories.all, hasLength(8));
+      for (final id in TrackingCategories.all) {
+        expect(
+          kTrackingCategoryLabels[id],
+          isNotNull,
+          reason: id,
+        );
+      }
+    });
+
+    test('categories persist locally like other preferences', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = ProviderContainer(
+        overrides: [currentUserIdProvider.overrideWithValue('user-a')],
+      );
+      addTearDown(container.dispose);
+      await container.read(personalizationProvider.future);
+      final notifier = container.read(personalizationProvider.notifier);
+      await notifier.setTrackingCategories({
+        TrackingCategories.mood,
+        TrackingCategories.sleepEnergy,
+        'stale_key',
+      });
+      final p = container.read(personalizationProvider).value!;
+      expect(
+        p.trackingCategories,
+        {TrackingCategories.mood, TrackingCategories.sleepEnergy},
+      );
+    });
+  });
+
+  group('health concerns are context, never diagnoses (Phase 2)', () {
+    test('all eight concern flags exist with labels', () {
+      expect(HealthConcerns.all, hasLength(8));
+      for (final id in HealthConcerns.all) {
+        expect(kHealthConcernLabels[id], isNotNull, reason: id);
+      }
+    });
+
+    test('selecting a concern records a flag, not a condition', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = ProviderContainer(
+        overrides: [currentUserIdProvider.overrideWithValue('user-a')],
+      );
+      addTearDown(container.dispose);
+      await container.read(personalizationProvider.future);
+      final notifier = container.read(personalizationProvider.notifier);
+      await notifier.setHealthConcerns({HealthConcerns.pcos});
+      final p = container.read(personalizationProvider).value!;
+      expect(p.healthConcerns, {HealthConcerns.pcos});
+      // Concern keys live in their own namespace: they can never be
+      // mistaken for backend condition codes (pcos vs concern_pcos).
+      expect(HealthConcerns.pcos, isNot('pcos'));
+    });
+
+    test('migration hint persists without affecting anything else', () async {
+      SharedPreferences.setMockInitialValues({});
+      final container = ProviderContainer(
+        overrides: [currentUserIdProvider.overrideWithValue('user-a')],
+      );
+      addTearDown(container.dispose);
+      await container.read(personalizationProvider.future);
+      final notifier = container.read(personalizationProvider.notifier);
+      await notifier.setTracksElsewhere(true);
+      final p = container.read(personalizationProvider).value!;
+      expect(p.tracksElsewhere, isTrue);
+      expect(p.mode, TrackingMode.cycle);
+      expect(p.isActuallyPregnant, isNull);
+    });
+  });
+
+  group('TTC interest never activates pregnancy mode (Phase 2)', () {
+    test('trying_to_conceive asks fertility prefs, stays in cycle mode', () {
+      final p = Personalization(
+        interests: {UserInterests.tryingToConceive},
+      );
+      expect(p.wantsFertilityPrefs, isTrue);
+      expect(p.wantsPregnancyState, isFalse);
+      expect(p.mode, TrackingMode.cycle);
+      expect(p.isActuallyPregnant, isNull);
+    });
+
+    test('fertility_awareness interest also stays in cycle mode', () {
+      final p = Personalization(
+        interests: {UserInterests.fertilityAwareness},
+      );
+      expect(p.mode, TrackingMode.cycle);
+      expect(p.isActuallyPregnant, isNull);
     });
   });
 }
