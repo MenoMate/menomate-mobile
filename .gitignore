@@ -27,11 +27,13 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
+.flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
 /build/
 /coverage/
+coverage/
 
 # Symbolication related
 app.*.symbols
@@ -46,7 +48,26 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Environment and local overrides
+.env
+.env.*
+*.env
 # NOTE: lib/core/env.dart is intentionally TRACKED (release-safe defaults,
 # injection-only secrets - see README "Release builds"). Do not ignore it:
 # fresh clones must compile and release builds must resolve the production
 # backend without per-developer setup.
+!lib/core/env.dart
+
+# OS files
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Agent & temporary scratch
+scratch/
+.agents/
+skills-lock.json
+*.tmp
+*.bak
+
