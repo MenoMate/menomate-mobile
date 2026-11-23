@@ -6,9 +6,11 @@ import '../../data/app_database.dart' show OfflineAdoptionCounts;
 import '../../data/sync_policy.dart';
 import '../../core/theme.dart';
 import '../../models/device.dart';
+import '../../models/health_context.dart';
 import '../../models/profile.dart';
 import '../../providers/cycle_provider.dart';
 import '../../providers/data_providers.dart';
+import '../../providers/health_providers.dart';
 import '../../providers/offline_mode_provider.dart';
 import '../../widgets/menomate_logo.dart';
 import '../../providers/profile_provider.dart';
@@ -231,6 +233,8 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     final themeMode = ref.watch(themeModeProvider);
     final offline = ref.watch(isOfflineTrackingProvider);
     final adoption = ref.watch(offlineAdoptionProvider).value;
+    final conditionsAsync = ref.watch(conditionsProvider);
+    final medicationsAsync = ref.watch(medicationsProvider);
     // Identity summary for the Account card. Name editing lives only in
     // Profile; Settings shows (never duplicates) the stored value.
     final accountName = profileAsync.value?.dataOrNull?.name?.trim();
@@ -516,10 +520,8 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               ],
               const SizedBox(height: 20),
 
-              // --- 1. Profile ---
-              // Personal info lives on the dedicated Profile screen;
-              // Settings keeps cycle baseline and quick preferences.
-              _buildSectionHeader('PROFILE · Personal details', colorScheme),
+              // --- 1. Health background & treatments ---
+              _buildSectionHeader('HEALTH · Background & treatments', colorScheme),
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
@@ -527,28 +529,62 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                 ),
                 child: Material(
                   color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  child: ListTile(
-                    leading: Icon(
-                      Icons.person_outline,
-                      color: colorScheme.primary,
-                    ),
-                    title: const Text(
-                      'Profile',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      'Your name and birth details',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.secondary,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: Icon(
+                          Icons.healing_outlined,
+                          color: colorScheme.primary,
+                        ),
+                        title: const Text(
+                          'Health conditions',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          _conditionsSubtitle(conditionsAsync),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.secondary,
+                          ),
+                        ),
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: colorScheme.secondary,
+                        ),
+                        onTap: () => context.push('/profile/health/conditions'),
                       ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: colorScheme.secondary,
-                    ),
-                    onTap: () => context.push('/profile'),
+                      Divider(
+                        height: 1,
+                        indent: 56,
+                        color: colorScheme.outline.withValues(alpha: 0.5),
+                      ),
+                      ListTile(
+                        leading: Icon(
+                          Icons.medication_outlined,
+                          color: colorScheme.primary,
+                        ),
+                        title: const Text(
+                          'Medications & treatments',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          _medicationsSubtitle(medicationsAsync),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.secondary,
+                          ),
+                        ),
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: colorScheme.secondary,
+                        ),
+                        onTap: () => context.push('/profile/health/medications'),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1004,6 +1040,36 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         'device from offline use. Move them into this account? Your '
         'offline display preferences will reset to this account\u2019s '
         'settings.';
+  }
+
+  String _conditionsSubtitle(
+    AsyncValue<DataState<List<HealthCondition>>> asyncVal,
+  ) {
+    return asyncVal.maybeWhen(
+      data: (state) {
+        final list =
+            state.dataOrNull?.where((c) => c.isActive).toList() ?? [];
+        if (list.isEmpty) return 'No conditions added · Tap to add';
+        if (list.length == 1) return list.first.displayLabel;
+        return '${list.length} active conditions';
+      },
+      orElse: () => 'Tap to manage',
+    );
+  }
+
+  String _medicationsSubtitle(
+    AsyncValue<DataState<List<Medication>>> asyncVal,
+  ) {
+    return asyncVal.maybeWhen(
+      data: (state) {
+        final list =
+            state.dataOrNull?.where((m) => m.isActive).toList() ?? [];
+        if (list.isEmpty) return 'No medications added · Tap to add';
+        if (list.length == 1) return list.first.name;
+        return '${list.length} active medications';
+      },
+      orElse: () => 'Tap to manage',
+    );
   }
 
   Widget _buildSectionHeader(String title, ColorScheme colorScheme) {

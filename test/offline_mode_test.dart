@@ -576,9 +576,10 @@ void main() {
       expect(find.text('Sign Out'), findsOneWidget);
       // Name lives in Profile now — not duplicated as a settings field.
       expect(find.text('Your Name'), findsNothing);
-      // Hub tile routes to Profile (header carries the PROFILE prefix).
-      expect(find.text('PROFILE · Personal details'), findsOneWidget);
-      expect(find.text('Profile'), findsOneWidget);
+      // Health background & treatments in Settings tab.
+      expect(find.text('HEALTH · Background & treatments'), findsOneWidget);
+      expect(find.text('Health conditions'), findsOneWidget);
+      expect(find.text('Medications & treatments'), findsOneWidget);
     });
   });
 
