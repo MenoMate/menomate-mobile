@@ -63,8 +63,25 @@ String _supabaseMessage(AuthException e) {
   if (hasAny(['invalid email', 'invalid_email', 'unable to validate email', 'email address is invalid', 'email format'])) {
     return 'That email address doesn\u2019t look right. Check it and try again.';
   }
-  // Weak password (Supabase minimum is 6 characters).
-  if (hasAny(['weak password', 'weak_password', 'password should be', 'password is too short', 'password must be'])) {
+  // Weak password: if Supabase provides specific complexity requirements
+  // (e.g. uppercase, numbers, symbols), surface that exact requirement to the user.
+  if (hasAny(['weak password', 'weak_password', 'password should be', 'password is too short', 'password must be', 'password should contain'])) {
+    final raw = e.message.trim();
+    if (raw.isNotEmpty &&
+        raw.length <= 150 &&
+        !raw.contains('http') &&
+        !raw.contains('Socket') &&
+        !raw.contains('Exception') &&
+        !raw.contains('\n') &&
+        (message.contains('contain') ||
+            message.contains('uppercase') ||
+            message.contains('lowercase') ||
+            message.contains('digit') ||
+            message.contains('symbol') ||
+            message.contains('a-z') ||
+            message.contains('0-9'))) {
+      return raw.endsWith('.') ? raw : '$raw.';
+    }
     return 'Please choose a password with at least 6 characters.';
   }
   // Rate limiting (HTTP 429 or provider rate-limit codes).
