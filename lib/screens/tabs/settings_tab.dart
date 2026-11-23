@@ -195,11 +195,11 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
 
     try {
       final api = ref.read(apiServiceProvider);
-      await api.registerDevice(
+      final device = await api.registerDevice(
         DeviceCreate(deviceIdentifier: mac, name: 'MenoMate Wearable'),
       );
 
-      if (mounted) {
+      if (device != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Device registered successfully!')),
         );
@@ -207,9 +207,12 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error registering device: $e')));
+        final errorMsg = e is Conflict || e is ServerError
+            ? e.toString().replaceFirst('Exception: ', '')
+            : 'Error registering device: $e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMsg)),
+        );
       }
     } finally {
       if (mounted) setState(() => _isRegisteringDevice = false);

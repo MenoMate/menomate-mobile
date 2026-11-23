@@ -10,6 +10,7 @@ import 'care_session_provider.dart';
 import 'data_providers.dart';
 import 'health_providers.dart';
 import 'offline_mode_provider.dart';
+import 'onboarding_status_provider.dart';
 import 'profile_provider.dart';
 import 'reproductive_providers.dart';
 
@@ -201,6 +202,12 @@ Future<void> signOutAndClearLocalData(WidgetRef ref) async {
     await ref.read(offlineModeProvider.notifier).disable();
   } catch (_) {
     // Flag persistence is best-effort; sign-out still proceeds.
+  }
+  // Wipe local onboarding completion flag so the next user is not auto-onboarded.
+  try {
+    await ref.read(onboardingStatusProvider.notifier).clear();
+  } catch (_) {
+    // Flag reset is best-effort; sign-out proceeds.
   }
   await Supabase.instance.client.auth.signOut();
   refreshAllAppData(ref);

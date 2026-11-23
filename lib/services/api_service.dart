@@ -172,9 +172,15 @@ class ApiService {
         data: payload.toJson(),
       );
       return Device.fromJson(response.data);
+    } on DioException catch (e) {
+      debugPrint('Error registering device: $e');
+      if (e.response?.statusCode == 409) {
+        throw const Conflict('This device identifier is already registered.');
+      }
+      throw ServerError(e.response?.data?['detail'] ?? 'Device registration failed.');
     } catch (e) {
       debugPrint('Error registering device: $e');
-      return null;
+      throw ServerError('Device registration failed: $e');
     }
   }
 
