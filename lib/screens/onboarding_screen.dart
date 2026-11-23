@@ -16,6 +16,7 @@ import '../models/health_context.dart'
         validateBirthPair,
         kContraceptionLabels,
         kPregnancyContextLabels,
+        HealthConditionCodes,
         HealthContext;
 import '../models/interests.dart';
 import '../models/onboarding.dart';
@@ -416,6 +417,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   : resolvePeriodEndIso(_data.status, null),
             );
         await _saveReproductiveContext(userId, localOnly: true);
+        await _saveHealthConditionsFromConcerns(userId, localOnly: true);
         unawaited(ref.read(onboardingStatusProvider.notifier).markCompleted());
         refreshAllAppData(ref);
         if (mounted) _goToStep(_sDone);
@@ -460,6 +462,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             .read(profileProvider.notifier)
             .setProfile(updated.dataOrNull ?? result.profile);
         await _saveReproductiveContext(userId, localOnly: false);
+        await _saveHealthConditionsFromConcerns(userId, localOnly: false);
         unawaited(ref.read(onboardingStatusProvider.notifier).markCompleted());
       } else {
         await ref.read(profileProvider.notifier).reload();
@@ -516,6 +519,43 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       );
     } catch (_) {
       // Reproductive context is optional: never fail onboarding over it.
+    }
+  }
+
+  /// Automatically bridge selected health concerns from Step 5 to real
+  /// HealthCondition records in Health Context.
+  Future<void> _saveHealthConditionsFromConcerns(
+    String userId, {
+    required bool localOnly,
+  }) async {
+    if (_data.healthConcerns.isEmpty) return;
+    try {
+      final repo = ref.read(healthContextRepositoryProvider);
+      for (final concern in _data.healthConcerns) {
+        String? code;
+        String? customLabel;
+        if (concern == HealthConcerns.pcos) {
+          code = HealthConditionCodes.pcos;
+        } else if (concern == HealthConcerns.endometriosis) {
+          code = HealthConditionCodes.endometriosis;
+        } else if (concern == HealthConcerns.fibroids) {
+          code = HealthConditionCodes.uterineFibroids;
+        } else if (concern == HealthConcerns.hormonal) {
+          code = HealthConditionCodes.other;
+          customLabel = 'Hormonal concerns';
+        }
+
+        if (code != null) {
+          await repo.addCondition(
+            userId,
+            code: code,
+            customLabel: customLabel,
+            localOnly: localOnly,
+          );
+        }
+      }
+    } catch (_) {
+      // Health conditions are optional: never fail onboarding over them.
     }
   }
 
@@ -1062,7 +1102,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           'Pick the categories you care about. You can adjust these anytime inside the app. Optional.',
       child: Column(
         children: [
-          for (final entry in kTrackingCategoryLabels.entries)
+          for (final entry in kTrackingCategoryLabels.entries.where(
+            (e) => e.key != TrackingCategories.fertilitySigns,
+          ))
             _selectableCard(
               context,
               selected: _data.trackingCategories.contains(entry.key),
@@ -1142,7 +1184,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final entry in kHealthConcernLabels.entries)
+              for (final entry in kHealthConcernLabels.entries.where(
+                (e) => e.key != HealthConcerns.fertility,
+              ))
                 FilterChip(
                   label: Text(entry.value),
                   selected: _data.healthConcerns.contains(entry.key),

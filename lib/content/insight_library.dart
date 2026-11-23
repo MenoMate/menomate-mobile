@@ -159,10 +159,14 @@ const Map<InsightContext, InsightPair> insightPairs = {
   InsightContext.ovulation: InsightPair(
     insight: InsightPiece(
       body:
-          'Cycles vary month to month; a single unusual one is usually not meaningful on its own.',
+          'Energy levels and natural fluid cues often shift around mid-cycle.',
+      sourceName: 'ACOG',
+      sourceType: 'clinical-guidance',
+      sourceId: 'ACOG-FAQ-ovulation',
     ),
     action: InsightPiece(
-      body: 'Logging as usual is enough — patterns only show across several cycles.',
+      body:
+          'Noticing gentle shifts in your body helps you learn your natural rhythm.',
     ),
   ),
   InsightContext.luteal: InsightPair(

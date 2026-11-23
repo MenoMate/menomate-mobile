@@ -9,7 +9,6 @@ import '../../models/device.dart';
 import '../../models/profile.dart';
 import '../../providers/cycle_provider.dart';
 import '../../providers/data_providers.dart';
-import '../../providers/logo_variant_provider.dart';
 import '../../providers/offline_mode_provider.dart';
 import '../../widgets/menomate_logo.dart';
 import '../../providers/profile_provider.dart';
@@ -742,32 +741,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               // launcher variants; true OS launcher switching requires
               // native config — see docs/launcher_icon.md. It never
               // changes the Home header.
-              _buildSectionHeader('APP · App icon (launcher)', colorScheme),
-              Container(
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: colorScheme.outline),
-                ),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                      child: Text(
-                        'Previews the launcher icon style. The Home greeting logo stays the classic MenoMate mark. Applying a launcher icon needs a native rebuild (see docs).',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.secondary,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                    for (final variant in AppLogoVariant.values)
-                      _LogoOptionTile(variant: variant),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
+
 
               // --- 4. Units Preference ---
               _buildSectionHeader('APP · Preferences', colorScheme),
@@ -1048,69 +1022,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   }
 }
 
-/// One logo choice: live preview of the actual mark, name, short
-/// description, and a radio for selection state. The whole tile taps
-/// (min 48dp target) with an accessible label — selected state never
-/// rests on color alone.
-class _LogoOptionTile extends ConsumerWidget {
-  final AppLogoVariant variant;
 
-  const _LogoOptionTile({required this.variant});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => ref.read(logoVariantProvider.notifier).setVariant(variant),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              // Natural width: the compact presentation carries a wordmark
-              // beside its mark and must never be squeezed into the
-              // circle-only box (debug overflow, clipped text otherwise).
-              MenoMateLogo(
-                size: variant == AppLogoVariant.compact ? 32 : 44,
-                variant: variant,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      kLogoVariantLabels[variant] ?? variant.name,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      kLogoVariantDescriptions[variant] ?? '',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.secondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              RadioGroup<AppLogoVariant>(
-                groupValue: ref.watch(logoVariantProvider),
-                onChanged: (value) {
-                  if (value != null) {
-                    ref.read(logoVariantProvider.notifier).setVariant(value);
-                  }
-                },
-                child: Radio<AppLogoVariant>(value: variant),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 /// One expandable help answer. Static, honest product copy only — no
 /// links, no contact details that do not exist, no invented features.

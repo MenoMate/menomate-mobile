@@ -470,9 +470,9 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('low confidence'), findsOneWidget);
-    // Redundant pill-button path replaced by a quiet navigation row.
+    // Redundant quick action / pill buttons removed from HomeTab.
     expect(find.text('View Calendar'), findsNothing);
-    expect(find.text('Calendar'), findsOneWidget);
+    expect(find.text('Calendar'), findsNothing);
     // Ended status keeps facts, singular day count.
     expect(find.text('Period ended Sep 5 · 5 days'), findsOneWidget);
   });
