@@ -29,7 +29,7 @@ void main() {
 
     test('accepts the production backend', () {
       expect(
-        Env.isDevelopmentEndpoint('https://menomate-api.onrender.com'),
+        Env.isDevelopmentEndpoint('https://menomate-core.onrender.com'),
         isFalse,
       );
       expect(
@@ -63,7 +63,7 @@ void main() {
     test('release fallback constant is the production backend', () {
       expect(
         Env.productionApiUrl,
-        'https://menomate-api.onrender.com',
+        'https://menomate-core.onrender.com',
       );
       expect(Env.isDevelopmentEndpoint(Env.productionApiUrl), isFalse);
       expect(

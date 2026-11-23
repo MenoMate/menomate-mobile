@@ -17,7 +17,7 @@ class Env {
 
   /// Production backend. Release/profile builds fall back to this instead
   /// of localhost so a release can never silently target a dev server.
-  static const productionApiUrl = 'https://menomate-api.onrender.com';
+  static const productionApiUrl = 'https://menomate-core.onrender.com';
 
   /// Development backend for debug runs without explicit injection.
   /// Debug-only: never used by release/profile builds (see [apiUrl] and
