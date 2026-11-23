@@ -309,7 +309,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               _buildSectionHeader('Health background & treatments', colorScheme),
               Material(
                 color: colorScheme.surface,
-                borderRadius: BorderRadius.circular(18),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18),
                   side: BorderSide(color: colorScheme.outline),
