@@ -225,7 +225,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.textContaining('Non-bleeding day'), findsOneWidget);
       expect(find.text('Edit entry'), findsOneWidget);
-      expect(find.text('Add more'), findsOneWidget);
+      expect(find.text('Add more'), findsNothing);
+      expect(find.text('Fertility signs'), findsNothing);
+      expect(find.text('Log fertility signs'), findsNothing);
       // Never invents fertile-window content.
       expect(find.textContaining('fertile', findRichText: true), findsNothing);
       expect(
@@ -256,7 +258,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Log'), findsOneWidget);
-      for (final label in ['Period', 'Flow', 'Symptoms', 'Mood', 'Notes']) {
+      for (final label in ['Daily Log', 'Period & Cycle']) {
         expect(find.text(label), findsOneWidget);
       }
       expect(find.text('View day detail'), findsOneWidget);

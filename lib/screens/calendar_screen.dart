@@ -9,7 +9,6 @@ import '../data/app_database.dart' show toIsoDate;
 import '../data/sync_policy.dart';
 import '../models/cycle.dart';
 import '../providers/cycle_provider.dart';
-import '../providers/reproductive_providers.dart';
 import '../screens/tabs/history_tab.dart' show todayNeutralFill;
 import '../widgets/theme_atmosphere.dart';
 
@@ -48,11 +47,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final currentAsync = ref.watch(currentCycleProvider);
     final cycles = cyclesAsync.value?.dataOrNull;
     final current = currentAsync.value?.dataOrNull;
-    // Pregnancy suppression (§16): while pregnancy mode is active, future
-    // menstrual predictions are withheld from every calendar surface.
-    // Historical period data, navigation, and logged fills are untouched.
-    final pregnancyActive =
-        ref.watch(pregnancyProvider).value?.dataOrNull?.isActive == true;
+    // Pregnancy mode is dormant for first release; predictions are active.
+    const pregnancyActive = false;
 
     return Scaffold(
       backgroundColor: Colors.transparent,

@@ -9,7 +9,6 @@ import '../../core/theme.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/cycle_provider.dart';
 import '../../widgets/offline_banner.dart';
-import '../../widgets/reproductive_home_block.dart';
 import '../../widgets/symptom_logger_card.dart';
 import '../../widgets/device_telemetry_card.dart';
 import '../../widgets/period_tracker_button.dart';
@@ -17,9 +16,7 @@ import '../../widgets/interactive_cycle_ring.dart';
 import '../../widgets/daily_insight_card.dart';
 import '../../widgets/menomate_logo.dart';
 import '../../providers/logo_variant_provider.dart';
-import '../../providers/health_providers.dart';
 import '../home_screen.dart';
-import '../profile_screen.dart';
 
 String _greetingForHour(int hour) {
   if (hour < 12) return 'Good morning';
@@ -427,8 +424,7 @@ class HomeTab extends ConsumerWidget {
 
               const SizedBox(height: 8),
 
-              // Quick actions: the four most common next steps, always
-              // visible, each a comfortable touch target.
+              // Quick actions: primary next steps, always visible.
               Text(
                 'Quick actions',
                 style: TextStyle(
@@ -452,18 +448,6 @@ class HomeTab extends ConsumerWidget {
                     onTap: () =>
                         ref.read(homeTabIndexProvider.notifier).setIndex(1),
                   ),
-                  const SizedBox(width: 12),
-                  _QuickActionCell(
-                    icon: Icons.note_add_outlined,
-                    label: 'Add note',
-                    onTap: () => context.push('/logger'),
-                  ),
-                  const SizedBox(width: 12),
-                  _QuickActionCell(
-                    icon: Icons.favorite_outline,
-                    label: 'Health context',
-                    onTap: () => openHealthContext(context, ref),
-                  ),
                 ],
               ),
 
@@ -481,16 +465,6 @@ class HomeTab extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
               const DailyInsightCard(),
-
-              const SizedBox(height: 20),
-              const _HealthContextSnippet(),
-
-              const SizedBox(height: 12),
-
-              // Phase 5 reproductive context: renders only when relevant
-              // (pregnancy mode on, usable fertility estimate, or recorded
-              // aging context). Stays out of the way otherwise.
-              const ReproductiveHomeBlock(),
 
               const SizedBox(height: 24),
 
@@ -600,62 +574,6 @@ class _QuickActionCell extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// Health-context snippet on Home: shows user-provided context when
-/// present (never diagnoses, never alters predictions), with a link to
-/// the Health & Context hub. Empty state stays quiet.
-class _HealthContextSnippet extends ConsumerWidget {
-  const _HealthContextSnippet();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final ctxAsync = ref.watch(healthContextProvider);
-    return ctxAsync.maybeWhen(
-      data: (state) {
-        final ctx = state.dataOrNull;
-        if (ctx == null ||
-            (ctx.contraceptionMethod == null &&
-                ctx.pregnancyContext == null &&
-                (ctx.healthNotes == null || ctx.healthNotes!.trim().isEmpty))) {
-          return const SizedBox.shrink();
-        }
-        final parts = <String>[];
-        if (ctx.contraceptionMethod != null) parts.add('Contraception noted');
-        if (ctx.pregnancyContext != null) parts.add('Reproductive context');
-        if (ctx.healthNotes != null && ctx.healthNotes!.trim().isNotEmpty) {
-          parts.add('Health notes');
-        }
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: colorScheme.outline),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.favorite_outline, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Health context: ${parts.join(' · ')}',
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ),
-              TextButton(
-                onPressed: () => openHealthContext(context, ref),
-                child: const Text('View'),
-              ),
-            ],
-          ),
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
     );
   }
 }

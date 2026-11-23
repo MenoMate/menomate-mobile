@@ -514,11 +514,10 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               ],
               const SizedBox(height: 20),
 
-              // --- 1. Profile & Health hub ---
-              // Personal info, conditions, medications and other optional
-              // context live on dedicated screens; Settings keeps only its
-              // existing quick preferences.
-              _buildSectionHeader('PROFILE · Profile & Health', colorScheme),
+              // --- 1. Profile ---
+              // Personal info lives on the dedicated Profile screen;
+              // Settings keeps cycle baseline and quick preferences.
+              _buildSectionHeader('PROFILE · Personal details', colorScheme),
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
@@ -533,11 +532,11 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                       color: colorScheme.primary,
                     ),
                     title: const Text(
-                      'Profile & Health',
+                      'Profile',
                       style: TextStyle(fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
-                      'Optional: conditions, medications, contraception & more',
+                      'Your name and birth details',
                       style: TextStyle(
                         fontSize: 12,
                         color: colorScheme.secondary,
@@ -547,8 +546,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                       Icons.chevron_right,
                       color: colorScheme.secondary,
                     ),
-                    // Profile hub; its Health & Context card gates the
-                    // one-time intro via openHealthContext.
                     onTap: () => context.push('/profile'),
                   ),
                 ),

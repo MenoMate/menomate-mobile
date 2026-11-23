@@ -45,8 +45,6 @@ class _LogHubScreenState extends ConsumerState<LogHubScreen> {
 
   void _openLogger() => context.push('/logger?date=$_iso');
 
-  void _openFertilityLogger() => context.push('/fertility-log?date=$_iso');
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -130,74 +128,18 @@ class _LogHubScreenState extends ConsumerState<LogHubScreen> {
               ),
               const SizedBox(height: 12),
               _LogCategoryCard(
-                icon: Icons.water_drop_outlined,
-                title: 'Period',
-                subtitle: 'Log or edit your period for this date.',
-                actionLabel: 'Log period',
+                icon: Icons.edit_note_outlined,
+                title: 'Daily Log',
+                subtitle: 'Pain, symptoms, mood, flow, discharge, and notes.',
+                actionLabel: 'Log wellness',
                 onTap: _openLogger,
-              ),
-              _LogCategoryCard(
-                icon: Icons.opacity_outlined,
-                title: 'Flow',
-                subtitle: 'Light, Medium, Heavy — pick what fits.',
-                actionLabel: 'Log flow',
-                onTap: _openLogger,
-              ),
-              _LogCategoryCard(
-                icon: Icons.healing_outlined,
-                title: 'Symptoms',
-                subtitle: 'Track how you\u2019re feeling.',
-                actionLabel: 'Log symptoms',
-                onTap: _openLogger,
-              ),
-              _LogCategoryCard(
-                icon: Icons.mood_outlined,
-                title: 'Mood',
-                subtitle: 'Log your mood.',
-                actionLabel: 'Log mood',
-                onTap: _openLogger,
-              ),
-              _LogCategoryCard(
-                icon: Icons.note_add_outlined,
-                title: 'Notes',
-                subtitle: 'Add a personal note.',
-                actionLabel: 'Add note',
-                onTap: _openLogger,
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Fertility signs',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Recorded separately from discharge — each sign is its own observation.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.secondary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _LogCategoryCard(
-                icon: Icons.science_outlined,
-                title: 'LH test',
-                subtitle: 'Ovulation test strip result, as observed.',
-                actionLabel: 'Log LH',
-                onTap: _openFertilityLogger,
-              ),
-              _LogCategoryCard(
-                icon: Icons.thermostat_outlined,
-                title: 'Basal body temperature',
-                subtitle: 'Morning resting temperature in °C.',
-                actionLabel: 'Log temp',
-                onTap: _openFertilityLogger,
               ),
               _LogCategoryCard(
                 icon: Icons.water_drop_outlined,
-                title: 'Cervical mucus',
-                subtitle: 'Fertility observation for this date.',
-                actionLabel: 'Log mucus',
-                onTap: _openFertilityLogger,
+                title: 'Period & Cycle',
+                subtitle: 'Period dates, cycle history, and calendar.',
+                actionLabel: 'Open calendar',
+                onTap: () => context.push('/calendar/day?date=$_iso'),
               ),
               const SizedBox(height: 12),
               SizedBox(

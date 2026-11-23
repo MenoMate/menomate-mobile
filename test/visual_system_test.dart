@@ -11,7 +11,6 @@ import 'package:menomate_mobile/providers/profile_provider.dart';
 import 'package:menomate_mobile/screens/auth_screen.dart';
 import 'package:menomate_mobile/screens/calendar_screen.dart';
 import 'package:menomate_mobile/screens/home_screen.dart';
-import 'package:menomate_mobile/screens/log_hub_screen.dart';
 import 'package:menomate_mobile/screens/tabs/assistant_tab.dart';
 import 'package:menomate_mobile/screens/tabs/home_tab.dart';
 import 'package:menomate_mobile/screens/tabs/insights_tab.dart';
@@ -326,12 +325,11 @@ void main() {
       // One shared container: drive the real tab-index notifier so each
       // tab takes its turn onstage (IndexedStack prunes offstage
       // subtrees from traversal, so transparency is verified per tab).
-      // Six primary destinations: Home | Calendar | Log | Insights |
+      // Five primary destinations: Home | Calendar | Insights |
       // Care | More (Settings).
       final tabTypes = [
         HomeTab,
         CalendarScreen,
-        LogHubScreen,
         InsightsTab,
         AssistantTab,
         SettingsTab,
