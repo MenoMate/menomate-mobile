@@ -174,7 +174,7 @@ class CalendarDayDetailScreen extends ConsumerWidget {
               child: ElevatedButton.icon(
                 onPressed: () => context.push('/logger?date=$isoDate'),
                 icon: const Icon(Icons.edit_note_outlined, size: 18),
-                label: const Text('Log or edit daily wellness'),
+                label: const Text('Edit entry'),
               ),
             ),
           ],

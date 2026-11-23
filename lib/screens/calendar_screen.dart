@@ -9,7 +9,6 @@ import '../data/app_database.dart' show toIsoDate;
 import '../data/sync_policy.dart';
 import '../models/cycle.dart';
 import '../providers/cycle_provider.dart';
-import '../providers/reproductive_providers.dart';
 import '../screens/tabs/history_tab.dart' show todayNeutralFill;
 import '../widgets/theme_atmosphere.dart';
 

@@ -16,9 +16,7 @@ import '../../widgets/interactive_cycle_ring.dart';
 import '../../widgets/daily_insight_card.dart';
 import '../../widgets/menomate_logo.dart';
 import '../../providers/logo_variant_provider.dart';
-import '../../providers/health_providers.dart';
 import '../home_screen.dart';
-import '../profile_screen.dart';
 
 String _greetingForHour(int hour) {
   if (hour < 12) return 'Good morning';
