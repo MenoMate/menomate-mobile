@@ -13,31 +13,6 @@ import '../providers/health_providers.dart';
 import '../providers/offline_mode_provider.dart';
 import '../providers/onboarding_context_provider.dart';
 import '../providers/profile_provider.dart';
-import 'health_intro_screen.dart';
-
-/// Opens Health & Context, showing the one-time intro first unless the
-/// user already dismissed it. Shared by the Settings tile and the Profile
-/// health card so the first-encounter explanation is never skipped by
-/// taking a different path.
-Future<void> openHealthContext(BuildContext context, WidgetRef ref) async {
-  final userId = ref.read(currentUserIdProvider);
-  var dismissed = true;
-  if (userId != null) {
-    try {
-      dismissed = await ref
-          .read(offlineModeProvider.notifier)
-          .isFeatureDismissed(kHealthIntroFeature, userId);
-    } catch (_) {
-      dismissed = true;
-    }
-  }
-  if (!context.mounted) return;
-  if (dismissed) {
-    context.push('/profile/health');
-  } else {
-    context.push('/health-intro');
-  }
-}
 
 /// Profile hub: personal information (name, birth month/year) plus the
 /// entry point to Health & Context. Everything is optional; nothing here
