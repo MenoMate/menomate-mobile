@@ -48,11 +48,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final currentAsync = ref.watch(currentCycleProvider);
     final cycles = cyclesAsync.value?.dataOrNull;
     final current = currentAsync.value?.dataOrNull;
-    // Pregnancy suppression (§16): while pregnancy mode is active, future
-    // menstrual predictions are withheld from every calendar surface.
-    // Historical period data, navigation, and logged fills are untouched.
-    final pregnancyActive =
-        ref.watch(pregnancyProvider).value?.dataOrNull?.isActive == true;
+    // Pregnancy mode is dormant for first release; predictions are active.
+    const pregnancyActive = false;
 
     return Scaffold(
       backgroundColor: Colors.transparent,

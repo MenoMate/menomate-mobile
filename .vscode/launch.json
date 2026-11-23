@@ -2,6 +2,16 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "MenoMate - Local Backend (USB)",
+      "request": "launch",
+      "type": "dart",
+      "toolArgs": [
+        "--dart-define=API_BASE_URL=http://127.0.0.1:8000",
+        "--dart-define=SUPABASE_URL=https://lnuhglauxlqtqzetvshz.supabase.co",
+        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_BAJLAeOchhYIEf69SpTNXA_z63UHzZ_"
+      ]
+    },
+    {
       "name": "MenoMate (Prod Backend)",
       "request": "launch",
       "type": "dart",

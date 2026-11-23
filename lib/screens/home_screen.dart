@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../widgets/theme_atmosphere.dart';
 import '../screens/calendar_screen.dart';
-import '../screens/log_hub_screen.dart';
 import 'tabs/home_tab.dart';
 import 'tabs/assistant_tab.dart';
 import 'tabs/insights_tab.dart';
@@ -24,14 +23,12 @@ final homeTabIndexProvider = NotifierProvider<HomeTabIndexNotifier, int>(
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
-  // Primary destinations: Home | Calendar | Log | Insights | Care | More.
-  // Calendar is the Year→Month→Day hierarchy; Log is the dedicated
-  // logging hub; More hosts Settings/Profile/Health. History remains as
-  // a legacy pushed route (/history) aliasing the calendar.
+  // Primary destinations: Home | Calendar | Insights | Care | More.
+  // Calendar is the Year→Month→Day hierarchy; More hosts Settings/Profile.
+  // History remains as a legacy pushed route (/history) aliasing the calendar.
   final List<Widget> _tabs = const [
     HomeTab(),
     CalendarScreen(),
-    LogHubScreen(),
     InsightsTab(),
     AssistantTab(),
     SettingsTab(),
@@ -39,7 +36,8 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentIndex = ref.watch(homeTabIndexProvider);
+    final rawIndex = ref.watch(homeTabIndexProvider);
+    final currentIndex = rawIndex.clamp(0, _tabs.length - 1);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -70,11 +68,6 @@ class HomeScreen extends ConsumerWidget {
             icon: Icon(Icons.calendar_month_outlined),
             activeIcon: Icon(Icons.calendar_month),
             label: 'Calendar',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle_outline),
-            activeIcon: Icon(Icons.add_circle),
-            label: 'Log',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.lightbulb_outline),

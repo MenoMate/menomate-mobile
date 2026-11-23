@@ -301,40 +301,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 20),
-              _buildSectionHeader('Health & Context', colorScheme),
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: colorScheme.outline),
-                ),
-                child: Material(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  child: ListTile(
-                    leading: Icon(
-                      Icons.favorite_outline,
-                      color: colorScheme.primary,
-                    ),
-                    title: const Text(
-                      'Health & Context',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      'Optional: conditions, medications, contraception & more',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.secondary,
-                      ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: colorScheme.secondary,
-                    ),
-                    onTap: () => openHealthContext(context, ref),
-                  ),
-                ),
-              ),
               const SizedBox(height: 36),
             ],
           ),

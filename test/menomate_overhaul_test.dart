@@ -256,7 +256,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('Log'), findsOneWidget);
-      for (final label in ['Period', 'Flow', 'Symptoms', 'Mood', 'Notes']) {
+      for (final label in ['Daily Log', 'Period & Cycle']) {
         expect(find.text(label), findsOneWidget);
       }
       expect(find.text('View day detail'), findsOneWidget);

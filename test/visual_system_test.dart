@@ -326,12 +326,11 @@ void main() {
       // One shared container: drive the real tab-index notifier so each
       // tab takes its turn onstage (IndexedStack prunes offstage
       // subtrees from traversal, so transparency is verified per tab).
-      // Six primary destinations: Home | Calendar | Log | Insights |
+      // Five primary destinations: Home | Calendar | Insights |
       // Care | More (Settings).
       final tabTypes = [
         HomeTab,
         CalendarScreen,
-        LogHubScreen,
         InsightsTab,
         AssistantTab,
         SettingsTab,

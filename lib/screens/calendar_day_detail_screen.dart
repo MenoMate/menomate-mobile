@@ -4,14 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../core/format.dart';
-import '../data/repositories/reproductive_repository.dart';
 import '../data/sync_policy.dart';
 import '../models/cycle.dart';
 import '../models/daily_log.dart';
 import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
 import '../providers/offline_mode_provider.dart';
-import '../providers/reproductive_providers.dart';
 
 /// Dedicated Day Detail experience.
 ///
@@ -50,10 +48,8 @@ class CalendarDayDetailScreen extends ConsumerWidget {
     final currentAsync = ref.watch(currentCycleProvider);
     final cycles = cyclesAsync.value?.dataOrNull;
     final current = currentAsync.value?.dataOrNull;
-    // Pregnancy suppression: future menstrual predictions are withheld
-    // while pregnancy mode is active. Logged history is unaffected.
-    final pregnancyActive =
-        ref.watch(pregnancyProvider).value?.dataOrNull?.isActive == true;
+    // Pregnancy mode is dormant for first release; no suppression needed.
+    const pregnancyActive = false;
 
     final isPeriod = _isPeriodDay(check, cycles, current);
     final isPredicted = _isPredictedDay(
@@ -173,23 +169,12 @@ class CalendarDayDetailScreen extends ConsumerWidget {
               },
             ),
             const SizedBox(height: 16),
-            _FertilitySignsCard(isoDate: isoDate),
-            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 onPressed: () => context.push('/logger?date=$isoDate'),
                 icon: const Icon(Icons.edit_note_outlined, size: 18),
-                label: const Text('Edit entry'),
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => context.push('/logger?date=$isoDate'),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Add more'),
+                label: const Text('Log or edit daily wellness'),
               ),
             ),
           ],
@@ -238,80 +223,6 @@ class CalendarDayDetailScreen extends ConsumerWidget {
     if (avgLen == null) return false;
     final end = start.add(Duration(days: avgLen - 1));
     return !check.isBefore(start) && !check.isAfter(end);
-  }
-}
-
-/// Fertility signs recorded for this day (Phase 2 observations), if any.
-/// Observations are user-measured facts shown verbatim; an empty day shows
-/// a quiet logging prompt instead of invented content.
-class _FertilitySignsCard extends ConsumerWidget {
-  final String isoDate;
-
-  const _FertilitySignsCard({required this.isoDate});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
-    final observationsAsync = ref.watch(observationsProvider);
-    final observations = observationsAsync.value?.dataOrNull;
-    final forDay = observations == null
-        ? null
-        : filterObservations(observations, observationDate: isoDate);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: scheme.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Fertility signs',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          if (forDay == null)
-            Text(
-              'Couldn\u2019t load fertility signs.',
-              style: TextStyle(fontSize: 12, color: scheme.secondary),
-            )
-          else if (forDay.isEmpty)
-            Text(
-              'None recorded for this day.',
-              style: TextStyle(fontSize: 12, color: scheme.secondary),
-            )
-          else
-            for (final o in forDay)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Row(
-                  children: [
-                    const Icon(Icons.science_outlined, size: 14),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '${o.typeLabel}: ${o.valueLabel}',
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: () => context.push('/fertility-log?date=$isoDate'),
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Log fertility signs'),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

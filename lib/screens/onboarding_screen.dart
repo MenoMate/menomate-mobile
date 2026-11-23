@@ -119,24 +119,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   String? _inlineError;
 
   List<String> get _visibleSteps {
-    final ids = <String>[
+    return const [
       _sName,
       _sInterests,
       _sCycle,
       _sTracking,
       _sPersonal,
+      _sBasics,
+      _sReady,
+      _sDone,
     ];
-    final view = Personalization(interests: _data.interests);
-    if (view.wantsFertilityPrefs ||
-        view.wantsPregnancyState ||
-        _data.interests.contains(UserInterests.fertilityAwareness)) {
-      ids.add(_sRepro);
-    }
-    if (view.wantsPregnancyState) ids.add(_sPregnancy);
-    ids.add(_sBasics);
-    ids.add(_sReady);
-    ids.add(_sDone);
-    return ids;
   }
 
   String get _currentStep =>
@@ -835,7 +827,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           'You can choose more than one. You can change these later. Choosing never locks you into a mode.',
       child: Column(
         children: [
-          for (final interest in kUserInterests)
+          for (final interest in kUserInterests.where(
+            (i) =>
+                i.key != UserInterests.fertilityAwareness &&
+                i.key != UserInterests.tryingToConceive &&
+                i.key != UserInterests.pregnancy,
+          ))
             _selectableCard(
               context,
               selected: _data.interests.contains(interest.key),
@@ -1126,37 +1123,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               ],
             ),
             const SizedBox(height: 20),
-          ],
-          if (view.wantsFertilityPrefs) ...[
-            Text(
-              'Want to track fertility signs?',
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'MenoMate only records what you log — estimates always come from the server.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.secondary,
-              ),
-            ),
-            for (final pref in FertilityPrefs.all)
-              CheckboxListTile(
-                value: _data.fertilityPrefs.contains(pref),
-                title: Text(kFertilityPrefLabels[pref] ?? pref),
-                controlAffinity: ListTileControlAffinity.leading,
-                contentPadding: EdgeInsets.zero,
-                onChanged: (sel) => setState(() {
-                  final next = Set<String>.from(_data.fertilityPrefs);
-                  if (sel == true) {
-                    next.add(pref);
-                  } else {
-                    next.remove(pref);
-                  }
-                  _data.fertilityPrefs = next;
-                }),
-              ),
-            const SizedBox(height: 12),
           ],
           Text(
             'Anything you\u2019d like support with?',
