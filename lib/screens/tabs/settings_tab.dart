@@ -588,40 +588,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: colorScheme.outline),
-                ),
-                child: Material(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  child: ListTile(
-                    leading: Icon(
-                      Icons.calendar_month_outlined,
-                      color: colorScheme.primary,
-                    ),
-                    title: const Text(
-                      'History & Calendar',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      'Past cycles, logged days and predictions',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.secondary,
-                      ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: colorScheme.secondary,
-                    ),
-                    // Detail route (not a tab): back returns here.
-                    onTap: () => context.push('/calendar'),
-                  ),
-                ),
-              ),
               const SizedBox(height: 20),
 
               // --- 2. Cycle & Period Preferences ---
