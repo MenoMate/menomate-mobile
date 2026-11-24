@@ -75,7 +75,18 @@ final offlineAdoptionProvider = FutureProvider<OfflineAdoptionCounts?>((
   if (authId == null) return null;
   if (await notifier.isAdoptionDeclined(authId)) return null;
   final counts = await db.offlineAdoptableCounts();
-  if (counts.cycles == 0 && counts.logs == 0) return null;
+  final hasCore =
+      counts.cycles > 0 ||
+      counts.logs > 0 ||
+      counts.conditions > 0 ||
+      counts.medications > 0 ||
+      counts.healthContext;
+  if (!hasCore) {
+    final repro = await db.reproductiveAdoptableCounts();
+    if (repro.observations == 0 && !repro.pregnancy && !repro.aging) {
+      return null;
+    }
+  }
   return counts;
 });
 
@@ -169,10 +180,41 @@ Future<void> syncAllPending(Ref ref) async {
   }
 }
 
+/// Manual sync trigger for UI actions (e.g., Settings "Sync data now").
+Future<void> triggerManualSync(WidgetRef ref) async {
+  if (_syncInFlight) return;
+  _syncInFlight = true;
+  try {
+    final userId = ref.read(authUserIdProvider);
+    if (userId == null) return;
+    final cycleRepo = ref.read(cycleRepositoryProvider);
+    final logRepo = ref.read(dailyLogRepositoryProvider);
+    final profileRepo = ref.read(profileRepositoryProvider);
+    final healthRepo = ref.read(healthContextRepositoryProvider);
+    final reproductiveRepo = ref.read(reproductiveRepositoryProvider);
+    await profileRepo.refreshDeviceTimezone(userId);
+    await cycleRepo.syncPending(userId);
+    await logRepo.syncPending(userId);
+    await profileRepo.syncPending(userId);
+    await healthRepo.syncPending(userId);
+    await reproductiveRepo.syncPending(userId);
+    refreshAllAppData(ref);
+  } catch (_) {
+    // Best-effort.
+  } finally {
+    _syncInFlight = false;
+  }
+}
+
 /// Observes connectivity (hint only — API outcome stays authoritative) and
 /// runs [syncAllPending] on reconnect and once at startup.
 final connectivitySyncProvider = Provider<void>((ref) {
   Future.microtask(() => syncAllPending(ref));
+  ref.listen<String?>(authUserIdProvider, (prev, next) {
+    if (prev == null && next != null) {
+      syncAllPending(ref);
+    }
+  });
   final sub = Connectivity().onConnectivityChanged.listen((results) {
     if (results.any((r) => r != ConnectivityResult.none)) {
       syncAllPending(ref);

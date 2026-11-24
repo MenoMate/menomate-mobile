@@ -55,7 +55,6 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
     final priorTurns = List<CareTurn>.unmodifiable(
       ref.read(careSessionProvider),
     );
-    ref.read(careSessionProvider.notifier).addUserTurn(text, topic: topic);
 
     // MenoMate Care needs an account as well as connectivity: local-only
     // users get a clear sign-in explanation instead of a raw auth error.
@@ -111,6 +110,7 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
     }
 
     try {
+      ref.read(careSessionProvider.notifier).addUserTurn(text, topic: topic);
       final api = ref.read(apiServiceProvider);
       final request = buildCareRequest(
         text: text,

@@ -132,16 +132,6 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
     });
   }
 
-  void _resetForm() {
-    _pain = null;
-    _moods.clear();
-    _flow = null;
-    _discharge = null;
-    _symptoms.clear();
-    _severities.clear();
-    _notesController.clear();
-  }
-
   String _prettyDate() {
     try {
       return DateFormat('EEEE, MMMM d').format(DateTime.parse(_dateString));
@@ -204,9 +194,8 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
       if (wasCreate &&
           (result is Fresh<DailyLogResponse> ||
               result is PendingSync<DailyLogResponse>)) {
-        // A fresh create resets the form; the record now exists, so any
-        // further save edits it rather than looking like a new entry.
-        _resetForm();
+        // Keep the saved selections visible; the record now exists so
+        // further saves edit it cleanly.
         _existedAtOpen = true;
       }
     });

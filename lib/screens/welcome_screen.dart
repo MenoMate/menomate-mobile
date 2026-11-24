@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/theme.dart';
 import '../providers/offline_mode_provider.dart';
 import '../widgets/menomate_logo.dart';
 
@@ -78,12 +79,12 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                     child: ElevatedButton(
                       onPressed: _busy ? null : _getStarted,
                       child: _busy
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Colors.white,
+                                color: colorScheme.onPrimary,
                               ),
                             )
                           : const Text(
@@ -118,7 +119,9 @@ class _WelcomeScreenState extends ConsumerState<WelcomeScreen> {
                             TextSpan(
                               text: 'Log in',
                               style: TextStyle(
-                                color: colorScheme.primary,
+                                color: MenoMateTheme.interactionColor(
+                                  theme.brightness == Brightness.dark,
+                                ),
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

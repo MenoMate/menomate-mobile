@@ -96,7 +96,7 @@ lib/
 ├── content/
 │   └── insight_library.dart   # Deterministic local Daily Insight engine
 ├── data/
-│   ├── app_database.dart      # Drift SQLite database schema (v3) & local migrations
+│   ├── app_database.dart      # Drift SQLite database schema (v5) & local migrations
 │   ├── sync_policy.dart       # DataState definitions & typed ApiError mappings
 │   └── repositories/          # Repositories: Cycle, DailyLog, Profile, HealthContext
 ├── models/                    # Typed data transfer objects & domain models

@@ -551,9 +551,33 @@ class AppDatabase extends _$AppDatabase {
       }
       await (update(localCycles)..where((t) => t.userId.equals(kOfflineUserId)))
           .write(LocalCyclesCompanion(userId: Value(newUserId)));
-      await (update(localDailyLogs)
-            ..where((t) => t.userId.equals(kOfflineUserId)))
-          .write(LocalDailyLogsCompanion(userId: Value(newUserId)));
+
+      // Handle unique (userId, logDate) collisions on localDailyLogs: keep
+      // existing account logs and only adopt non-overlapping offline dates.
+      final existingAccountLogDates =
+          (await (select(localDailyLogs)
+                    ..where((t) => t.userId.equals(newUserId)))
+                  .get())
+              .map((r) => r.logDate)
+              .toSet();
+      for (final log in logs) {
+        if (existingAccountLogDates.contains(log.logDate)) {
+          await (delete(localSymptoms)
+                ..where(
+                  (t) =>
+                      t.userId.equals(kOfflineUserId) &
+                      t.logDate.equals(log.logDate),
+                ))
+              .go();
+          await (delete(localDailyLogs)
+                ..where((t) => t.id.equals(log.id)))
+              .go();
+        } else {
+          await (update(localDailyLogs)..where((t) => t.id.equals(log.id)))
+              .write(LocalDailyLogsCompanion(userId: Value(newUserId)));
+        }
+      }
+
       await (update(localSymptoms)
             ..where((t) => t.userId.equals(kOfflineUserId)))
           .write(LocalSymptomsCompanion(userId: Value(newUserId)));
@@ -563,18 +587,50 @@ class AppDatabase extends _$AppDatabase {
       await (update(localMedications)
             ..where((t) => t.userId.equals(kOfflineUserId)))
           .write(LocalMedicationsCompanion(userId: Value(newUserId)));
-      await (update(localHealthContext)
-            ..where((t) => t.userId.equals(kOfflineUserId)))
-          .write(LocalHealthContextCompanion(userId: Value(newUserId)));
+
+      // Singleton PK {userId} tables: drop offline row if account already has one.
+      final existingHealth = await (select(localHealthContext)
+            ..where((t) => t.userId.equals(newUserId)))
+          .getSingleOrNull();
+      if (existingHealth != null) {
+        await (delete(localHealthContext)
+              ..where((t) => t.userId.equals(kOfflineUserId)))
+            .go();
+      } else {
+        await (update(localHealthContext)
+              ..where((t) => t.userId.equals(kOfflineUserId)))
+            .write(LocalHealthContextCompanion(userId: Value(newUserId)));
+      }
+
       await (update(localFertilityObservations)
             ..where((t) => t.userId.equals(kOfflineUserId)))
           .write(LocalFertilityObservationsCompanion(userId: Value(newUserId)));
-      await (update(localPregnancyContext)
-            ..where((t) => t.userId.equals(kOfflineUserId)))
-          .write(LocalPregnancyContextCompanion(userId: Value(newUserId)));
-      await (update(localAgingContext)
-            ..where((t) => t.userId.equals(kOfflineUserId)))
-          .write(LocalAgingContextCompanion(userId: Value(newUserId)));
+
+      final existingPregnancy = await (select(localPregnancyContext)
+            ..where((t) => t.userId.equals(newUserId)))
+          .getSingleOrNull();
+      if (existingPregnancy != null) {
+        await (delete(localPregnancyContext)
+              ..where((t) => t.userId.equals(kOfflineUserId)))
+            .go();
+      } else {
+        await (update(localPregnancyContext)
+              ..where((t) => t.userId.equals(kOfflineUserId)))
+            .write(LocalPregnancyContextCompanion(userId: Value(newUserId)));
+      }
+
+      final existingAging = await (select(localAgingContext)
+            ..where((t) => t.userId.equals(newUserId)))
+          .getSingleOrNull();
+      if (existingAging != null) {
+        await (delete(localAgingContext)
+              ..where((t) => t.userId.equals(kOfflineUserId)))
+            .go();
+      } else {
+        await (update(localAgingContext)
+              ..where((t) => t.userId.equals(kOfflineUserId)))
+            .write(LocalAgingContextCompanion(userId: Value(newUserId)));
+      }
       await (delete(
         localProfiles,
       )..where((t) => t.userId.equals(kOfflineUserId))).go();
@@ -649,6 +705,11 @@ String todayIso() => toIsoDate(DateTime.now());
 DateTime parseIsoDate(String iso) => DateTime.parse(iso);
 
 /// Whole-day difference `later - earlier` for ISO date strings.
-/// Used ONLY for display labels (Day N, observed tile intervals).
-int isoDayDifference(String earlierIso, String laterIso) =>
-    parseIsoDate(laterIso).difference(parseIsoDate(earlierIso)).inDays;
+/// Uses UTC midnight so DST transitions never shift the day count.
+int isoDayDifference(String earlierIso, String laterIso) {
+  final a = parseIsoDate(earlierIso);
+  final b = parseIsoDate(laterIso);
+  return DateTime.utc(b.year, b.month, b.day)
+      .difference(DateTime.utc(a.year, a.month, a.day))
+      .inDays;
+}

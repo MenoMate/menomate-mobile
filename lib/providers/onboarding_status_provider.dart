@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../data/app_database.dart' show kOfflineUserId;
 import '../models/profile.dart';
 import 'data_providers.dart';
 
@@ -68,14 +69,18 @@ class OnboardingStatusNotifier extends AsyncNotifier<bool> {
   Future<void> clear() async {
     state = const AsyncData(false);
     final userId = ref.read(currentUserIdProvider);
-    if (userId == null) return;
     try {
       final prefs = await SharedPreferences.getInstance().timeout(
         const Duration(seconds: 2),
         onTimeout: () => throw TimeoutException('prefs'),
       );
+      if (userId != null) {
+        await prefs
+            .remove(prefsKey(userId))
+            .timeout(const Duration(seconds: 2), onTimeout: () => false);
+      }
       await prefs
-          .remove(prefsKey(userId))
+          .remove(prefsKey(kOfflineUserId))
           .timeout(const Duration(seconds: 2), onTimeout: () => false);
     } catch (_) {
       // Best-effort only.

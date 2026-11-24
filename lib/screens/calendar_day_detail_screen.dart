@@ -221,7 +221,7 @@ class CalendarDayDetailScreen extends ConsumerWidget {
     final start = DateTime(p.year, p.month, p.day);
     final avgLen = current.averagePeriodLength;
     if (avgLen == null) return false;
-    final end = start.add(Duration(days: avgLen - 1));
+    final end = DateTime(p.year, p.month, p.day + avgLen - 1);
     return !check.isBefore(start) && !check.isAfter(end);
   }
 }
@@ -319,8 +319,6 @@ class _LogCard extends StatelessWidget {
               'Empty entry.',
               style: TextStyle(fontSize: 12, color: scheme.secondary),
             ),
-          const SizedBox(height: 8),
-          const SyncStatusChipPlaceholder(),
         ],
       ),
     );
@@ -351,14 +349,5 @@ class _LogCard extends StatelessWidget {
         ],
       ),
     );
-  }
-}
-
-class SyncStatusChipPlaceholder extends StatelessWidget {
-  const SyncStatusChipPlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const SizedBox.shrink();
   }
 }

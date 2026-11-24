@@ -210,12 +210,14 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
           child: ElevatedButton.icon(
             onPressed: _isLoading ? null : _togglePeriod,
             icon: _isLoading
-                ? const SizedBox(
+                ? SizedBox(
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.white,
+                      color: widget.isOngoing
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
+                          : Theme.of(context).colorScheme.onPrimary,
                     ),
                   )
                 : Icon(
@@ -238,7 +240,7 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
                   : Theme.of(context).colorScheme.primary,
               foregroundColor: widget.isOngoing
                   ? Theme.of(context).colorScheme.onPrimaryContainer
-                  : Colors.white,
+                  : Theme.of(context).colorScheme.onPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),

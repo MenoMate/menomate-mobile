@@ -225,13 +225,13 @@ class HomeTab extends ConsumerWidget {
                     } else if (cycleData.latestPeriodEnd != null) {
                       final start = cycleData.latestPeriodStart!;
                       final end = cycleData.latestPeriodEnd!;
-                      final startDay = DateTime(
-                        start.year,
-                        start.month,
-                        start.day,
-                      );
                       final endDay = DateTime(end.year, end.month, end.day);
-                      final days = endDay.difference(startDay).inDays + 1;
+                      final days = DateTime.utc(end.year, end.month, end.day)
+                              .difference(
+                                DateTime.utc(start.year, start.month, start.day),
+                              )
+                              .inDays +
+                          1;
                       periodStatus =
                           'Period ended ${DateFormat('MMM d').format(endDay)} · ${formatDayCount(days, 'day')}';
                     }

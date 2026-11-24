@@ -30,10 +30,11 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   final _macController = TextEditingController();
 
   String _selectedUnits = 'metric';
-  bool _isInitialized = false;
+  String? _lastAppliedProfileKey;
   bool _isSaving = false;
   bool _isRegisteringDevice = false;
   bool _isAdopting = false;
+  bool _isSyncingNow = false;
 
   @override
   void dispose() {
@@ -44,7 +45,10 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   }
 
   void _initFields(Profile? profile) {
-    if (profile == null || _isInitialized) return;
+    if (profile == null) return;
+    final key =
+        '${profile.userId}:${profile.usualCycleDays}:${profile.usualPeriodDays}:${profile.units}';
+    if (_lastAppliedProfileKey == key) return;
     // No fake defaults: an unset length stays empty (null), never 28/5.
     // (Name is edited in Profile, not here.)
     _cycleLengthController.text = profile.usualCycleDays?.toString() ?? '';
@@ -52,7 +56,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     _selectedUnits = (profile.units?.toLowerCase() == 'imperial')
         ? 'imperial'
         : 'metric';
-    _isInitialized = true;
+    _lastAppliedProfileKey = key;
   }
 
   Future<void> _saveProfile() async {
@@ -243,9 +247,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         : null;
 
     profileAsync.whenData((profileState) {
-      if (!_isInitialized) {
-        _initFields(profileState.dataOrNull);
-      }
+      _initFields(profileState.dataOrNull);
     });
 
     return Scaffold(
@@ -296,12 +298,14 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                             color: colorScheme.secondary,
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            'Using MenoMate without an account',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: colorScheme.onSurface,
+                          Expanded(
+                            child: Text(
+                              'Using MenoMate without an account',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: colorScheme.onSurface,
+                              ),
                             ),
                           ),
                         ],
@@ -329,6 +333,56 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                 ),
               ] else ...[
                 // Signed-in identity at a glance; details live in Profile.
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: colorScheme.outline),
+                  ),
+                  child: Material(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    child: ListTile(
+                      leading: _isSyncingNow
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.sync, color: colorScheme.primary),
+                      title: const Text('Sync data now'),
+                      subtitle: const Text(
+                        'Push any pending local changes to your account',
+                      ),
+                      onTap: _isSyncingNow
+                          ? null
+                          : () async {
+                              setState(() => _isSyncingNow = true);
+                              try {
+                                await triggerManualSync(ref);
+                                if (!context.mounted) return;
+                                final stillUnsynced = await ref
+                                    .read(appDatabaseProvider)
+                                    .hasUnsyncedData();
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      stillUnsynced
+                                          ? 'Some items still need attention or a stronger connection.'
+                                          : 'All data is synced.',
+                                    ),
+                                  ),
+                                );
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _isSyncingNow = false);
+                                }
+                              }
+                            },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
@@ -441,6 +495,56 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   ),
                   const SizedBox(height: 16),
                 ],
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: colorScheme.outline),
+                  ),
+                  child: Material(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    child: ListTile(
+                      leading: _isSyncingNow
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.sync, color: colorScheme.primary),
+                      title: const Text('Sync data now'),
+                      subtitle: const Text(
+                        'Push any pending local changes to your account',
+                      ),
+                      onTap: _isSyncingNow
+                          ? null
+                          : () async {
+                              setState(() => _isSyncingNow = true);
+                              try {
+                                await triggerManualSync(ref);
+                                if (!context.mounted) return;
+                                final stillUnsynced = await ref
+                                    .read(appDatabaseProvider)
+                                    .hasUnsyncedData();
+                                if (!context.mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      stillUnsynced
+                                          ? 'Some items still need attention or a stronger connection.'
+                                          : 'All data is synced.',
+                                    ),
+                                  ),
+                                );
+                              } finally {
+                                if (mounted) {
+                                  setState(() => _isSyncingNow = false);
+                                }
+                              }
+                            },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Container(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(18),
@@ -760,9 +864,11 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Measurement Units',
-                      style: TextStyle(fontWeight: FontWeight.w500),
+                    const Expanded(
+                      child: Text(
+                        'Measurement Units',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
                     ),
                     DropdownButton<String>(
                       value: _selectedUnits,
@@ -792,12 +898,12 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _saveProfile,
                   child: _isSaving
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: colorScheme.onPrimary,
                           ),
                         )
                       : const Text('Save Profile Preferences'),
@@ -961,7 +1067,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                     const Center(child: MenoMateBrandLogo(size: 56)),
                     const SizedBox(height: 12),
                     Text(
-                      'Understand your cycle. Support your you.',
+                      'Understand your cycle. Support yourself.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,

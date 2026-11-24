@@ -202,9 +202,17 @@ class ProfileRepository {
       if (deviceTz == null || deviceTz.isEmpty) return;
       final local = await _localRow(userId);
       if (local?.timezone == deviceTz) return;
+      if (local == null) {
+        // Fresh login / no local row yet: never stage a synthetic null-filled
+        // Profile (which would overwrite server fields with null on PATCH).
+        // Patch only the timezone directly and hydrate the full row.
+        final remote = await api.patchProfile({'timezone': deviceTz});
+        await _store(remote, SyncState.synced);
+        return;
+      }
       final merged = _applyPayload(
         userId,
-        local == null ? null : _assemble(local),
+        _assemble(local),
         {'timezone': deviceTz},
       );
       await _store(merged, SyncState.pending);

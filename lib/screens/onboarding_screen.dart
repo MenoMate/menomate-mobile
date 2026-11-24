@@ -640,6 +640,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       _pos = steps.length - 1;
     }
     final isChromeStep = !_isReady && !_isCompletion;
+    final isOffline = ref.watch(isOfflineTrackingProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -650,8 +651,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 tooltip: 'Back',
                 onPressed: _back,
               )
-            : null,
+            : (_pos == 0 && isOffline && !_isCompletion
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      tooltip: 'Back to Welcome',
+                      onPressed: () =>
+                          ref.read(offlineModeProvider.notifier).disable(),
+                    )
+                  : null),
         actions: [
+          if (isOffline && !_isCompletion)
+            TextButton(
+              onPressed: () => context.push('/login'),
+              child: const Text('Sign in'),
+            ),
           if (_isOptionalStep(_currentStep) && !_isCompletion)
             TextButton(
               onPressed: () {

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../core/theme.dart';
 import '../models/care.dart';
 
 /// One Care chat message bubble, rendered by deterministic tier.
@@ -119,10 +118,8 @@ class CareMessageBubble extends StatelessWidget {
             Text(
               text,
               style: TextStyle(
-                // Warm pale neutral instead of pure white on the rose
-                // user bubble, matching the dark text philosophy.
                 color: isUser
-                    ? MenoMateTheme.starryText
+                    ? colorScheme.onPrimary
                     : colorScheme.onSurface,
                 fontSize: 14,
                 height: 1.4,
@@ -249,6 +246,7 @@ class CareMessageBubble extends StatelessWidget {
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: actions
                   .map(
                     (action) => ActionChip(
@@ -306,7 +304,11 @@ class CareMessageBubble extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -333,7 +335,6 @@ class CareMessageBubble extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Spacer(),
                 TextButton.icon(
                   onPressed: () => onAction(
                     const CareAction(
@@ -392,7 +393,7 @@ class CareMessageBubble extends StatelessWidget {
             label: Text('Start $profileCapitalized Thermal Therapy'),
             style: ElevatedButton.styleFrom(
               backgroundColor: colorScheme.primary,
-              foregroundColor: Colors.white,
+              foregroundColor: colorScheme.onPrimary,
               visualDensity: VisualDensity.compact,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),

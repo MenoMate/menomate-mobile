@@ -151,29 +151,36 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.watch,
-                    color: MenoMateTheme.starryText.withValues(alpha: 0.7),
-                    size: 24,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'MenoMate Wearable',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: MenoMateTheme.starryText,
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.watch,
+                      color: MenoMateTheme.starryText.withValues(alpha: 0.7),
+                      size: 24,
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    const Flexible(
+                      child: Text(
+                        'MenoMate Wearable',
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: MenoMateTheme.starryText,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               // Connection badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: colorScheme.onSurface.withValues(alpha: 0.5),
+                  color: MenoMateTheme.starryBg.withValues(alpha: 0.7),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
@@ -268,26 +275,30 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              dev.name,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: MenoMateTheme.starryText,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                dev.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: MenoMateTheme.starryText,
+                                ),
                               ),
-                            ),
-                            Text(
-                              'RSSI: ${dev.rssi} dBm',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: MenoMateTheme.starryText.withValues(alpha: 0.6),
+                              Text(
+                                'RSSI: ${dev.rssi} dBm',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: MenoMateTheme.starryText.withValues(alpha: 0.6),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 8),
                         ElevatedButton(
                           onPressed: isConnecting
                               ? null
