@@ -73,6 +73,8 @@ MenoMate Mobile is designed with an **offline-first** architecture. Users can se
   - `PendingSync`: Changes saved locally, queued for upstream synchronization.
   - `Unavailable`: No local data exists and the server is unreachable.
   - `ConflictState`: Server flagged an entry requiring user review.
+- **No-Account Offline Mode & Data Adoption**: Users can start tracking immediately without an account (`offline-local`); when they later sign in or create an account, an optional adoption flow moves local records into their cloud account safely.
+- **Manual Sync Trigger**: Signed-in users can also trigger an immediate sync from Settings (**Sync data now**) in addition to automatic startup, sign-in, and reconnect sync passes.
 - Writes apply to local SQLite immediately. When connectivity resumes, queued records synchronize upstream in FIFO order.
 
 ### E. Wearable & BLE Integration
@@ -190,16 +192,7 @@ The completed installer will be output to:
 build/app/outputs/flutter-apk/app-release.apk
 ```
 
-### Building for Web
-
-```bash
-flutter build web --release \
-  --dart-define=API_BASE_URL="https://menomate-core.onrender.com" \
-  --dart-define=SUPABASE_URL="https://your-project.supabase.co" \
-  --dart-define=SUPABASE_ANON_KEY="your-anon-key"
-```
-
-The compiled web application will be output to `build/web/`, ready to deploy on any static hosting provider (Render Static Site, GitHub Pages, Vercel, Firebase).
+> **Platform Support**: MenoMate Mobile targets **Android** and **iOS** (local persistence uses native SQLite FFI via `drift/native.dart`). Web builds are not currently supported.
 
 ---
 
