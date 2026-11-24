@@ -23,12 +23,10 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Scanning for MenoMate Wearable...'),
-        duration: Duration(seconds: 2),
-      ),
-    );
+    if (bleService.connectionStatus == BleConnectionStatus.scanning) {
+      bleService.stopScan();
+      return;
+    }
 
     await bleService.startScan();
   }
@@ -50,10 +48,14 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
     final bleService = ref.read(bleServiceProvider);
     try {
       await bleService.setPower(turnOn);
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to set power: $e')),
+          SnackBar(
+            content: Text(
+              bleService.errorMessage ?? 'Could not update power. Please try again.',
+            ),
+          ),
         );
       }
     }
@@ -63,10 +65,14 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
     final bleService = ref.read(bleServiceProvider);
     try {
       await bleService.setHeatLevel(level);
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to set heat level: $e')),
+          SnackBar(
+            content: Text(
+              bleService.errorMessage ?? 'Could not set heat level. Please try again.',
+            ),
+          ),
         );
       }
     }
@@ -76,10 +82,14 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
     final bleService = ref.read(bleServiceProvider);
     try {
       await bleService.setMotorMode(mode);
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to set motor mode: $e')),
+          SnackBar(
+            content: Text(
+              bleService.errorMessage ?? 'Could not set motor mode. Please try again.',
+            ),
+          ),
         );
       }
     }
@@ -97,10 +107,14 @@ class _DeviceTelemetryCardState extends ConsumerState<DeviceTelemetryCard> {
           ),
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Emergency ALL OFF failed: $e')),
+          SnackBar(
+            content: Text(
+              bleService.errorMessage ?? 'Emergency ALL OFF failed. Please try again.',
+            ),
+          ),
         );
       }
     }
