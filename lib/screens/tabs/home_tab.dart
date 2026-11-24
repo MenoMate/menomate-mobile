@@ -71,7 +71,9 @@ class HomeTab extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        '$dateStr · Welcome to your cycle companion',
+                        dateStr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: colorScheme.secondary,
                           fontSize: 12,

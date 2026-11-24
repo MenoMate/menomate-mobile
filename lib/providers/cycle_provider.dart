@@ -180,32 +180,6 @@ Future<void> syncAllPending(Ref ref) async {
   }
 }
 
-/// Manual sync trigger for UI actions (e.g., Settings "Sync data now").
-Future<void> triggerManualSync(WidgetRef ref) async {
-  if (_syncInFlight) return;
-  _syncInFlight = true;
-  try {
-    final userId = ref.read(authUserIdProvider);
-    if (userId == null) return;
-    final cycleRepo = ref.read(cycleRepositoryProvider);
-    final logRepo = ref.read(dailyLogRepositoryProvider);
-    final profileRepo = ref.read(profileRepositoryProvider);
-    final healthRepo = ref.read(healthContextRepositoryProvider);
-    final reproductiveRepo = ref.read(reproductiveRepositoryProvider);
-    await profileRepo.refreshDeviceTimezone(userId);
-    await cycleRepo.syncPending(userId);
-    await logRepo.syncPending(userId);
-    await profileRepo.syncPending(userId);
-    await healthRepo.syncPending(userId);
-    await reproductiveRepo.syncPending(userId);
-    refreshAllAppData(ref);
-  } catch (_) {
-    // Best-effort.
-  } finally {
-    _syncInFlight = false;
-  }
-}
-
 /// Observes connectivity (hint only — API outcome stays authoritative) and
 /// runs [syncAllPending] on reconnect and once at startup.
 final connectivitySyncProvider = Provider<void>((ref) {

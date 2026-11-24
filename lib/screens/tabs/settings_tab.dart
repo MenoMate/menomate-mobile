@@ -34,7 +34,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   bool _isSaving = false;
   bool _isRegisteringDevice = false;
   bool _isAdopting = false;
-  bool _isSyncingNow = false;
 
   @override
   void dispose() {
@@ -342,56 +341,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                     color: colorScheme.surface,
                     borderRadius: BorderRadius.circular(18),
                     child: ListTile(
-                      leading: _isSyncingNow
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(Icons.sync, color: colorScheme.primary),
-                      title: const Text('Sync data now'),
-                      subtitle: const Text(
-                        'Push any pending local changes to your account',
-                      ),
-                      onTap: _isSyncingNow
-                          ? null
-                          : () async {
-                              setState(() => _isSyncingNow = true);
-                              try {
-                                await triggerManualSync(ref);
-                                if (!context.mounted) return;
-                                final stillUnsynced = await ref
-                                    .read(appDatabaseProvider)
-                                    .hasUnsyncedData();
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      stillUnsynced
-                                          ? 'Some items still need attention or a stronger connection.'
-                                          : 'All data is synced.',
-                                    ),
-                                  ),
-                                );
-                              } finally {
-                                if (mounted) {
-                                  setState(() => _isSyncingNow = false);
-                                }
-                              }
-                            },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: colorScheme.outline),
-                  ),
-                  child: Material(
-                    color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    child: ListTile(
                       leading: CircleAvatar(
                         radius: 22,
                         backgroundColor: colorScheme.primaryContainer,
@@ -500,56 +449,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(color: colorScheme.outline),
                   ),
-                  child: Material(
-                    color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    child: ListTile(
-                      leading: _isSyncingNow
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(Icons.sync, color: colorScheme.primary),
-                      title: const Text('Sync data now'),
-                      subtitle: const Text(
-                        'Push any pending local changes to your account',
-                      ),
-                      onTap: _isSyncingNow
-                          ? null
-                          : () async {
-                              setState(() => _isSyncingNow = true);
-                              try {
-                                await triggerManualSync(ref);
-                                if (!context.mounted) return;
-                                final stillUnsynced = await ref
-                                    .read(appDatabaseProvider)
-                                    .hasUnsyncedData();
-                                if (!context.mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      stillUnsynced
-                                          ? 'Some items still need attention or a stronger connection.'
-                                          : 'All data is synced.',
-                                    ),
-                                  ),
-                                );
-                              } finally {
-                                if (mounted) {
-                                  setState(() => _isSyncingNow = false);
-                                }
-                              }
-                            },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: colorScheme.outline),
-                  ),
                   // Own Material so the ListTile ink splash paints visibly
                   // instead of hiding behind the decorated container.
                   child: Material(
@@ -580,7 +479,9 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                         try {
                           unsynced = await ref
                               .read(appDatabaseProvider)
-                              .hasUnsyncedData();
+                              .hasUnsyncedData(
+                                userId: ref.read(authUserIdProvider),
+                              );
                         } catch (_) {
                           unsynced = false;
                         }

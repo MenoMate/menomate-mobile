@@ -347,15 +347,18 @@ class AppDatabase extends _$AppDatabase {
   /// the cache is server-derived display data that is safe to rebuild.
   /// Health context rows (including delete tombstones) do carry sync
   /// state, so they participate here like every other user-data row.
-  Future<bool> hasUnsyncedData() async {
+  Future<bool> hasUnsyncedData({String? userId}) async {
     final pending = SyncState.pending.index;
     final conflict = SyncState.conflict.index;
     final profileHit =
         await (selectOnly(localProfiles)
               ..addColumns([localProfiles.userId])
               ..where(
-                localProfiles.syncState.equals(pending) |
-                    localProfiles.syncState.equals(conflict),
+                (localProfiles.syncState.equals(pending) |
+                        localProfiles.syncState.equals(conflict)) &
+                    (userId == null
+                        ? const Constant(true)
+                        : localProfiles.userId.equals(userId)),
               )
               ..limit(1))
             .getSingleOrNull();
@@ -364,8 +367,11 @@ class AppDatabase extends _$AppDatabase {
         await (selectOnly(localCycles)
               ..addColumns([localCycles.id])
               ..where(
-                localCycles.syncState.equals(pending) |
-                    localCycles.syncState.equals(conflict),
+                (localCycles.syncState.equals(pending) |
+                        localCycles.syncState.equals(conflict)) &
+                    (userId == null
+                        ? const Constant(true)
+                        : localCycles.userId.equals(userId)),
               )
               ..limit(1))
             .getSingleOrNull();
@@ -374,8 +380,11 @@ class AppDatabase extends _$AppDatabase {
         await (selectOnly(localDailyLogs)
               ..addColumns([localDailyLogs.id])
               ..where(
-                localDailyLogs.syncState.equals(pending) |
-                    localDailyLogs.syncState.equals(conflict),
+                (localDailyLogs.syncState.equals(pending) |
+                        localDailyLogs.syncState.equals(conflict)) &
+                    (userId == null
+                        ? const Constant(true)
+                        : localDailyLogs.userId.equals(userId)),
               )
               ..limit(1))
             .getSingleOrNull();
@@ -384,8 +393,11 @@ class AppDatabase extends _$AppDatabase {
         await (selectOnly(localHealthContext)
               ..addColumns([localHealthContext.userId])
               ..where(
-                localHealthContext.syncState.equals(pending) |
-                    localHealthContext.syncState.equals(conflict),
+                (localHealthContext.syncState.equals(pending) |
+                        localHealthContext.syncState.equals(conflict)) &
+                    (userId == null
+                        ? const Constant(true)
+                        : localHealthContext.userId.equals(userId)),
               )
               ..limit(1))
             .getSingleOrNull();
@@ -394,8 +406,11 @@ class AppDatabase extends _$AppDatabase {
         await (selectOnly(localConditions)
               ..addColumns([localConditions.id])
               ..where(
-                localConditions.syncState.equals(pending) |
-                    localConditions.syncState.equals(conflict),
+                (localConditions.syncState.equals(pending) |
+                        localConditions.syncState.equals(conflict)) &
+                    (userId == null
+                        ? const Constant(true)
+                        : localConditions.userId.equals(userId)),
               )
               ..limit(1))
             .getSingleOrNull();
@@ -404,8 +419,11 @@ class AppDatabase extends _$AppDatabase {
         await (selectOnly(localMedications)
               ..addColumns([localMedications.id])
               ..where(
-                localMedications.syncState.equals(pending) |
-                    localMedications.syncState.equals(conflict),
+                (localMedications.syncState.equals(pending) |
+                        localMedications.syncState.equals(conflict)) &
+                    (userId == null
+                        ? const Constant(true)
+                        : localMedications.userId.equals(userId)),
               )
               ..limit(1))
             .getSingleOrNull();
@@ -414,8 +432,11 @@ class AppDatabase extends _$AppDatabase {
         await (selectOnly(localFertilityObservations)
               ..addColumns([localFertilityObservations.id])
               ..where(
-                localFertilityObservations.syncState.equals(pending) |
-                    localFertilityObservations.syncState.equals(conflict),
+                (localFertilityObservations.syncState.equals(pending) |
+                        localFertilityObservations.syncState.equals(conflict)) &
+                    (userId == null
+                        ? const Constant(true)
+                        : localFertilityObservations.userId.equals(userId)),
               )
               ..limit(1))
             .getSingleOrNull();
@@ -424,8 +445,11 @@ class AppDatabase extends _$AppDatabase {
         await (selectOnly(localPregnancyContext)
               ..addColumns([localPregnancyContext.userId])
               ..where(
-                localPregnancyContext.syncState.equals(pending) |
-                    localPregnancyContext.syncState.equals(conflict),
+                (localPregnancyContext.syncState.equals(pending) |
+                        localPregnancyContext.syncState.equals(conflict)) &
+                    (userId == null
+                        ? const Constant(true)
+                        : localPregnancyContext.userId.equals(userId)),
               )
               ..limit(1))
             .getSingleOrNull();
@@ -434,8 +458,11 @@ class AppDatabase extends _$AppDatabase {
         await (selectOnly(localAgingContext)
               ..addColumns([localAgingContext.userId])
               ..where(
-                localAgingContext.syncState.equals(pending) |
-                    localAgingContext.syncState.equals(conflict),
+                (localAgingContext.syncState.equals(pending) |
+                        localAgingContext.syncState.equals(conflict)) &
+                    (userId == null
+                        ? const Constant(true)
+                        : localAgingContext.userId.equals(userId)),
               )
               ..limit(1))
             .getSingleOrNull();

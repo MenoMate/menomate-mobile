@@ -885,6 +885,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         children: [
           for (final interest in kUserInterests.where(
             (i) =>
+                i.key != UserInterests.reproductiveLearning &&
                 i.key != UserInterests.fertilityAwareness &&
                 i.key != UserInterests.tryingToConceive &&
                 i.key != UserInterests.pregnancy,
