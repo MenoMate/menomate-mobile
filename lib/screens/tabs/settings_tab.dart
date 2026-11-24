@@ -297,7 +297,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'Using MenoMate offline',
+                            'Using MenoMate without an account',
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
@@ -395,7 +395,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Offline data on this device',
+                          'Local records saved on this device',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
@@ -888,7 +888,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                     Expanded(
                       child: Text(
                         offline
-                            ? 'Offline tracking — your data stays on this device until you sign in and choose to sync it.'
+                            ? 'Saved on this device — you\u2019re using MenoMate without an account. Sign in anytime to sync.'
                             : 'Signed in — your data syncs to your account across devices.',
                         style: TextStyle(
                           fontSize: 13,
@@ -926,7 +926,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                             'later — nothing is lost.',
                       ),
                       _HelpEntry(
-                        title: 'What does offline tracking mean?',
+                        title: 'About using MenoMate without an account',
                         body:
                             'You can track periods, symptoms, and wellness '
                             'without an account. Everything stays on this '

@@ -52,8 +52,8 @@ String _supabaseMessage(AuthException e) {
       needles.any((n) => code.contains(n) || message.contains(n));
 
   // Account already exists (Supabase answers 422 "User already registered").
-  if (hasAny(['user_already_exists', 'user already registered', 'already been registered', 'already exists'])) {
-    return 'An account with this email already exists. Try signing in instead.';
+  if (isDuplicateAccountAuthError(e)) {
+    return 'An account with this email already exists. Please try signing in instead.';
   }
   // Invalid credentials (sign-in).
   if (hasAny(['invalid login credentials', 'invalid_login_credentials', 'invalid credentials'])) {
@@ -107,6 +107,19 @@ String _supabaseMessage(AuthException e) {
     return raw;
   }
   return 'Something went wrong. Please try again.';
+}
+
+/// True when [e] is a Supabase duplicate-account error (e.g. `user_already_exists`).
+bool isDuplicateAccountAuthError(Object e) {
+  if (e is! AuthException) return false;
+  final code = (e.code ?? '').toLowerCase();
+  final message = e.message.toLowerCase();
+  return const [
+    'user_already_exists',
+    'user already registered',
+    'already been registered',
+    'already exists',
+  ].any((n) => code.contains(n) || message.contains(n));
 }
 
 /// Client-side email check. Returns a user-facing message or null when ok.

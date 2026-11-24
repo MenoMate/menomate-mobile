@@ -85,7 +85,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isAuthLoading = authState.isLoading;
       final isOfflineLoading = offlineAsync.isLoading;
 
-      final location = state.uri.toString();
+      final location = state.uri.path;
       final isSplash = location == '/splash';
       final isLogin = location == '/login';
       final isWelcome = location == '/welcome';
@@ -214,7 +214,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/welcome',
         builder: (context, state) => const WelcomeScreen(),
       ),
-      GoRoute(path: '/login', builder: (context, state) => const AuthScreen()),
+      GoRoute(
+        path: '/login',
+        builder: (context, state) {
+          final mode = state.uri.queryParameters['mode'];
+          return AuthScreen(initialLoginMode: mode != 'signup');
+        },
+      ),
       GoRoute(
         path: '/onboarding',
         builder: (context, state) => const OnboardingScreen(),

@@ -15,7 +15,9 @@ import '../widgets/menomate_logo.dart';
 const _emailRedirectTo = 'com.menomate.menomate_mobile://auth-callback';
 
 class AuthScreen extends ConsumerStatefulWidget {
-  const AuthScreen({super.key});
+  final bool initialLoginMode;
+
+  const AuthScreen({super.key, this.initialLoginMode = true});
 
   @override
   ConsumerState<AuthScreen> createState() => _AuthScreenState();
@@ -27,12 +29,18 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
-  bool _isLoginMode = true;
+  late bool _isLoginMode;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
   bool _isLoading = false;
   String? _errorMessage;
   String? _infoMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _isLoginMode = widget.initialLoginMode;
+  }
 
   @override
   void dispose() {
@@ -51,15 +59,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     });
   }
 
-  void _backToSignIn() {
-    setState(() {
-      _isLoginMode = true;
-      _errorMessage = null;
-      // Keep _infoMessage so the email-confirmation guidance stays visible.
-    });
-  }
-
   Future<void> _submit() async {
+    if (_isLoading) return;
     setState(() {
       _errorMessage = null;
       _infoMessage = null;
@@ -128,18 +129,19 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           data: {'name': name},
           emailRedirectTo: _emailRedirectTo,
         );
-        // Intended flow (hosted "Confirm Email" disabled): signup returns
-        // an authenticated session and the router proceeds to onboarding
-        // with no further action here.
+        // Expected flow (mailer_autoconfirm = true): signup returns an
+        // authenticated session and authStateProvider + GoRouter route to
+        // /splash -> /onboarding or /home with no extra login call.
         //
-        // Fallback (hosted "Confirm Email" still enabled): no active
-        // session means confirmation is required — surface this as an
-        // info state, not an error. This is a hosted-dashboard setting
-        // the app cannot change; see README.
+        // Unexpected null-session fallback: switch to Sign In mode cleanly
+        // without falsely claiming authentication succeeded or that email
+        // confirmation is required.
         if (response.session == null && response.user != null) {
           if (mounted) {
             setState(() {
-              _infoMessage = 'Account created! Please check your email and tap the confirmation link to verify your address, then sign in.';
+              _isLoginMode = true;
+              _infoMessage =
+                  'Account response received, but we couldn\u2019t start a session automatically. Please try signing in below.';
             });
             _passwordController.clear();
             _confirmPasswordController.clear();
@@ -148,7 +150,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       }
     } on AuthException catch (e) {
       if (mounted) {
-        setState(() => _errorMessage = friendlyAuthErrorMessage(e));
+        if (!_isLoginMode && isDuplicateAccountAuthError(e)) {
+          _passwordController.clear();
+          _confirmPasswordController.clear();
+          setState(() {
+            _isLoginMode = true;
+            _errorMessage = friendlyAuthErrorMessage(e);
+          });
+        } else {
+          setState(() => _errorMessage = friendlyAuthErrorMessage(e));
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -273,19 +284,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                     ),
                                   ],
                                 ),
-                                if (!_isLoginMode) ...[
-                                  const SizedBox(height: 12),
-                                  OutlinedButton.icon(
-                                    onPressed: _isLoading
-                                        ? null
-                                        : _backToSignIn,
-                                    icon: const Icon(
-                                      Icons.login_rounded,
-                                      size: 18,
-                                    ),
-                                    label: const Text('Back to Sign In'),
-                                  ),
-                                ],
                               ],
                             ),
                           ),
@@ -436,13 +434,25 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _submit,
                             child: _isLoading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
+                                ? Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const SizedBox(
+                                        height: 18,
+                                        width: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        _isLoginMode
+                                            ? 'Signing in...'
+                                            : 'Creating account...',
+                                      ),
+                                    ],
                                   )
                                 : Text(
                                     _isLoginMode ? 'Sign In' : 'Create Account',
@@ -462,7 +472,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                     Center(
                       child: TextButton(
                         onPressed: _isLoading ? null : () => context.pop(),
-                        child: const Text('Not now — continue offline'),
+                        child: const Text('Not now — continue without an account'),
                       ),
                     ),
 

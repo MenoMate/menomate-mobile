@@ -534,7 +534,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('Using MenoMate offline'), findsOneWidget);
+      expect(find.text('Using MenoMate without an account'), findsOneWidget);
       expect(find.text('Sign In / Create Account'), findsOneWidget);
       expect(find.text('Sign Out'), findsNothing);
       expect(find.textContaining('only on this device'), findsOneWidget);

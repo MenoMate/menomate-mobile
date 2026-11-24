@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/cycle_provider.dart';
 import '../../widgets/offline_banner.dart';
+import '../../widgets/guest_adoption_card.dart';
 import '../../widgets/symptom_logger_card.dart';
 import '../../widgets/device_telemetry_card.dart';
 import '../../widgets/period_tracker_button.dart';
@@ -114,6 +115,7 @@ class HomeTab extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const GuestAdoptionCard(),
               // Current Cycle Overview Card
               cycleAsync.when(
                 data: (cycleState) {

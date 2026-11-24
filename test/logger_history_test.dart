@@ -138,7 +138,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Saved on this device'), findsOneWidget);
-    expect(find.text('Not synced'), findsOneWidget);
+    expect(find.text('Sync pending'), findsOneWidget);
     expect(api.serverLogs, isEmpty);
   });
 

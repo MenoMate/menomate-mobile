@@ -20,6 +20,7 @@ import '../models/health_context.dart'
         HealthContext;
 import '../models/interests.dart';
 import '../models/onboarding.dart';
+import '../models/profile.dart';
 import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
 import '../providers/offline_mode_provider.dart';
@@ -117,7 +118,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   int _pos = 0;
   bool _isSubmitting = false;
+  bool _isFinishing = false;
   String? _inlineError;
+  String? _finishError;
 
   List<String> get _visibleSteps {
     return const [
@@ -1423,7 +1426,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               child: TextButton(
                 onPressed: _isSubmitting
                     ? null
-                    : () => context.push('/login'),
+                    : () => context.push('/login?mode=signup'),
                 child: const Text('Create an account to sync your data'),
               ),
             ),
@@ -1438,6 +1441,49 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _finishToHome() async {
+    if (_isFinishing) return;
+    setState(() {
+      _isFinishing = true;
+      _finishError = null;
+    });
+    try {
+      // Router observes profile + completion flag and lands on Home.
+      // Await profileProvider.future so loading feedback stays visible and
+      // any refresh failure surfaces a retry option instead of a dead tap.
+      refreshAllAppData(ref);
+      final profileState = await ref.read(profileProvider.future);
+      if (!mounted) return;
+      if (profileState is Unavailable<Profile?>) {
+        setState(() {
+          _finishError =
+              'Couldn\u2019t verify your profile right now. Please try again.';
+        });
+        return;
+      }
+      final profile = profileState.dataOrNull;
+      final completed = ref.read(onboardingStatusProvider).value ?? false;
+      if (!isProfileOnboarded(profile, completed)) {
+        setState(() {
+          _finishError =
+              'Your profile isn\u2019t ready yet. Please try again.';
+        });
+        return;
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _finishError =
+              'Couldn\u2019t load your profile. Please check your connection and try again.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFinishing = false);
+      }
+    }
   }
 
   Widget _completionStep(BuildContext context) {
@@ -1467,17 +1513,40 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: () {
-              // Router observes profile + completion flag and lands on Home.
-              // No manual push: avoids races with redirect.
-              refreshAllAppData(ref);
-            },
-            child: const Text('Go to my Home'),
+            onPressed: _isFinishing ? null : _finishToHome,
+            child: _isFinishing
+                ? const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Text('Opening Home...'),
+                    ],
+                  )
+                : Text(_finishError != null ? 'Retry' : 'Go to my Home'),
           ),
+          if (_finishError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _finishError!,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
           if (ref.watch(isOfflineTrackingProvider)) ...[
             const SizedBox(height: 12),
             Text(
-              'Your tracking data stays on this device. You can sign in later to sync it.',
+              'Saved on this device. You can create an account or sign in later to sync.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.secondary,
