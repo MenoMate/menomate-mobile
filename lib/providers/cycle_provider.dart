@@ -125,6 +125,18 @@ void refreshAllAppData(WidgetRef ref) {
   refreshReproductiveData(ref);
 }
 
+/// Invalidates all app data and waits for the core cycle/profile loads to
+/// settle so pull-to-refresh spinners stay visible until reload completes.
+Future<void> refreshAndAwaitAppData(WidgetRef ref) async {
+  refreshAllAppData(ref);
+  await Future.wait<void>([
+    ref.read(currentCycleProvider.future).then((_) {}, onError: (_) {}),
+    ref.read(cycleListProvider.future).then((_) {}, onError: (_) {}),
+    ref.read(historySummaryProvider.future).then((_) {}, onError: (_) {}),
+    ref.read(profileProvider.future).then((_) {}, onError: (_) {}),
+  ]);
+}
+
 /// Same invalidation set for non-widget provider contexts.
 void refreshProviders(Ref ref) {
   ref.invalidate(currentCycleProvider);

@@ -68,16 +68,9 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () => refreshAllAppData(ref),
-          ),
-        ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => refreshAllAppData(ref),
+        onRefresh: () => refreshAndAwaitAppData(ref),
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [

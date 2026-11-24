@@ -63,17 +63,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () => refreshAllAppData(ref),
-          ),
-        ],
       ),
       body: ThemeAtmosphereBackground(
         child: RefreshIndicator(
-          onRefresh: () async => refreshAllAppData(ref),
+          onRefresh: () => refreshAndAwaitAppData(ref),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),

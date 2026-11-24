@@ -101,16 +101,9 @@ class HomeTab extends ConsumerWidget {
             ),
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh Data',
-            onPressed: () => refreshAllAppData(ref),
-          ),
-        ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => refreshAllAppData(ref),
+        onRefresh: () => refreshAndAwaitAppData(ref),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
