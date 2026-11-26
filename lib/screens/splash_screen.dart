@@ -72,14 +72,21 @@ class SplashScreen extends ConsumerWidget {
       );
     }
 
-    return const Scaffold(
+    return Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            MenoMateBrandLogo(size: 72),
-            SizedBox(height: 24),
-            CircularProgressIndicator(),
+            const MenoMateBrandLogo(size: 72),
+            const SizedBox(height: 24),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              'Preparing your wellness space...',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: colorScheme.secondary,
+              ),
+            ),
           ],
         ),
       ),

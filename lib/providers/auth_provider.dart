@@ -13,9 +13,3 @@ final authStateProvider = StreamProvider<User?>((ref) async* {
   yield supabase.auth.currentSession?.user;
   yield* supabase.auth.onAuthStateChange.map((event) => event.session?.user);
 });
-
-/// A provider that synchronously provides the current authenticated user (if any).
-final currentUserProvider = Provider<User?>((ref) {
-  final authState = ref.watch(authStateProvider);
-  return authState.value;
-});

@@ -6,10 +6,11 @@ import '../../data/app_database.dart' show OfflineAdoptionCounts;
 import '../../data/sync_policy.dart';
 import '../../core/theme.dart';
 import '../../models/device.dart';
+import '../../models/health_context.dart';
 import '../../models/profile.dart';
 import '../../providers/cycle_provider.dart';
 import '../../providers/data_providers.dart';
-import '../../providers/logo_variant_provider.dart';
+import '../../providers/health_providers.dart';
 import '../../providers/offline_mode_provider.dart';
 import '../../widgets/menomate_logo.dart';
 import '../../providers/profile_provider.dart';
@@ -29,7 +30,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   final _macController = TextEditingController();
 
   String _selectedUnits = 'metric';
-  bool _isInitialized = false;
+  String? _lastAppliedProfileKey;
   bool _isSaving = false;
   bool _isRegisteringDevice = false;
   bool _isAdopting = false;
@@ -43,7 +44,10 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   }
 
   void _initFields(Profile? profile) {
-    if (profile == null || _isInitialized) return;
+    if (profile == null) return;
+    final key =
+        '${profile.userId}:${profile.usualCycleDays}:${profile.usualPeriodDays}:${profile.units}';
+    if (_lastAppliedProfileKey == key) return;
     // No fake defaults: an unset length stays empty (null), never 28/5.
     // (Name is edited in Profile, not here.)
     _cycleLengthController.text = profile.usualCycleDays?.toString() ?? '';
@@ -51,7 +55,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     _selectedUnits = (profile.units?.toLowerCase() == 'imperial')
         ? 'imperial'
         : 'metric';
-    _isInitialized = true;
+    _lastAppliedProfileKey = key;
   }
 
   Future<void> _saveProfile() async {
@@ -195,11 +199,11 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
 
     try {
       final api = ref.read(apiServiceProvider);
-      await api.registerDevice(
+      final device = await api.registerDevice(
         DeviceCreate(deviceIdentifier: mac, name: 'MenoMate Wearable'),
       );
 
-      if (mounted) {
+      if (device != null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Device registered successfully!')),
         );
@@ -207,9 +211,12 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error registering device: $e')));
+        final errorMsg = e is Conflict || e is ServerError
+            ? e.toString().replaceFirst('Exception: ', '')
+            : 'Error registering device: $e';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMsg)),
+        );
       }
     } finally {
       if (mounted) setState(() => _isRegisteringDevice = false);
@@ -229,6 +236,8 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     final themeMode = ref.watch(themeModeProvider);
     final offline = ref.watch(isOfflineTrackingProvider);
     final adoption = ref.watch(offlineAdoptionProvider).value;
+    final conditionsAsync = ref.watch(conditionsProvider);
+    final medicationsAsync = ref.watch(medicationsProvider);
     // Identity summary for the Account card. Name editing lives only in
     // Profile; Settings shows (never duplicates) the stored value.
     final accountName = profileAsync.value?.dataOrNull?.name?.trim();
@@ -237,9 +246,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         : null;
 
     profileAsync.whenData((profileState) {
-      if (!_isInitialized) {
-        _initFields(profileState.dataOrNull);
-      }
+      _initFields(profileState.dataOrNull);
     });
 
     return Scaffold(
@@ -290,12 +297,14 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                             color: colorScheme.secondary,
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            'Using MenoMate offline',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                              color: colorScheme.onSurface,
+                          Expanded(
+                            child: Text(
+                              'Using MenoMate without an account',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: colorScheme.onSurface,
+                              ),
                             ),
                           ),
                         ],
@@ -389,7 +398,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Offline data on this device',
+                          'Local records saved on this device',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 14,
@@ -470,7 +479,9 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                         try {
                           unsynced = await ref
                               .read(appDatabaseProvider)
-                              .hasUnsyncedData();
+                              .hasUnsyncedData(
+                                userId: ref.read(authUserIdProvider),
+                              );
                         } catch (_) {
                           unsynced = false;
                         }
@@ -514,10 +525,8 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               ],
               const SizedBox(height: 20),
 
-              // --- 1. Profile ---
-              // Personal info lives on the dedicated Profile screen;
-              // Settings keeps cycle baseline and quick preferences.
-              _buildSectionHeader('PROFILE · Personal details', colorScheme),
+              // --- 1. Health background & treatments ---
+              _buildSectionHeader('HEALTH · Background & treatments', colorScheme),
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
@@ -525,62 +534,62 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                 ),
                 child: Material(
                   color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  child: ListTile(
-                    leading: Icon(
-                      Icons.person_outline,
-                      color: colorScheme.primary,
-                    ),
-                    title: const Text(
-                      'Profile',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      'Your name and birth details',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.secondary,
-                      ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: colorScheme.secondary,
-                    ),
-                    onTap: () => context.push('/profile'),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: colorScheme.outline),
-                ),
-                child: Material(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  child: ListTile(
-                    leading: Icon(
-                      Icons.calendar_month_outlined,
-                      color: colorScheme.primary,
-                    ),
-                    title: const Text(
-                      'History & Calendar',
-                      style: TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: Text(
-                      'Past cycles, logged days and predictions',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.secondary,
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      ListTile(
+                        leading: Icon(
+                          Icons.healing_outlined,
+                          color: colorScheme.primary,
+                        ),
+                        title: const Text(
+                          'Health conditions',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          _conditionsSubtitle(conditionsAsync),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.secondary,
+                          ),
+                        ),
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: colorScheme.secondary,
+                        ),
+                        onTap: () => context.push('/profile/health/conditions'),
                       ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right,
-                      color: colorScheme.secondary,
-                    ),
-                    // Detail route (not a tab): back returns here.
-                    onTap: () => context.push('/calendar'),
+                      Divider(
+                        height: 1,
+                        indent: 56,
+                        color: colorScheme.outline.withValues(alpha: 0.5),
+                      ),
+                      ListTile(
+                        leading: Icon(
+                          Icons.medication_outlined,
+                          color: colorScheme.primary,
+                        ),
+                        title: const Text(
+                          'Medications & treatments',
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                          _medicationsSubtitle(medicationsAsync),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colorScheme.secondary,
+                          ),
+                        ),
+                        trailing: Icon(
+                          Icons.chevron_right,
+                          color: colorScheme.secondary,
+                        ),
+                        onTap: () => context.push('/profile/health/medications'),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -739,32 +748,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               // launcher variants; true OS launcher switching requires
               // native config — see docs/launcher_icon.md. It never
               // changes the Home header.
-              _buildSectionHeader('APP · App icon (launcher)', colorScheme),
-              Container(
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: colorScheme.outline),
-                ),
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                      child: Text(
-                        'Previews the launcher icon style. The Home greeting logo stays the classic MenoMate mark. Applying a launcher icon needs a native rebuild (see docs).',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.secondary,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                    for (final variant in AppLogoVariant.values)
-                      _LogoOptionTile(variant: variant),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
+
 
               // --- 4. Units Preference ---
               _buildSectionHeader('APP · Preferences', colorScheme),
@@ -781,9 +765,11 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'Measurement Units',
-                      style: TextStyle(fontWeight: FontWeight.w500),
+                    const Expanded(
+                      child: Text(
+                        'Measurement Units',
+                        style: TextStyle(fontWeight: FontWeight.w500),
+                      ),
                     ),
                     DropdownButton<String>(
                       value: _selectedUnits,
@@ -813,12 +799,12 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                 child: ElevatedButton(
                   onPressed: _isSaving ? null : _saveProfile,
                   child: _isSaving
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: colorScheme.onPrimary,
                           ),
                         )
                       : const Text('Save Profile Preferences'),
@@ -909,7 +895,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                     Expanded(
                       child: Text(
                         offline
-                            ? 'Offline tracking — your data stays on this device until you sign in and choose to sync it.'
+                            ? 'Saved on this device — you\u2019re using MenoMate without an account. Sign in anytime to sync.'
                             : 'Signed in — your data syncs to your account across devices.',
                         style: TextStyle(
                           fontSize: 13,
@@ -947,7 +933,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                             'later — nothing is lost.',
                       ),
                       _HelpEntry(
-                        title: 'What does offline tracking mean?',
+                        title: 'About using MenoMate without an account',
                         body:
                             'You can track periods, symptoms, and wellness '
                             'without an account. Everything stays on this '
@@ -982,7 +968,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                     const Center(child: MenoMateBrandLogo(size: 56)),
                     const SizedBox(height: 12),
                     Text(
-                      'Understand your cycle. Support your you.',
+                      'Understand your cycle. Support yourself.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 13,
@@ -1029,6 +1015,36 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
         'settings.';
   }
 
+  String _conditionsSubtitle(
+    AsyncValue<DataState<List<HealthCondition>>> asyncVal,
+  ) {
+    return asyncVal.maybeWhen(
+      data: (state) {
+        final list =
+            state.dataOrNull?.where((c) => c.isActive).toList() ?? [];
+        if (list.isEmpty) return 'No conditions added · Tap to add';
+        if (list.length == 1) return list.first.displayLabel;
+        return '${list.length} active conditions';
+      },
+      orElse: () => 'Tap to manage',
+    );
+  }
+
+  String _medicationsSubtitle(
+    AsyncValue<DataState<List<Medication>>> asyncVal,
+  ) {
+    return asyncVal.maybeWhen(
+      data: (state) {
+        final list =
+            state.dataOrNull?.where((m) => m.isActive).toList() ?? [];
+        if (list.isEmpty) return 'No medications added · Tap to add';
+        if (list.length == 1) return list.first.name;
+        return '${list.length} active medications';
+      },
+      orElse: () => 'Tap to manage',
+    );
+  }
+
   Widget _buildSectionHeader(String title, ColorScheme colorScheme) {
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 8),
@@ -1045,69 +1061,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
   }
 }
 
-/// One logo choice: live preview of the actual mark, name, short
-/// description, and a radio for selection state. The whole tile taps
-/// (min 48dp target) with an accessible label — selected state never
-/// rests on color alone.
-class _LogoOptionTile extends ConsumerWidget {
-  final AppLogoVariant variant;
 
-  const _LogoOptionTile({required this.variant});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => ref.read(logoVariantProvider.notifier).setVariant(variant),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            children: [
-              // Natural width: the compact presentation carries a wordmark
-              // beside its mark and must never be squeezed into the
-              // circle-only box (debug overflow, clipped text otherwise).
-              MenoMateLogo(
-                size: variant == AppLogoVariant.compact ? 32 : 44,
-                variant: variant,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      kLogoVariantLabels[variant] ?? variant.name,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      kLogoVariantDescriptions[variant] ?? '',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colorScheme.secondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              RadioGroup<AppLogoVariant>(
-                groupValue: ref.watch(logoVariantProvider),
-                onChanged: (value) {
-                  if (value != null) {
-                    ref.read(logoVariantProvider.notifier).setVariant(value);
-                  }
-                },
-                child: Radio<AppLogoVariant>(value: variant),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 /// One expandable help answer. Static, honest product copy only — no
 /// links, no contact details that do not exist, no invented features.

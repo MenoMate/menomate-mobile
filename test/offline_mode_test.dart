@@ -534,7 +534,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.text('Using MenoMate offline'), findsOneWidget);
+      expect(find.text('Using MenoMate without an account'), findsOneWidget);
       expect(find.text('Sign In / Create Account'), findsOneWidget);
       expect(find.text('Sign Out'), findsNothing);
       expect(find.textContaining('only on this device'), findsOneWidget);
@@ -576,10 +576,10 @@ void main() {
       expect(find.text('Sign Out'), findsOneWidget);
       // Name lives in Profile now — not duplicated as a settings field.
       expect(find.text('Your Name'), findsNothing);
-      // Hub tile still routes to Profile & Health (header + tile share
-      // the concept; header carries the PROFILE prefix).
-      expect(find.text('PROFILE · Profile & Health'), findsOneWidget);
-      expect(find.text('Profile & Health'), findsOneWidget);
+      // Health background & treatments in Settings tab.
+      expect(find.text('HEALTH · Background & treatments'), findsOneWidget);
+      expect(find.text('Health conditions'), findsOneWidget);
+      expect(find.text('Medications & treatments'), findsOneWidget);
     });
   });
 

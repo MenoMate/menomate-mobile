@@ -16,9 +16,9 @@
       "request": "launch",
       "type": "dart",
       "toolArgs": [
-        "--dart-define=API_BASE_URL=https://menomate-api.onrender.com",
-        "--dart-define=SUPABASE_URL=https://gtqkccbklagczhirsemc.supabase.co",
-        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_aUn-thS94erjuftTje_KlQ_Nuz38Qb6"
+        "--dart-define=API_BASE_URL=https://menomate-core.onrender.com",
+        "--dart-define=SUPABASE_URL=https://lnuhglauxlqtqzetvshz.supabase.co",
+        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_BAJLAeOchhYIEf69SpTNXA_z63UHzZ_"
       ]
     },
     {
@@ -32,9 +32,9 @@
         "8080"
       ],
       "toolArgs": [
-        "--dart-define=API_BASE_URL=https://menomate-api.onrender.com",
-        "--dart-define=SUPABASE_URL=https://gtqkccbklagczhirsemc.supabase.co",
-        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_aUn-thS94erjuftTje_KlQ_Nuz38Qb6"
+        "--dart-define=API_BASE_URL=https://menomate-core.onrender.com",
+        "--dart-define=SUPABASE_URL=https://lnuhglauxlqtqzetvshz.supabase.co",
+        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_BAJLAeOchhYIEf69SpTNXA_z63UHzZ_"
       ]
     },
     {
@@ -46,9 +46,9 @@
         "chrome"
       ],
       "toolArgs": [
-        "--dart-define=API_BASE_URL=https://menomate-api.onrender.com",
-        "--dart-define=SUPABASE_URL=https://gtqkccbklagczhirsemc.supabase.co",
-        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_aUn-thS94erjuftTje_KlQ_Nuz38Qb6"
+        "--dart-define=API_BASE_URL=https://menomate-core.onrender.com",
+        "--dart-define=SUPABASE_URL=https://lnuhglauxlqtqzetvshz.supabase.co",
+        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_BAJLAeOchhYIEf69SpTNXA_z63UHzZ_"
       ]
     },
     {
@@ -60,9 +60,9 @@
         "edge"
       ],
       "toolArgs": [
-        "--dart-define=API_BASE_URL=https://menomate-api.onrender.com",
-        "--dart-define=SUPABASE_URL=https://gtqkccbklagczhirsemc.supabase.co",
-        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_aUn-thS94erjuftTje_KlQ_Nuz38Qb6"
+        "--dart-define=API_BASE_URL=https://menomate-core.onrender.com",
+        "--dart-define=SUPABASE_URL=https://lnuhglauxlqtqzetvshz.supabase.co",
+        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_BAJLAeOchhYIEf69SpTNXA_z63UHzZ_"
       ]
     },
     {
@@ -74,9 +74,9 @@
         "windows"
       ],
       "toolArgs": [
-        "--dart-define=API_BASE_URL=https://menomate-api.onrender.com",
-        "--dart-define=SUPABASE_URL=https://gtqkccbklagczhirsemc.supabase.co",
-        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_aUn-thS94erjuftTje_KlQ_Nuz38Qb6"
+        "--dart-define=API_BASE_URL=https://menomate-core.onrender.com",
+        "--dart-define=SUPABASE_URL=https://lnuhglauxlqtqzetvshz.supabase.co",
+        "--dart-define=SUPABASE_ANON_KEY=sb_publishable_BAJLAeOchhYIEf69SpTNXA_z63UHzZ_"
       ]
     }
   ]

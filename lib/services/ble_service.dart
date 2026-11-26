@@ -116,6 +116,7 @@ class BleService {
   StreamSubscription<bool>? _isScanningSubscription;
   StreamSubscription<BluetoothConnectionState>? _connectionSubscription;
   StreamSubscription<List<int>>? _statusSubscription;
+  StreamSubscription<BluetoothAdapterState>? _adapterSubscription;
 
   BleService() {
     _initSubscriptions();
@@ -183,6 +184,23 @@ class BleService {
     _errorController.add(null);
   }
 
+  String _friendlyBleError(Object error, {String fallback = 'Bluetooth operation failed. Please try again.'}) {
+    final msg = error.toString().toLowerCase();
+    if (msg.contains('bluetooth must be turned on') || msg.contains('adapter is off')) {
+      return 'Bluetooth is turned off. Turn on Bluetooth to continue.';
+    }
+    if (msg.contains('fbp-code: 6') || msg.contains('device is not connected')) {
+      return 'Wearable disconnected. Tap Connect Device to reconnect.';
+    }
+    if (msg.contains('timed out') || msg.contains('fbp-code: 1')) {
+      return 'Wearable did not respond in time. Please try again.';
+    }
+    if (msg.contains('permission')) {
+      return 'Bluetooth permission is required to scan and connect.';
+    }
+    return fallback;
+  }
+
   /// Request runtime Bluetooth permissions on Android.
   Future<bool> requestPermissions() async {
     if (kIsWeb) return false;
@@ -203,6 +221,20 @@ class BleService {
     return true;
   }
 
+  void _ensureAdapterSubscription() {
+    if (kIsWeb || _adapterSubscription != null) return;
+    _adapterSubscription = FlutterBluePlus.adapterState.listen(
+      (adapterState) {
+        if (adapterState != BluetoothAdapterState.on &&
+            _connectionStatus != BleConnectionStatus.disconnected) {
+          _setError('Bluetooth is turned off. Turn on Bluetooth to connect.');
+          _handleDisconnected();
+        }
+      },
+      onError: (_) {},
+    );
+  }
+
   /// Start scanning for MenoMate wearable devices.
   Future<void> startScan({Duration timeout = const Duration(seconds: 15)}) async {
     if (kIsWeb) {
@@ -210,11 +242,31 @@ class BleService {
       return;
     }
 
+    _ensureAdapterSubscription();
     try {
       final hasPerm = await requestPermissions();
       if (!hasPerm) {
         _setError('Bluetooth permissions not granted');
         return;
+      }
+
+      var adapterState = await FlutterBluePlus.adapterState.first;
+      if (adapterState != BluetoothAdapterState.on) {
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          try {
+            await FlutterBluePlus.turnOn();
+            adapterState = await FlutterBluePlus.adapterState
+                .firstWhere((s) => s == BluetoothAdapterState.on)
+                .timeout(const Duration(seconds: 4));
+          } catch (_) {
+            adapterState = await FlutterBluePlus.adapterState.first;
+          }
+        }
+        if (adapterState != BluetoothAdapterState.on) {
+          _setError('Bluetooth is turned off. Turn on Bluetooth to scan.');
+          _setConnectionStatus(BleConnectionStatus.disconnected);
+          return;
+        }
       }
 
       _clearError();
@@ -228,9 +280,15 @@ class BleService {
       );
     } catch (e) {
       try {
+        final adapterState = await FlutterBluePlus.adapterState.first;
+        if (adapterState != BluetoothAdapterState.on) {
+          _setError('Bluetooth is turned off. Turn on Bluetooth to scan.');
+          _setConnectionStatus(BleConnectionStatus.disconnected);
+          return;
+        }
         await FlutterBluePlus.startScan(timeout: timeout);
       } catch (innerError) {
-        _setError('Error scanning for devices: $innerError');
+        _setError(_friendlyBleError(innerError, fallback: 'Unable to scan for devices. Please try again.'));
         _setConnectionStatus(BleConnectionStatus.disconnected);
       }
     }
@@ -249,6 +307,7 @@ class BleService {
   Future<void> connect(BluetoothDevice device) async {
     if (kIsWeb) return;
 
+    _ensureAdapterSubscription();
     try {
       stopScan();
       _clearError();
@@ -315,7 +374,7 @@ class BleService {
       debugPrint('[BLE] Successfully connected and subscribed to MenoMate wearable.');
     } catch (e) {
       debugPrint('[BLE] Connection error: $e');
-      _setError('Failed to connect to device: $e');
+      _setError(_friendlyBleError(e, fallback: 'Could not connect to wearable. Make sure it is powered on and nearby.'));
       _handleDisconnected();
     }
   }
@@ -410,15 +469,28 @@ class BleService {
 
       final jsonStr = jsonEncode(commandMap);
       final bytes = utf8.encode(jsonStr);
+      final useWithoutResponse =
+          _cmdCharacteristic!.properties.writeWithoutResponse;
 
-      await _cmdCharacteristic!.write(bytes, withoutResponse: false);
+      await _cmdCharacteristic!.write(
+        bytes,
+        withoutResponse: useWithoutResponse,
+      );
       debugPrint('[BLE CMD TX] $jsonStr');
     } catch (e) {
       debugPrint('[BLE CMD ERROR] $e');
-      _setError('Command failed: $e');
+      final msg = e.toString().toLowerCase();
+      final isDisconnectedErr =
+          msg.contains('fbp-code: 6') || msg.contains('device is not connected');
+      _setError(_friendlyBleError(e, fallback: 'Command failed. Please try again.'));
+      if (isDisconnectedErr) {
+        _handleDisconnected();
+      }
       rethrow;
     } finally {
-      _setIsBusy(false);
+      if (isConnected) {
+        _setIsBusy(false);
+      }
     }
   }
 
@@ -465,6 +537,7 @@ class BleService {
   }
 
   void dispose() {
+    _adapterSubscription?.cancel();
     _scanSubscription?.cancel();
     _isScanningSubscription?.cancel();
     _connectionSubscription?.cancel();

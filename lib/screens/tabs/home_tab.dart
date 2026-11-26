@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../data/sync_policy.dart';
@@ -9,6 +8,7 @@ import '../../core/theme.dart';
 import '../../providers/profile_provider.dart';
 import '../../providers/cycle_provider.dart';
 import '../../widgets/offline_banner.dart';
+import '../../widgets/guest_adoption_card.dart';
 import '../../widgets/symptom_logger_card.dart';
 import '../../widgets/device_telemetry_card.dart';
 import '../../widgets/period_tracker_button.dart';
@@ -16,7 +16,6 @@ import '../../widgets/interactive_cycle_ring.dart';
 import '../../widgets/daily_insight_card.dart';
 import '../../widgets/menomate_logo.dart';
 import '../../providers/logo_variant_provider.dart';
-import '../home_screen.dart';
 
 String _greetingForHour(int hour) {
   if (hour < 12) return 'Good morning';
@@ -72,7 +71,9 @@ class HomeTab extends ConsumerWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                       Text(
-                        '$dateStr · Welcome to your cycle companion',
+                        dateStr,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: colorScheme.secondary,
                           fontSize: 12,
@@ -100,22 +101,16 @@ class HomeTab extends ConsumerWidget {
             ),
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh Data',
-            onPressed: () => refreshAllAppData(ref),
-          ),
-        ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => refreshAllAppData(ref),
+        onRefresh: () => refreshAndAwaitAppData(ref),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const GuestAdoptionCard(),
               // Current Cycle Overview Card
               cycleAsync.when(
                 data: (cycleState) {
@@ -225,13 +220,13 @@ class HomeTab extends ConsumerWidget {
                     } else if (cycleData.latestPeriodEnd != null) {
                       final start = cycleData.latestPeriodStart!;
                       final end = cycleData.latestPeriodEnd!;
-                      final startDay = DateTime(
-                        start.year,
-                        start.month,
-                        start.day,
-                      );
                       final endDay = DateTime(end.year, end.month, end.day);
-                      final days = endDay.difference(startDay).inDays + 1;
+                      final days = DateTime.utc(end.year, end.month, end.day)
+                              .difference(
+                                DateTime.utc(start.year, start.month, start.day),
+                              )
+                              .inDays +
+                          1;
                       periodStatus =
                           'Period ended ${DateFormat('MMM d').format(endDay)} · ${formatDayCount(days, 'day')}';
                     }
@@ -422,35 +417,6 @@ class HomeTab extends ConsumerWidget {
                 ),
               ),
 
-              const SizedBox(height: 8),
-
-              // Quick actions: primary next steps, always visible.
-              Text(
-                'Quick actions',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _QuickActionCell(
-                    icon: Icons.water_drop_outlined,
-                    label: 'Log period',
-                    onTap: () => context.push('/logger'),
-                  ),
-                  const SizedBox(width: 12),
-                  _QuickActionCell(
-                    icon: Icons.calendar_month_rounded,
-                    label: 'Calendar',
-                    onTap: () =>
-                        ref.read(homeTabIndexProvider.notifier).setIndex(1),
-                  ),
-                ],
-              ),
-
               const SizedBox(height: 20),
 
               // Daily Insight: one glanceable section, matching the
@@ -503,80 +469,7 @@ class HomeTab extends ConsumerWidget {
   }
 }
 
-/// One quick-action cell: icon tile plus label, sharing the card
-/// language (radius-18 family, thin outline, soft shadow). Each cell is
-/// an independent 48dp+ touch target with an icon *and* a text label, so
-/// meaning never rests on icon or color alone.
-class _QuickActionCell extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
 
-  const _QuickActionCell({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    return Expanded(
-      child: Material(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: colorScheme.outline),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: MenoMateTheme.interactionColor(
-                      theme.brightness == Brightness.dark,
-                    ).withValues(alpha: 0.12),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 22,
-                    color: MenoMateTheme.interactionColor(
-                      theme.brightness == Brightness.dark,
-                    ),
-                    semanticLabel: label,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.onSurface,
-                    height: 1.25,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 /// Calm explainer for the cycle-phase label.
 Future<void> showPhaseInfoSheet(BuildContext context) {

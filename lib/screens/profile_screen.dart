@@ -4,38 +4,15 @@ import 'package:go_router/go_router.dart';
 
 import '../core/format.dart' show kMonthNames;
 import '../data/sync_policy.dart';
-import '../models/health_context.dart' show validateBirthPair;
+import '../models/health_context.dart'
+    show validateBirthPair, HealthCondition, Medication;
 import '../models/profile.dart';
 import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
+import '../providers/health_providers.dart';
 import '../providers/offline_mode_provider.dart';
 import '../providers/onboarding_context_provider.dart';
 import '../providers/profile_provider.dart';
-import 'health_intro_screen.dart';
-
-/// Opens Health & Context, showing the one-time intro first unless the
-/// user already dismissed it. Shared by the Settings tile and the Profile
-/// health card so the first-encounter explanation is never skipped by
-/// taking a different path.
-Future<void> openHealthContext(BuildContext context, WidgetRef ref) async {
-  final userId = ref.read(currentUserIdProvider);
-  var dismissed = true;
-  if (userId != null) {
-    try {
-      dismissed = await ref
-          .read(offlineModeProvider.notifier)
-          .isFeatureDismissed(kHealthIntroFeature, userId);
-    } catch (_) {
-      dismissed = true;
-    }
-  }
-  if (!context.mounted) return;
-  if (dismissed) {
-    context.push('/profile/health');
-  } else {
-    context.push('/health-intro');
-  }
-}
 
 /// Profile hub: personal information (name, birth month/year) plus the
 /// entry point to Health & Context. Everything is optional; nothing here
@@ -138,6 +115,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final profileAsync = ref.watch(profileProvider);
+    final conditionsAsync = ref.watch(conditionsProvider);
+    final medicationsAsync = ref.watch(medicationsProvider);
 
     profileAsync.whenData((profileState) {
       if (!_isInitialized) {
@@ -301,11 +280,104 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ],
                 ),
               ),
+              const SizedBox(height: 24),
+              _buildSectionHeader('Health background & treatments', colorScheme),
+              Material(
+                color: colorScheme.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(18),
+                  side: BorderSide(color: colorScheme.outline),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: Icon(
+                        Icons.healing_outlined,
+                        color: colorScheme.primary,
+                      ),
+                      title: const Text(
+                        'Health conditions',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        _conditionsSubtitle(conditionsAsync),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.secondary,
+                        ),
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: colorScheme.secondary,
+                      ),
+                      onTap: () => context.push('/profile/health/conditions'),
+                    ),
+                    Divider(
+                      height: 1,
+                      indent: 56,
+                      color: colorScheme.outline.withValues(alpha: 0.5),
+                    ),
+                    ListTile(
+                      leading: Icon(
+                        Icons.medication_outlined,
+                        color: colorScheme.primary,
+                      ),
+                      title: const Text(
+                        'Medications & treatments',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        _medicationsSubtitle(medicationsAsync),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: colorScheme.secondary,
+                        ),
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right,
+                        color: colorScheme.secondary,
+                      ),
+                      onTap: () => context.push('/profile/health/medications'),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 36),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  String _conditionsSubtitle(
+    AsyncValue<DataState<List<HealthCondition>>> asyncVal,
+  ) {
+    return asyncVal.maybeWhen(
+      data: (state) {
+        final list =
+            state.dataOrNull?.where((c) => c.isActive).toList() ?? [];
+        if (list.isEmpty) return 'No conditions added · Tap to add';
+        if (list.length == 1) return list.first.displayLabel;
+        return '${list.length} active conditions';
+      },
+      orElse: () => 'Tap to manage',
+    );
+  }
+
+  String _medicationsSubtitle(
+    AsyncValue<DataState<List<Medication>>> asyncVal,
+  ) {
+    return asyncVal.maybeWhen(
+      data: (state) {
+        final list =
+            state.dataOrNull?.where((m) => m.isActive).toList() ?? [];
+        if (list.isEmpty) return 'No medications added · Tap to add';
+        if (list.length == 1) return list.first.name;
+        return '${list.length} active medications';
+      },
+      orElse: () => 'Tap to manage',
     );
   }
 

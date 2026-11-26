@@ -16,8 +16,8 @@ class SyncStatusChip extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final label = switch (state) {
       Cached(fetchedAt: final at) =>
-        'Offline · updated ${DateFormat('MMM d').format(at)}',
-      PendingSync() => 'Not synced',
+        'Saved on this device · updated ${DateFormat('MMM d').format(at)}',
+      PendingSync() => 'Sync pending',
       ConflictState() => 'Needs review',
       _ => null,
     };

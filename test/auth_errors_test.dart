@@ -103,6 +103,19 @@ void main() {
       expect(message, contains('6 characters'));
     });
 
+    test('weak password with character requirements surfaces specific policy', () {
+      final message = friendlyAuthErrorMessage(
+        const AuthException(
+          'Password should contain at least one character of each: a-z, A-Z, 0-9',
+          statusCode: '422',
+        ),
+      );
+      expect(
+        message,
+        'Password should contain at least one character of each: a-z, A-Z, 0-9.',
+      );
+    });
+
     test('rate limiting asks for patience, not retry spam', () {
       final message = friendlyAuthErrorMessage(
         const AuthException(

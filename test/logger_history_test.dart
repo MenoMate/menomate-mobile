@@ -35,8 +35,8 @@ void _tallViewport(WidgetTester tester) {
 /// Provider override lists are written inline at each pumpWidget call so
 /// Riverpod infers the override list type from the parameter context.
 void main() {
-  // Create -> explicit message + form resets to a new-log state.
-  testWidgets('create daily log saves, announces, and resets the form',
+  // Create -> explicit message + saved values remain visible in edit mode.
+  testWidgets('create daily log saves, announces, and retains saved values',
       (tester) async {
     final db = AppDatabase.memory();
     final api = FakeApiService();
@@ -68,9 +68,9 @@ void main() {
 
     // Explicit online feedback...
     expect(find.text('Daily log saved'), findsOneWidget);
-    // ...form reset to defaults (notes cleared) with the record now
-    // existing, so the header reflects edit mode for the saved date...
-    expect(find.text('mild headache'), findsNothing);
+    // ...saved values remain visible with the record now existing, so the
+    // header reflects edit mode for the saved date...
+    expect(find.text('mild headache'), findsOneWidget);
     expect(find.textContaining('editing saved log'), findsOneWidget);
     expect(find.textContaining('how are you feeling today?'), findsNothing);
     // ...and exactly one server record exists.
@@ -138,7 +138,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Saved on this device'), findsOneWidget);
-    expect(find.text('Not synced'), findsOneWidget);
+    expect(find.text('Sync pending'), findsOneWidget);
     expect(api.serverLogs, isEmpty);
   });
 

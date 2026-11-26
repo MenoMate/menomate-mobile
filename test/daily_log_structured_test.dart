@@ -297,11 +297,8 @@ void main() {
       var row = await (db.select(db.localDailyLogs)).getSingle();
       expect(parseMoods(row.mood), ['happy', 'calm']);
 
-      // Form reset after create: select Happy+Calm again, then tapping
-      // Happy alone deselects just it (multi-select toggles), then
-      // deselecting Calm too leaves zero moods (valid empty state).
-      await tapVisible(tester, find.text('Happy'));
-      await tapVisible(tester, find.text('Calm'));
+      // Saved values remain selected after create: deselecting Happy+Calm
+      // leaves zero moods (valid empty state).
       await tapVisible(tester, find.text('Happy'));
       await tapVisible(tester, find.text('Calm'));
       await tapSave(tester);
@@ -329,9 +326,8 @@ void main() {
       // Zero symptoms selected serializes to an empty list.
       expect(await db.select(db.localSymptoms).get(), isEmpty);
 
-      // Form reset after create: select Heavy, then reselecting the
-      // selected option deselects it (empty = unset).
-      await tapVisible(tester, find.text('Heavy'));
+      // Saved selection remains active after create: reselecting Heavy
+      // deselects it (empty = unset).
       await tapVisible(tester, find.text('Heavy'));
       await tapSave(tester);
 
@@ -359,7 +355,6 @@ void main() {
       var row = await (db.select(db.localDailyLogs)).getSingle();
       expect(row.discharge, 'watery');
 
-      await tapVisible(tester, find.text('Watery'));
       await tapVisible(tester, find.text('Watery'));
       await tapSave(tester);
 
@@ -398,9 +393,8 @@ void main() {
       var row = await (db.select(db.localDailyLogs)).getSingle();
       expect(row.pain, 6);
 
-      // Form reset after create: log 6 again so the Clear control exists,
-      // then Clear returns to unset (badge back to "Not logged").
-      await tapSliderAtSix();
+      // Saved pain remains active after create so Clear is already visible;
+      // tapping Clear returns to unset (badge back to "Not logged").
       await tapVisible(tester, find.text('Clear'));
       await tapSave(tester);
 

@@ -63,17 +63,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () => refreshAllAppData(ref),
-          ),
-        ],
       ),
       body: ThemeAtmosphereBackground(
         child: RefreshIndicator(
-          onRefresh: () async => refreshAllAppData(ref),
+          onRefresh: () => refreshAndAwaitAppData(ref),
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -202,7 +195,7 @@ bool _isPredictedDay(
   final start = DateTime(p.year, p.month, p.day);
   final avgLen = current.averagePeriodLength;
   if (avgLen == null) return false;
-  final end = start.add(Duration(days: avgLen - 1));
+  final end = DateTime(p.year, p.month, p.day + avgLen - 1);
   final check = DateTime(day.year, day.month, day.day);
   return !check.isBefore(start) && !check.isAfter(end);
 }
@@ -359,8 +352,10 @@ class _MonthCell extends StatelessWidget {
         color: colorScheme.tertiary.withValues(alpha: isOutside ? 0.15 : 0.25),
         shape: BoxShape.circle,
         border: Border.all(
-          color: colorScheme.tertiary.withValues(alpha: isOutside ? 0.5 : 1.0),
-          width: 1.8,
+          color: forceSelected
+              ? colorScheme.onSurface
+              : colorScheme.tertiary.withValues(alpha: isOutside ? 0.5 : 1.0),
+          width: forceSelected ? 2 : 1.8,
         ),
       );
       textColor = colorScheme.onSurface;
@@ -773,13 +768,20 @@ class _MiniMonth extends StatelessWidget {
                 Color? bg;
                 Color fg = colorScheme.onSurface;
                 BoxBorder? border;
+                final todayCell = isToday(date);
                 if (logged) {
                   bg = colorScheme.primary.withValues(alpha: 0.85);
                   fg = colorScheme.onPrimary;
+                  if (todayCell) {
+                    border = Border.all(color: colorScheme.onSurface, width: 1.5);
+                  }
                 } else if (predicted) {
                   bg = colorScheme.tertiary.withValues(alpha: 0.25);
-                  border = Border.all(color: colorScheme.tertiary, width: 1);
-                } else if (isToday(date)) {
+                  border = Border.all(
+                    color: todayCell ? colorScheme.onSurface : colorScheme.tertiary,
+                    width: todayCell ? 1.5 : 1,
+                  );
+                } else if (todayCell) {
                   bg = todayNeutralFill(colorScheme);
                   border = Border.all(color: colorScheme.onSurface, width: 1);
                 }

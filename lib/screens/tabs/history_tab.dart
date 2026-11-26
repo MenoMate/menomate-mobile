@@ -68,16 +68,9 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: () => refreshAllAppData(ref),
-          ),
-        ],
       ),
       body: RefreshIndicator(
-        onRefresh: () async => refreshAllAppData(ref),
+        onRefresh: () => refreshAndAwaitAppData(ref),
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
@@ -413,7 +406,7 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
       final start = DateTime(pStart.year, pStart.month, pStart.day);
       final avgLen = currentCycle.averagePeriodLength;
       if (avgLen != null) {
-        final end = start.add(Duration(days: avgLen - 1));
+        final end = DateTime(pStart.year, pStart.month, pStart.day + avgLen - 1);
 
         if (!checkDay.isBefore(start) && !checkDay.isAfter(end)) {
           isPredictedPeriod = true;
@@ -651,7 +644,7 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
       final start = DateTime(pStart.year, pStart.month, pStart.day);
       final avgLen = currentCycle.averagePeriodLength;
       if (avgLen != null) {
-        final end = start.add(Duration(days: avgLen - 1));
+        final end = DateTime(pStart.year, pStart.month, pStart.day + avgLen - 1);
         if (!checkDay.isBefore(start) && !checkDay.isAfter(end)) {
           isPredicted = true;
         }

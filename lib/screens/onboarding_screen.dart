@@ -16,9 +16,11 @@ import '../models/health_context.dart'
         validateBirthPair,
         kContraceptionLabels,
         kPregnancyContextLabels,
+        HealthConditionCodes,
         HealthContext;
 import '../models/interests.dart';
 import '../models/onboarding.dart';
+import '../models/profile.dart';
 import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
 import '../providers/offline_mode_provider.dart';
@@ -116,7 +118,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   int _pos = 0;
   bool _isSubmitting = false;
+  bool _isFinishing = false;
   String? _inlineError;
+  String? _finishError;
 
   List<String> get _visibleSteps {
     return const [
@@ -416,6 +420,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   : resolvePeriodEndIso(_data.status, null),
             );
         await _saveReproductiveContext(userId, localOnly: true);
+        await _saveHealthConditionsFromConcerns(userId, localOnly: true);
         unawaited(ref.read(onboardingStatusProvider.notifier).markCompleted());
         refreshAllAppData(ref);
         if (mounted) _goToStep(_sDone);
@@ -460,6 +465,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             .read(profileProvider.notifier)
             .setProfile(updated.dataOrNull ?? result.profile);
         await _saveReproductiveContext(userId, localOnly: false);
+        await _saveHealthConditionsFromConcerns(userId, localOnly: false);
         unawaited(ref.read(onboardingStatusProvider.notifier).markCompleted());
       } else {
         await ref.read(profileProvider.notifier).reload();
@@ -516,6 +522,43 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       );
     } catch (_) {
       // Reproductive context is optional: never fail onboarding over it.
+    }
+  }
+
+  /// Automatically bridge selected health concerns from Step 5 to real
+  /// HealthCondition records in Health Context.
+  Future<void> _saveHealthConditionsFromConcerns(
+    String userId, {
+    required bool localOnly,
+  }) async {
+    if (_data.healthConcerns.isEmpty) return;
+    try {
+      final repo = ref.read(healthContextRepositoryProvider);
+      for (final concern in _data.healthConcerns) {
+        String? code;
+        String? customLabel;
+        if (concern == HealthConcerns.pcos) {
+          code = HealthConditionCodes.pcos;
+        } else if (concern == HealthConcerns.endometriosis) {
+          code = HealthConditionCodes.endometriosis;
+        } else if (concern == HealthConcerns.fibroids) {
+          code = HealthConditionCodes.uterineFibroids;
+        } else if (concern == HealthConcerns.hormonal) {
+          code = HealthConditionCodes.other;
+          customLabel = 'Hormonal concerns';
+        }
+
+        if (code != null) {
+          await repo.addCondition(
+            userId,
+            code: code,
+            customLabel: customLabel,
+            localOnly: localOnly,
+          );
+        }
+      }
+    } catch (_) {
+      // Health conditions are optional: never fail onboarding over them.
     }
   }
 
@@ -597,6 +640,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       _pos = steps.length - 1;
     }
     final isChromeStep = !_isReady && !_isCompletion;
+    final isOffline = ref.watch(isOfflineTrackingProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -607,8 +651,20 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                 tooltip: 'Back',
                 onPressed: _back,
               )
-            : null,
+            : (_pos == 0 && isOffline && !_isCompletion
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      tooltip: 'Back to Welcome',
+                      onPressed: () =>
+                          ref.read(offlineModeProvider.notifier).disable(),
+                    )
+                  : null),
         actions: [
+          if (isOffline && !_isCompletion)
+            TextButton(
+              onPressed: () => context.push('/login'),
+              child: const Text('Sign in'),
+            ),
           if (_isOptionalStep(_currentStep) && !_isCompletion)
             TextButton(
               onPressed: () {
@@ -829,6 +885,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         children: [
           for (final interest in kUserInterests.where(
             (i) =>
+                i.key != UserInterests.reproductiveLearning &&
                 i.key != UserInterests.fertilityAwareness &&
                 i.key != UserInterests.tryingToConceive &&
                 i.key != UserInterests.pregnancy,
@@ -1062,7 +1119,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           'Pick the categories you care about. You can adjust these anytime inside the app. Optional.',
       child: Column(
         children: [
-          for (final entry in kTrackingCategoryLabels.entries)
+          for (final entry in kTrackingCategoryLabels.entries.where(
+            (e) => e.key != TrackingCategories.fertilitySigns,
+          ))
             _selectableCard(
               context,
               selected: _data.trackingCategories.contains(entry.key),
@@ -1142,7 +1201,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final entry in kHealthConcernLabels.entries)
+              for (final entry in kHealthConcernLabels.entries.where(
+                (e) => e.key != HealthConcerns.fertility,
+              ))
                 FilterChip(
                   label: Text(entry.value),
                   selected: _data.healthConcerns.contains(entry.key),
@@ -1379,7 +1440,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               child: TextButton(
                 onPressed: _isSubmitting
                     ? null
-                    : () => context.push('/login'),
+                    : () => context.push('/login?mode=signup'),
                 child: const Text('Create an account to sync your data'),
               ),
             ),
@@ -1394,6 +1455,49 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _finishToHome() async {
+    if (_isFinishing) return;
+    setState(() {
+      _isFinishing = true;
+      _finishError = null;
+    });
+    try {
+      // Router observes profile + completion flag and lands on Home.
+      // Await profileProvider.future so loading feedback stays visible and
+      // any refresh failure surfaces a retry option instead of a dead tap.
+      refreshAllAppData(ref);
+      final profileState = await ref.read(profileProvider.future);
+      if (!mounted) return;
+      if (profileState is Unavailable<Profile?>) {
+        setState(() {
+          _finishError =
+              'Couldn\u2019t verify your profile right now. Please try again.';
+        });
+        return;
+      }
+      final profile = profileState.dataOrNull;
+      final completed = ref.read(onboardingStatusProvider).value ?? false;
+      if (!isProfileOnboarded(profile, completed)) {
+        setState(() {
+          _finishError =
+              'Your profile isn\u2019t ready yet. Please try again.';
+        });
+        return;
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _finishError =
+              'Couldn\u2019t load your profile. Please check your connection and try again.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isFinishing = false);
+      }
+    }
   }
 
   Widget _completionStep(BuildContext context) {
@@ -1423,17 +1527,40 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           ),
           const SizedBox(height: 24),
           ElevatedButton(
-            onPressed: () {
-              // Router observes profile + completion flag and lands on Home.
-              // No manual push: avoids races with redirect.
-              refreshAllAppData(ref);
-            },
-            child: const Text('Go to my Home'),
+            onPressed: _isFinishing ? null : _finishToHome,
+            child: _isFinishing
+                ? const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      ),
+                      SizedBox(width: 10),
+                      Text('Opening Home...'),
+                    ],
+                  )
+                : Text(_finishError != null ? 'Retry' : 'Go to my Home'),
           ),
+          if (_finishError != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _finishError!,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
           if (ref.watch(isOfflineTrackingProvider)) ...[
             const SizedBox(height: 12),
             Text(
-              'Your tracking data stays on this device. You can sign in later to sync it.',
+              'Saved on this device. You can create an account or sign in later to sync.',
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.secondary,

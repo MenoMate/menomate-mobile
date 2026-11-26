@@ -10,6 +10,7 @@ import 'care_session_provider.dart';
 import 'data_providers.dart';
 import 'health_providers.dart';
 import 'offline_mode_provider.dart';
+import 'onboarding_status_provider.dart';
 import 'profile_provider.dart';
 import 'reproductive_providers.dart';
 
@@ -74,7 +75,18 @@ final offlineAdoptionProvider = FutureProvider<OfflineAdoptionCounts?>((
   if (authId == null) return null;
   if (await notifier.isAdoptionDeclined(authId)) return null;
   final counts = await db.offlineAdoptableCounts();
-  if (counts.cycles == 0 && counts.logs == 0) return null;
+  final hasCore =
+      counts.cycles > 0 ||
+      counts.logs > 0 ||
+      counts.conditions > 0 ||
+      counts.medications > 0 ||
+      counts.healthContext;
+  if (!hasCore) {
+    final repro = await db.reproductiveAdoptableCounts();
+    if (repro.observations == 0 && !repro.pregnancy && !repro.aging) {
+      return null;
+    }
+  }
   return counts;
 });
 
@@ -111,6 +123,18 @@ void refreshAllAppData(WidgetRef ref) {
   ref.invalidate(conditionsProvider);
   ref.invalidate(medicationsProvider);
   refreshReproductiveData(ref);
+}
+
+/// Invalidates all app data and waits for the core cycle/profile loads to
+/// settle so pull-to-refresh spinners stay visible until reload completes.
+Future<void> refreshAndAwaitAppData(WidgetRef ref) async {
+  refreshAllAppData(ref);
+  await Future.wait<void>([
+    ref.read(currentCycleProvider.future).then((_) {}, onError: (_) {}),
+    ref.read(cycleListProvider.future).then((_) {}, onError: (_) {}),
+    ref.read(historySummaryProvider.future).then((_) {}, onError: (_) {}),
+    ref.read(profileProvider.future).then((_) {}, onError: (_) {}),
+  ]);
 }
 
 /// Same invalidation set for non-widget provider contexts.
@@ -172,6 +196,11 @@ Future<void> syncAllPending(Ref ref) async {
 /// runs [syncAllPending] on reconnect and once at startup.
 final connectivitySyncProvider = Provider<void>((ref) {
   Future.microtask(() => syncAllPending(ref));
+  ref.listen<String?>(authUserIdProvider, (prev, next) {
+    if (prev == null && next != null) {
+      syncAllPending(ref);
+    }
+  });
   final sub = Connectivity().onConnectivityChanged.listen((results) {
     if (results.any((r) => r != ConnectivityResult.none)) {
       syncAllPending(ref);
@@ -201,6 +230,12 @@ Future<void> signOutAndClearLocalData(WidgetRef ref) async {
     await ref.read(offlineModeProvider.notifier).disable();
   } catch (_) {
     // Flag persistence is best-effort; sign-out still proceeds.
+  }
+  // Wipe local onboarding completion flag so the next user is not auto-onboarded.
+  try {
+    await ref.read(onboardingStatusProvider.notifier).clear();
+  } catch (_) {
+    // Flag reset is best-effort; sign-out proceeds.
   }
   await Supabase.instance.client.auth.signOut();
   refreshAllAppData(ref);
