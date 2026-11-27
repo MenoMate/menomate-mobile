@@ -1111,10 +1111,21 @@ class _NotificationsSettingsSection extends ConsumerWidget {
     return '$h12:${minute.toString().padLeft(2, '0')} $period';
   }
 
+  String _summaryText(NotificationPreferences prefs) {
+    final parts = <String>[];
+    if (prefs.dailyCheckInEnabled) {
+      parts.add('Daily ${_formatTime(prefs.dailyHour, prefs.dailyMinute)}');
+    }
+    if (prefs.periodReminderEnabled) {
+      parts.add('Period ${prefs.periodLeadDays}d before');
+    }
+    if (parts.isEmpty) return 'Off · Tap to configure reminders';
+    return parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final prefs = ref.watch(notificationPrefsProvider);
-    final notifier = ref.read(notificationPrefsProvider.notifier);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1122,7 +1133,7 @@ class _NotificationsSettingsSection extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Text(
-            'REMINDERS · Local notifications',
+            'REMINDERS · Notifications',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,
@@ -1131,173 +1142,33 @@ class _NotificationsSettingsSection extends ConsumerWidget {
             ),
           ),
         ),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colorScheme.surface,
+        Material(
+          color: colorScheme.surface,
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: colorScheme.outline),
+            side: BorderSide(color: colorScheme.outline),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (prefs.permissionDenied)
-                Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: colorScheme.errorContainer.withValues(alpha: 0.4),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    'Notification permission was not granted. Enable notifications in your device settings to receive reminders.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  'Daily check-in reminder',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                subtitle: Text(
-                  'Log symptoms at ${_formatTime(prefs.dailyHour, prefs.dailyMinute)}',
-                  style: TextStyle(fontSize: 12, color: colorScheme.secondary),
-                ),
-                value: prefs.dailyCheckInEnabled,
-                onChanged: (v) => notifier.setDailyCheckInEnabled(v),
-              ),
-              if (prefs.dailyCheckInEnabled) ...[
-                Row(
-                  children: [
-                    TextButton.icon(
-                      onPressed: () async {
-                        final picked = await showTimePicker(
-                          context: context,
-                          initialTime: TimeOfDay(
-                            hour: prefs.dailyHour,
-                            minute: prefs.dailyMinute,
-                          ),
-                        );
-                        if (picked != null) {
-                          await notifier.setDailyTime(
-                            picked.hour,
-                            picked.minute,
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.schedule, size: 18),
-                      label: Text(
-                        'Time: ${_formatTime(prefs.dailyHour, prefs.dailyMinute)}',
-                      ),
-                    ),
-                  ],
-                ),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text(
-                    'Skip if already logged today',
-                    style: TextStyle(fontSize: 13),
-                  ),
-                  value: prefs.skipIfLoggedToday,
-                  onChanged: (v) => notifier.setSkipIfLoggedToday(v),
-                ),
-              ],
-              const Divider(height: 20),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  'Upcoming period reminder',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                subtitle: Text(
-                  prefs.periodReminderEnabled
-                      ? '${prefs.periodLeadDays} day(s) before estimated start at ${_formatTime(prefs.periodHour, prefs.periodMinute)}'
-                      : 'Only scheduled when a valid forecast is available',
-                  style: TextStyle(fontSize: 12, color: colorScheme.secondary),
-                ),
-                value: prefs.periodReminderEnabled,
-                onChanged: (v) => notifier.setPeriodReminderEnabled(v),
-              ),
-              if (prefs.periodReminderEnabled) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Notify before estimated start',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: colorScheme.secondary,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Wrap(
-                  spacing: 6,
-                  children: NotificationService.allowedLeadDays.map((d) {
-                    final selected = prefs.periodLeadDays == d;
-                    return ChoiceChip(
-                      label: Text('${d}d'),
-                      selected: selected,
-                      onSelected: (_) => notifier.setPeriodLeadDays(d),
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    ChoiceChip(
-                      label: const Text('One-shot'),
-                      selected:
-                          prefs.periodMode == PeriodReminderMode.oneShot,
-                      onSelected: (_) =>
-                          notifier.setPeriodMode(PeriodReminderMode.oneShot),
-                    ),
-                    ChoiceChip(
-                      label: const Text('Daily until predicted'),
-                      selected:
-                          prefs.periodMode ==
-                          PeriodReminderMode.dailyUntilPredicted,
-                      onSelected: (_) => notifier.setPeriodMode(
-                        PeriodReminderMode.dailyUntilPredicted,
-                      ),
-                    ),
-                  ],
-                ),
-                TextButton.icon(
-                  onPressed: () async {
-                    final picked = await showTimePicker(
-                      context: context,
-                      initialTime: TimeOfDay(
-                        hour: prefs.periodHour,
-                        minute: prefs.periodMinute,
-                      ),
-                    );
-                    if (picked != null) {
-                      await notifier.setPeriodTime(
-                        picked.hour,
-                        picked.minute,
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.schedule, size: 18),
-                  label: Text(
-                    'Time: ${_formatTime(prefs.periodHour, prefs.periodMinute)}',
-                  ),
-                ),
-              ],
-              const SizedBox(height: 8),
-              Text(
-                'Reminders are scheduled locally on your device. Battery-saving modes on Android or iOS may slightly delay delivery.',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colorScheme.secondary.withValues(alpha: 0.8),
-                  height: 1.35,
-                ),
-              ),
-            ],
+          child: ListTile(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+            leading: Icon(
+              Icons.notifications_outlined,
+              color: colorScheme.primary,
+            ),
+            title: const Text(
+              'Reminders & notifications',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(
+              _summaryText(prefs),
+              style: TextStyle(fontSize: 12, color: colorScheme.secondary),
+            ),
+            trailing: Icon(
+              Icons.chevron_right,
+              color: colorScheme.secondary,
+            ),
+            onTap: () => context.push('/settings/notifications'),
           ),
         ),
       ],

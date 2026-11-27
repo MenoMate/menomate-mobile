@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
@@ -69,6 +70,8 @@ class NotificationPreferences {
 abstract class NotificationScheduler {
   Future<bool> initialize(void Function(String? payload) onTap);
   Future<bool> requestPermission();
+  Future<bool> canScheduleExactAlarms();
+  Future<bool> requestExactAlarmsPermission();
   Future<void> scheduleDaily({
     required int id,
     required String title,
@@ -89,6 +92,14 @@ abstract class NotificationScheduler {
   });
   Future<void> cancel(int id);
   Future<void> cancelAll();
+  Future<void> showTestNotification({
+    required int id,
+    required String title,
+    required String body,
+    required String payload,
+    required String channelId,
+    required String channelName,
+  });
 }
 
 class FlutterLocalNotificationsScheduler implements NotificationScheduler {
@@ -142,6 +153,70 @@ class FlutterLocalNotificationsScheduler implements NotificationScheduler {
   }
 
   @override
+  Future<bool> canScheduleExactAlarms() async {
+    final androidImpl =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (androidImpl == null) return true;
+    try {
+      return await androidImpl.canScheduleExactNotifications() ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  @override
+  Future<bool> requestExactAlarmsPermission() async {
+    final androidImpl =
+        _plugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    if (androidImpl == null) return true;
+    try {
+      return await androidImpl.requestExactAlarmsPermission() ?? true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _zonedScheduleWithFallback({
+    required int id,
+    required String title,
+    required String body,
+    required tz.TZDateTime scheduledDate,
+    required NotificationDetails details,
+    required String payload,
+    DateTimeComponents? matchDateTimeComponents,
+  }) async {
+    try {
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        scheduledDate,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: matchDateTimeComponents,
+        payload: payload,
+      );
+    } on PlatformException {
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        scheduledDate,
+        details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: matchDateTimeComponents,
+        payload: payload,
+      );
+    }
+  }
+
+  @override
   Future<void> scheduleDaily({
     required int id,
     required String title,
@@ -151,23 +226,20 @@ class FlutterLocalNotificationsScheduler implements NotificationScheduler {
     required String channelId,
     required String channelName,
   }) async {
-    await _plugin.zonedSchedule(
-      id,
-      title,
-      body,
-      scheduledDate,
-      NotificationDetails(
+    await _zonedScheduleWithFallback(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: scheduledDate,
+      details: NotificationDetails(
         android: AndroidNotificationDetails(
           channelId,
           channelName,
-          importance: Importance.defaultImportance,
-          priority: Priority.defaultPriority,
+          importance: Importance.high,
+          priority: Priority.high,
         ),
         iOS: const DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
       payload: payload,
     );
@@ -183,23 +255,46 @@ class FlutterLocalNotificationsScheduler implements NotificationScheduler {
     required String channelId,
     required String channelName,
   }) async {
-    await _plugin.zonedSchedule(
+    await _zonedScheduleWithFallback(
+      id: id,
+      title: title,
+      body: body,
+      scheduledDate: scheduledDate,
+      details: NotificationDetails(
+        android: AndroidNotificationDetails(
+          channelId,
+          channelName,
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        iOS: const DarwinNotificationDetails(),
+      ),
+      payload: payload,
+    );
+  }
+
+  @override
+  Future<void> showTestNotification({
+    required int id,
+    required String title,
+    required String body,
+    required String payload,
+    required String channelId,
+    required String channelName,
+  }) async {
+    await _plugin.show(
       id,
       title,
       body,
-      scheduledDate,
       NotificationDetails(
         android: AndroidNotificationDetails(
           channelId,
           channelName,
-          importance: Importance.defaultImportance,
-          priority: Priority.defaultPriority,
+          importance: Importance.high,
+          priority: Priority.high,
         ),
         iOS: const DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      uiLocalNotificationDateInterpretation:
-          UILocalNotificationDateInterpretation.absoluteTime,
       payload: payload,
     );
   }
@@ -260,6 +355,11 @@ class NotificationService {
 
   Future<bool> requestPermission() => _scheduler.requestPermission();
 
+  Future<bool> canScheduleExactAlarms() => _scheduler.canScheduleExactAlarms();
+
+  Future<bool> requestExactAlarmsPermission() =>
+      _scheduler.requestExactAlarmsPermission();
+
   Future<void> cancelDailyReminder() => _scheduler.cancel(dailyCheckInId);
 
   Future<void> cancelPeriodReminders() async {
@@ -269,6 +369,30 @@ class NotificationService {
   }
 
   Future<void> cancelAll() => _scheduler.cancelAll();
+
+  Future<void> showTestNotification() => _scheduler.showTestNotification(
+        id: 9999,
+        title: 'MenoMate Reminders Ready',
+        body: 'Tap to open Daily Check-In.',
+        payload: '/logger',
+        channelId: dailyChannelId,
+        channelName: dailyChannelName,
+      );
+
+  /// Computes the next local fire time for the daily check-in reminder.
+  static DateTime nextDailyCheckInDateTime({
+    required DateTime now,
+    required int hour,
+    required int minute,
+    required bool skipIfLoggedToday,
+    required bool hasLoggedToday,
+  }) {
+    var candidate = DateTime(now.year, now.month, now.day, hour, minute);
+    if (!candidate.isAfter(now) || (skipIfLoggedToday && hasLoggedToday)) {
+      candidate = candidate.add(const Duration(days: 1));
+    }
+    return candidate;
+  }
 
   /// Reconciles local notification schedules with current preferences,
   /// prediction state, and today's log state.

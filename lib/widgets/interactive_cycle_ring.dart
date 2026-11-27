@@ -240,6 +240,49 @@ class _InteractiveCycleRingState extends State<InteractiveCycleRing> {
                 visualDensity: VisualDensity.compact,
               ),
             ),
+          if (maxDay >= 20 && maxDay <= 45) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 12,
+              runSpacing: 4,
+              alignment: WrapAlignment.center,
+              children: [
+                for (final entry in const [
+                  ('menstrual', 'Menstrual'),
+                  ('follicular', 'Follicular'),
+                  ('ovulation', 'Est. Ovulation'),
+                  ('luteal', 'Luteal'),
+                ])
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: MenoMateTheme.ringPhaseColor(
+                            isDark: isDark,
+                            phase: entry.$1,
+                          ),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        entry.$2,
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: colorScheme.secondary,
+                          fontWeight: displayPhase == entry.$1
+                              ? FontWeight.w700
+                              : FontWeight.w400,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ],
         ],
       ],
     );
@@ -322,6 +365,26 @@ class CycleRingPainter extends CustomPainter {
 
     final sweepAngle = 2 * pi * progress;
     canvas.drawArc(rect, -pi / 2, sweepAngle, false, activePaint);
+
+    // Selected-day outer halo when exploring a different day
+    if (cycleLength > 0 && selectedDay != currentDay) {
+      final selFrac = (selectedDay / cycleLength).clamp(0.0, 1.0);
+      final selAngle = -pi / 2 + 2 * pi * selFrac;
+      final selCenter = Offset(
+        center.dx + radius * cos(selAngle),
+        center.dy + radius * sin(selAngle),
+      );
+      canvas.drawCircle(
+        selCenter,
+        10,
+        Paint()..color = activeColor.withValues(alpha: 0.28),
+      );
+      canvas.drawCircle(
+        selCenter,
+        6,
+        Paint()..color = activeColor,
+      );
+    }
 
     // Current-day marker dot on the ring
     if (cycleLength > 0) {

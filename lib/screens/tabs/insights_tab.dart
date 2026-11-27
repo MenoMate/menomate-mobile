@@ -75,10 +75,8 @@ class InsightsTab extends ConsumerWidget {
               _buildSectionHeader('For you today', colorScheme),
               _TodayCard(),
               const SizedBox(height: 20),
-              _buildSectionHeader('Understand your cycle', colorScheme),
+              _buildSectionHeader('Current cycle phase', colorScheme),
               const _PhaseCard(),
-              const SizedBox(height: 12),
-              const _CycleEducationCard(),
               const SizedBox(height: 20),
               _buildSectionHeader('My patterns', colorScheme),
               const _CycleTrendsCard(),
@@ -95,8 +93,6 @@ class InsightsTab extends ConsumerWidget {
                 caption: true,
               ),
               const _LearnCard(),
-              const SizedBox(height: 12),
-              const _CommonConcernsCard(),
               const SizedBox(height: 36),
             ],
           ),
@@ -525,30 +521,353 @@ class _SymptomPatternsCard extends ConsumerWidget {
 /// Deterministic educational content (no AI, no diagnoses). Static
 /// explainers already present in MenoMate: cycle basics, tracking tips,
 /// and when to consider talking to a clinician. Tapping a topic shows a
-/// calm bottom sheet — same pattern as cycle phases.
+class _LearnSectionItem {
+  final String heading;
+  final String body;
+  final String? trackNote;
+  final String? clinicianNote;
+
+  const _LearnSectionItem({
+    required this.heading,
+    required this.body,
+    this.trackNote,
+    this.clinicianNote,
+  });
+}
+
+class _LearnTopic {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String intro;
+  final List<_LearnSectionItem> sections;
+  final String? sourceNote;
+
+  const _LearnTopic({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.intro,
+    required this.sections,
+    this.sourceNote,
+  });
+}
+
+/// Categorized LEARN / EXPLORE cards — each card opens a calm, medically
+/// grounded detail sheet instead of crowding the main scroll view.
 class _LearnCard extends StatelessWidget {
   const _LearnCard();
+
+  static const List<_LearnTopic> _topics = [
+    _LearnTopic(
+      icon: Icons.loop_rounded,
+      title: 'Cycle basics',
+      subtitle: 'Phases, typical 21–35 day range, and why cycles vary.',
+      intro:
+          'A menstrual cycle begins on Day 1 of bleeding and ends the day before the next period starts. Across adults, typical cycle lengths commonly span 21–35 days, with periods lasting 2–7 days.',
+      sections: [
+        _LearnSectionItem(
+          heading: 'Menstrual phase (Day 1 onward)',
+          body:
+              'The uterine lining sheds as estrogen and progesterone are low. Cramping, lower back ache, and fatigue are commonly logged during the first 1–3 days.',
+        ),
+        _LearnSectionItem(
+          heading: 'Follicular phase',
+          body:
+              'Overlaps menstruation and continues until ovulation. Rising estrogen stimulates follicles in the ovary and rebuilds the uterine lining.',
+        ),
+        _LearnSectionItem(
+          heading: 'Ovulatory phase (estimate only)',
+          body:
+              'A mid-cycle transition around ~14 days before the next expected period. Calendar estimates are approximations — confirmed ovulation requires lab testing, ultrasound, or validated ovulation/BBT tracking.',
+        ),
+        _LearnSectionItem(
+          heading: 'Luteal phase',
+          body:
+              'Follows ovulation until the next period. Progesterone rises and then falls if pregnancy does not occur, which can accompany mood shifts, bloating, or breast tenderness.',
+        ),
+        _LearnSectionItem(
+          heading: 'Why timing varies',
+          body:
+              'Sleep disruption, travel, stress, illness, exercise changes, and life-stage transitions can shift ovulation timing and overall cycle length.',
+        ),
+      ],
+      sourceNote: 'Grounded in ACOG & NHS menstrual cycle guidance. Informational only.',
+    ),
+    _LearnTopic(
+      icon: Icons.edit_calendar_outlined,
+      title: 'Tracking tips',
+      subtitle: 'Consistent logs make personal patterns clearer.',
+      intro:
+          'Small, steady entries are far more useful than trying to log everything perfectly.',
+      sections: [
+        _LearnSectionItem(
+          heading: 'Log period starts promptly',
+          body:
+              'Cycle length is measured from one period start to the next. Marking the start and end dates accurately keeps predictions and trends reliable.',
+        ),
+        _LearnSectionItem(
+          heading: 'Pain 0 vs. unlogged days',
+          body:
+              'Leaving pain blank means "not recorded" — MenoMate never assumes a missed day was pain-free. Setting pain to 0 records that you explicitly felt no pain.',
+        ),
+        _LearnSectionItem(
+          heading: 'Offline-first & editable',
+          body:
+              'You can log anytime without internet. Past days can be updated in place from Calendar, and pending entries sync automatically once online.',
+        ),
+      ],
+    ),
+    _LearnTopic(
+      icon: Icons.track_changes_outlined,
+      title: 'Common concerns',
+      subtitle: 'What to track for cramps, heavy flow, PMS, and fatigue.',
+      intro:
+          'Recording concrete details helps you and a clinician see whether symptoms follow a cycle pattern or are changing over time.',
+      sections: [
+        _LearnSectionItem(
+          heading: 'Cramps & pelvic pain',
+          body:
+              'Primary dysmenorrhea is caused by uterine prostaglandins and usually peaks in the first 1–3 days of bleeding.',
+          trackNote: 'Pain score (0–10), cycle day, and heat/rest relief.',
+          clinicianNote:
+              'Seek evaluation if pain stops daily activities, worsens over cycles, or occurs outside bleeding.',
+        ),
+        _LearnSectionItem(
+          heading: 'Heavy menstrual bleeding',
+          body:
+              'Consistently heavy bleeding can interfere with daily life and lower iron stores over time.',
+          trackNote: 'Flow intensity, number of bleeding days, and clots/fatigue.',
+          clinicianNote:
+              'Consult a clinician if bleeding regularly lasts >7–8 days or you soak through a pad/tampon hourly for 2+ hours.',
+        ),
+        _LearnSectionItem(
+          heading: 'PMS & mood shifts',
+          body:
+              'Luteal-phase hormone shifts commonly coincide with irritability, low mood, bloating, or breast tenderness that ease after bleeding starts.',
+          trackNote: 'Moods, bloating, sleep/fatigue, and cycle day.',
+          clinicianNote:
+              'Discuss persistent or severe premenstrual distress (such as PMDD symptoms) with a healthcare provider.',
+        ),
+        _LearnSectionItem(
+          heading: 'Irregular or delayed periods',
+          body:
+              'Occasional variation is normal, especially during stress or perimenopause, while repeated cycles <21 or >35 days deserve review.',
+          trackNote: 'All period start/end dates and flow changes.',
+        ),
+      ],
+      sourceNote: 'Based on ACOG & NHS patient education. Not a medical diagnosis.',
+    ),
+    _LearnTopic(
+      icon: Icons.medical_information_outlined,
+      title: 'Health conditions guide',
+      subtitle: 'Delayed periods, PCOS, endometriosis, fibroids, thyroid & more.',
+      intro:
+          'These medically recognized conditions can affect menstrual patterns. MenoMate cannot diagnose conditions — use this guide to understand what observations are helpful to share with a clinician.',
+      sections: [
+        _LearnSectionItem(
+          heading: 'Delayed or missed periods (amenorrhea / oligomenorrhea)',
+          body:
+              'Cycles >35 days apart or missed periods can stem from stress, sudden weight/exercise changes, PCOS, thyroid disorders, high prolactin, or pregnancy (if applicable).',
+          trackNote: 'Start/end dates, stress/illness notes, and accompanying symptoms.',
+          clinicianNote:
+              'See a clinician if you miss 3+ periods in a row or cycles repeatedly exceed 35 days.',
+        ),
+        _LearnSectionItem(
+          heading: 'PCOS (Polycystic Ovary Syndrome)',
+          body:
+              'A common endocrine condition involving ovulatory irregularity and elevated androgen levels, often linked with infrequent/prolonged cycles, acne, or excess hair growth.',
+          trackNote: 'Cycle intervals, acne, low energy, and mood patterns across 3+ months.',
+          clinicianNote:
+              'Diagnosis requires clinical criteria, blood tests, and/or pelvic ultrasound.',
+        ),
+        _LearnSectionItem(
+          heading: 'Endometriosis',
+          body:
+              'Tissue similar to the uterine lining grows outside the uterus, often causing severe menstrual cramps, chronic pelvic pain, lower back pain, fatigue, or painful bowel/bladder symptoms.',
+          trackNote: 'Pain scores (0–10) before/during/after bleeding and symptom severity.',
+          clinicianNote:
+              'Discuss progressive pelvic pain or pain that disrupts work, school, or sleep.',
+        ),
+        _LearnSectionItem(
+          heading: 'Uterine fibroids',
+          body:
+              'Benign (non-cancerous) muscle growths in the uterus that can cause heavy or prolonged bleeding, pelvic pressure, lower back ache, or frequent urination.',
+          trackNote: 'Heavy flow days, bleeding duration, and pelvic/back pain.',
+        ),
+        _LearnSectionItem(
+          heading: 'Thyroid & hormonal shifts',
+          body:
+              'Both hypothyroidism (underactive) and hyperthyroidism (overactive) can alter cycle frequency and flow volume alongside fatigue, temperature sensitivity, or mood changes.',
+          trackNote: 'Cycle length changes, energy/fatigue, and mood.',
+        ),
+        _LearnSectionItem(
+          heading: 'Perimenopause transitions',
+          body:
+              'In the years before menopause, fluctuating estrogen and fewer ovulatory cycles commonly cause irregular intervals, heavier or lighter flow, hot flashes, and sleep changes.',
+          trackNote: 'Cycle-length variability, flow changes, and fatigue across 3–6 months.',
+        ),
+        _LearnSectionItem(
+          heading: 'Iron deficiency & fatigue',
+          body:
+              'Repeated heavy menstrual bleeding is a leading cause of low iron/anemia, causing persistent tiredness, shortness of breath, or dizziness.',
+          trackNote: 'Heavy flow days alongside low energy or lightheadedness.',
+        ),
+      ],
+      sourceNote:
+          'Educational summary aligned with ACOG, WHO, and NHS clinical guidance. Always consult a qualified clinician for diagnosis.',
+    ),
+    _LearnTopic(
+      icon: Icons.health_and_safety_outlined,
+      title: 'When to seek care',
+      subtitle: 'Urgent warning signs that need prompt clinical attention.',
+      intro:
+          'Do not wait for an app pattern if you experience acute or severe warning signs.',
+      sections: [
+        _LearnSectionItem(
+          heading: 'Seek urgent / emergency care for:',
+          body:
+              '• Soaking through 1 or more pads/tampons every hour for 2+ consecutive hours\n'
+              '• Sudden, severe, or worsening abdominal/pelvic pain\n'
+              '• Fainting, severe dizziness, shortness of breath, or chest pain\n'
+              '• High fever or foul-smelling discharge with pelvic pain\n'
+              '• Bleeding after menopause or unexpected heavy bleeding',
+        ),
+      ],
+      sourceNote: 'ACOG / NHS urgent warning-sign guidance.',
+    ),
+  ];
+
+  void _openTopicSheet(BuildContext context, _LearnTopic topic) {
+    final scheme = Theme.of(context).colorScheme;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.72,
+        minChildSize: 0.45,
+        maxChildSize: 0.92,
+        builder: (ctx, scrollController) => SafeArea(
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(22, 4, 22, 28),
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: scheme.primary.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(topic.icon, color: scheme.primary, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      topic.title,
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                topic.intro,
+                style: TextStyle(
+                  fontSize: 14,
+                  height: 1.45,
+                  color: scheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+              for (final sec in topic.sections) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: scheme.surface,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: scheme.outline),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        sec.heading,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        sec.body,
+                        style: TextStyle(
+                          fontSize: 13,
+                          height: 1.45,
+                          color: scheme.secondary,
+                        ),
+                      ),
+                      if (sec.trackNote != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'What to track: ${sec.trackNote}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: scheme.primary,
+                          ),
+                        ),
+                      ],
+                      if (sec.clinicianNote != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'When to see a clinician: ${sec.clinicianNote}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: scheme.onSurface.withValues(alpha: 0.8),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+              if (topic.sourceNote != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, bottom: 16),
+                  child: Text(
+                    topic.sourceNote!,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.secondary.withValues(alpha: 0.8),
+                    ),
+                  ),
+                ),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Done'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    const topics = [
-      (
-        'Cycle basics',
-        'Periods, cycle length, and why cycles vary.',
-        'A cycle runs from the first day of one period to the day before the next. Lengths vary between people and across time — tracking your own history is the most reliable guide. MenoMate shows only what you log plus server estimates, never invented fertile windows.',
-      ),
-      (
-        'Tracking tips',
-        'Small, consistent logs beat perfect logs.',
-        'Log period starts promptly, note flow and symptoms in your own words, and edit past entries when you remember more. Future entries stay marked future so today\u2019s view stays honest. Offline logs sync when you\u2019re back online.',
-      ),
-      (
-        'When to seek care',
-        'Red flags mean talk to a clinician promptly.',
-        'Very heavy bleeding, severe pain that stops daily life, fainting, or bleeding between periods deserves prompt clinical attention. MenoMate Care can help you think through what to share — it never diagnoses.',
-      ),
-    ];
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -558,58 +877,49 @@ class _LearnCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          for (final t in topics)
+          for (int i = 0; i < _topics.length; i++) ...[
+            if (i > 0)
+              Divider(
+                height: 1,
+                indent: 56,
+                color: scheme.outline.withValues(alpha: 0.6),
+              ),
             Material(
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(12),
               child: ListTile(
-                leading: const Icon(Icons.menu_book_outlined),
-                title: Text(
-                  t.$1,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                subtitle: Text(t.$2),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () => showModalBottomSheet<void>(
-                  context: context,
-                  builder: (ctx) => SafeArea(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            t.$1,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            t.$3,
-                            style: TextStyle(
-                              fontSize: 14,
-                              height: 1.45,
-                              color: scheme.secondary,
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: () => Navigator.of(ctx).pop(),
-                              child: const Text('Got it'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                leading: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    _topics[i].icon,
+                    color: scheme.primary,
+                    size: 20,
                   ),
                 ),
+                title: Text(
+                  _topics[i].title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: Text(
+                  _topics[i].subtitle,
+                  style: TextStyle(fontSize: 12, color: scheme.secondary),
+                ),
+                trailing: Icon(
+                  Icons.chevron_right_rounded,
+                  color: scheme.secondary,
+                ),
+                onTap: () => _openTopicSheet(context, _topics[i]),
               ),
             ),
+          ],
         ],
       ),
     );
@@ -805,152 +1115,6 @@ class _MyPatternsDetailsCard extends ConsumerWidget {
           'Could not compute local pattern summary.',
           style: TextStyle(fontSize: 13, color: colorScheme.secondary),
         ),
-      ),
-    );
-  }
-}
-
-class _CycleEducationCard extends StatelessWidget {
-  const _CycleEducationCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    const phases = [
-      (
-        'Basic cycle structure',
-        'Day 1 starts on the first day of bleeding and runs until the day before your next period.',
-      ),
-      (
-        'Menstrual phase',
-        'Shedding of the uterine lining; cramping, lower back ache, and fatigue are commonly logged here.',
-      ),
-      (
-        'Follicular phase',
-        'Follows menstruation as follicles mature; energy and mood often shift gradually.',
-      ),
-      (
-        'Ovulatory phase (estimate)',
-        'Mid-cycle transition estimated from cycle length — never a measured hormone event without lab or LH/BBT confirmation.',
-      ),
-      (
-        'Luteal phase',
-        'The span between estimated ovulation and the next period, when PMS-related symptoms may appear.',
-      ),
-      (
-        'Why timing varies',
-        'Stress, sleep, travel, illness, and natural cycle variability shift phase lengths from cycle to cycle.',
-      ),
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: scheme.outline),
-      ),
-      child: Column(
-        children: [
-          for (final item in phases)
-            ExpansionTile(
-              title: Text(
-                item.$1,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              children: [
-                Text(
-                  item.$2,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
-                    color: scheme.secondary,
-                  ),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CommonConcernsCard extends StatelessWidget {
-  const _CommonConcernsCard();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    const concerns = [
-      (
-        'Cramps & pelvic pain',
-        'Track pain intensity (0–10), timing relative to Day 1, and what brings relief. Seek medical evaluation if pain stops daily activities or worsens over time.',
-      ),
-      (
-        'PMS & mood shifts',
-        'Log mood, sleep, and bloating in the days before your period. Discuss persistent mood distress with a healthcare provider.',
-      ),
-      (
-        'Fatigue & low energy',
-        'Note fatigue severity alongside flow heaviness and sleep. Ongoing exhaustion or dizziness warrants clinical evaluation.',
-      ),
-      (
-        'Heavy bleeding',
-        'Track flow intensity and pad/tampon frequency. Soaking through protection hourly or passing large clots requires prompt medical care.',
-      ),
-      (
-        'Irregular periods',
-        'Log every period start and end accurately so cycle-length variation is visible to share with a clinician.',
-      ),
-    ];
-
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: scheme.outline),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Common concerns (what to track)',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: scheme.onSurface,
-                ),
-              ),
-            ),
-          ),
-          for (final item in concerns)
-            ExpansionTile(
-              title: Text(
-                item.$1,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              children: [
-                Text(
-                  item.$2,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.4,
-                    color: scheme.secondary,
-                  ),
-                ),
-              ],
-            ),
-        ],
       ),
     );
   }

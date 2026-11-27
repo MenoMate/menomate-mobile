@@ -279,7 +279,22 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
                 color: colorScheme.secondary,
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (_flow != null)
+                  _SummaryBadge(label: 'Flow: ${_capitalize(_flow!)}'),
+                if (_pain != null)
+                  _SummaryBadge(label: 'Pain: $_pain/10'),
+                if (_moods.isNotEmpty)
+                  _SummaryBadge(label: '${_moods.length} mood(s)'),
+                if (_symptoms.isNotEmpty)
+                  _SummaryBadge(label: '${_symptoms.length} symptom(s)'),
+              ],
+            ),
+            const SizedBox(height: 16),
 
             _buildGroupLabel('Cycle', context),
             const SizedBox(height: 12),
@@ -591,6 +606,32 @@ class _SymptomLoggerScreenState extends ConsumerState<SymptomLoggerScreen> {
                 : null,
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SummaryBadge extends StatelessWidget {
+  final String label;
+
+  const _SummaryBadge({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          color: scheme.primary,
+        ),
       ),
     );
   }

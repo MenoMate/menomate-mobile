@@ -57,6 +57,12 @@ class _FakeNotificationScheduler implements NotificationScheduler {
   Future<bool> requestPermission() async => permissionResult;
 
   @override
+  Future<bool> canScheduleExactAlarms() async => true;
+
+  @override
+  Future<bool> requestExactAlarmsPermission() async => true;
+
+  @override
   Future<void> scheduleDaily({
     required int id,
     required String title,
@@ -110,6 +116,16 @@ class _FakeNotificationScheduler implements NotificationScheduler {
     cancelledAll = true;
     scheduled.clear();
   }
+
+  @override
+  Future<void> showTestNotification({
+    required int id,
+    required String title,
+    required String body,
+    required String payload,
+    required String channelId,
+    required String channelName,
+  }) async {}
 }
 
 void main() {
@@ -195,7 +211,7 @@ void main() {
         );
 
         expect(find.text('Day 3'), findsOneWidget);
-        expect(find.textContaining('Menstrual'), findsOneWidget);
+        expect(find.textContaining('Menstrual'), findsAtLeastNWidgets(2));
         expect(find.text('Return to Day 3'), findsNothing);
 
         // Tap + button to explore Day 4
@@ -212,7 +228,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Day 14'), findsOneWidget);
-        expect(find.textContaining('Est. Ovulation'), findsOneWidget);
+        expect(find.textContaining('Est. Ovulation'), findsAtLeastNWidgets(2));
 
         // Return to Day 3
         await tester.tap(find.text('Return to Day 3'));
@@ -414,6 +430,26 @@ void main() {
             (i) => NotificationService.periodReminderBaseId + i,
           ),
         );
+
+        // 5. nextDailyCheckInDateTime: fires today if skipIfLoggedToday=false even if logged
+        final at218 = DateTime(2026, 6, 15, 2, 18);
+        final fireToday = NotificationService.nextDailyCheckInDateTime(
+          now: at218,
+          hour: 2,
+          minute: 19,
+          skipIfLoggedToday: false,
+          hasLoggedToday: true,
+        );
+        expect(fireToday, DateTime(2026, 6, 15, 2, 19));
+
+        final skippedToTomorrow = NotificationService.nextDailyCheckInDateTime(
+          now: at218,
+          hour: 2,
+          minute: 19,
+          skipIfLoggedToday: true,
+          hasLoggedToday: true,
+        );
+        expect(skippedToTomorrow, DateTime(2026, 6, 16, 2, 19));
       },
     );
   });

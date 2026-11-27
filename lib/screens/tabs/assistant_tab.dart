@@ -179,126 +179,12 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
   }
 
   Future<void> _openCarePreferencesSheet() async {
-    final api = ref.read(apiServiceProvider);
-    List<CareMemoryItem> items = const [];
-    String? loadError;
-    try {
-      items = await api.fetchCareMemories();
-    } catch (_) {
-      loadError = 'Could not load saved preferences right now.';
-    }
-    if (!mounted) return;
-    final keyController = TextEditingController();
-    final valueController = TextEditingController();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      builder: (sheetCtx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                20 + MediaQuery.of(ctx).viewInsets.bottom,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Saved Care Preferences',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Preferences you save help Care tailor responses. You can remove any item anytime.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(ctx).colorScheme.secondary,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  if (loadError != null)
-                    Text(
-                      loadError,
-                      style: TextStyle(
-                        color: Theme.of(ctx).colorScheme.error,
-                        fontSize: 13,
-                      ),
-                    )
-                  else if (items.isEmpty)
-                    const Text(
-                      'No saved Care preferences yet.',
-                      style: TextStyle(fontSize: 13),
-                    )
-                  else
-                    for (final item in items)
-                      ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(item.value),
-                        subtitle: Text('${item.category} · ${item.key}'),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline, size: 18),
-                          onPressed: () async {
-                            await api.deleteCareMemory(item.id);
-                            setSheetState(() {
-                              items = items
-                                  .where((m) => m.id != item.id)
-                                  .toList();
-                            });
-                          },
-                        ),
-                      ),
-                  const Divider(height: 20),
-                  TextField(
-                    controller: keyController,
-                    decoration: const InputDecoration(
-                      labelText: 'Preference topic (e.g. tone)',
-                      isDense: true,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: valueController,
-                    decoration: const InputDecoration(
-                      labelText: 'Preference (e.g. Keep answers brief)',
-                      isDense: true,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    onPressed: () async {
-                      final k = keyController.text.trim();
-                      final v = valueController.text.trim();
-                      if (k.isEmpty || v.isEmpty) return;
-                      final created = await api.upsertCareMemory(
-                        category: 'care_preference',
-                        key: k,
-                        value: v,
-                      );
-                      keyController.clear();
-                      valueController.clear();
-                      setSheetState(() {
-                        items = [
-                          created,
-                          ...items.where((m) => m.id != created.id),
-                        ];
-                      });
-                    },
-                    child: const Text('Save Preference'),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+      showDragHandle: true,
+      builder: (ctx) => _CarePreferencesSheet(api: ref.read(apiServiceProvider)),
     );
-    keyController.dispose();
-    valueController.dispose();
   }
 
   /// Semantic action routing: the backend-chosen id decides, never the
@@ -635,6 +521,7 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
   Future<void> _openConsentSheet() async {
     await showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (ctx) {
         return Consumer(
@@ -642,12 +529,13 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
             final consent = ref.watch(careConsentProvider);
             final notifier = ref.read(careConsentProvider.notifier);
             final scheme = Theme.of(context).colorScheme;
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   const Text(
                     'Care Personalization & Privacy',
                     style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
@@ -726,10 +614,175 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
                   ],
                 ],
               ),
-            );
+            ),
+          );
           },
         );
       },
+    );
+  }
+}
+
+class _CarePreferencesSheet extends StatefulWidget {
+  final ApiService api;
+
+  const _CarePreferencesSheet({required this.api});
+
+  @override
+  State<_CarePreferencesSheet> createState() => _CarePreferencesSheetState();
+}
+
+class _CarePreferencesSheetState extends State<_CarePreferencesSheet> {
+  final _keyController = TextEditingController();
+  final _valueController = TextEditingController();
+  List<CareMemoryItem> _items = [];
+  bool _loading = true;
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final loaded = await widget.api.fetchCareMemories();
+      if (mounted) {
+        setState(() {
+          _items = loaded;
+          _loading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'Could not load saved preferences right now.';
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _keyController.dispose();
+    _valueController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          8,
+          20,
+          24 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Saved Care Preferences',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Preferences you save help Care tailor responses. You can remove any item anytime.',
+              style: TextStyle(fontSize: 12, color: scheme.secondary),
+            ),
+            const SizedBox(height: 12),
+            if (_loading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null)
+              Text(
+                _error!,
+                style: TextStyle(color: scheme.error, fontSize: 13),
+              )
+            else if (_items.isEmpty)
+              const Text(
+                'No saved Care preferences yet.',
+                style: TextStyle(fontSize: 13),
+              )
+            else
+              for (final item in _items)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(item.value),
+                  subtitle: Text('${item.category} · ${item.key}'),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    onPressed: () async {
+                      await widget.api.deleteCareMemory(item.id);
+                      if (mounted) {
+                        setState(() {
+                          _items = _items
+                              .where((m) => m.id != item.id)
+                              .toList();
+                        });
+                      }
+                    },
+                  ),
+                ),
+            const Divider(height: 20),
+            TextField(
+              controller: _keyController,
+              decoration: const InputDecoration(
+                labelText: 'Preference topic (e.g. tone)',
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _valueController,
+              decoration: const InputDecoration(
+                labelText: 'Preference (e.g. Keep answers brief)',
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              onPressed: _saving
+                  ? null
+                  : () async {
+                      final k = _keyController.text.trim();
+                      final v = _valueController.text.trim();
+                      if (k.isEmpty || v.isEmpty) return;
+                      setState(() => _saving = true);
+                      try {
+                        final created = await widget.api.upsertCareMemory(
+                          category: 'care_preference',
+                          key: k,
+                          value: v,
+                        );
+                        _keyController.clear();
+                        _valueController.clear();
+                        if (mounted) {
+                          setState(() {
+                            _items = [
+                              created,
+                              ..._items.where((m) => m.id != created.id),
+                            ];
+                          });
+                        }
+                      } finally {
+                        if (mounted) setState(() => _saving = false);
+                      }
+                    },
+              child: const Text('Save Preference'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

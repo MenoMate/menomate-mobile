@@ -22,6 +22,7 @@ import '../screens/health_notes_screen.dart';
 import '../screens/health_reproductive_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/log_hub_screen.dart';
+import '../screens/notification_settings_screen.dart';
 import '../screens/pregnancy_mode_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/profile_screen.dart';
@@ -252,6 +253,10 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/settings/notifications',
+        builder: (context, state) => const NotificationSettingsScreen(),
       ),
       GoRoute(
         path: '/profile/health',

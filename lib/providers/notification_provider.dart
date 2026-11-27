@@ -151,6 +151,29 @@ class NotificationPrefsNotifier extends Notifier<NotificationPreferences> {
     }
   }
 
+  Future<void> sendTestNotification() async {
+    final granted = await ref
+        .read(notificationServiceProvider)
+        .requestPermission();
+    if (!granted) {
+      state = state.copyWith(permissionDenied: true);
+      return;
+    }
+    await ref.read(notificationServiceProvider).showTestNotification();
+  }
+
+  Future<bool> hasLoggedToday() async {
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) return false;
+    final now = DateTime.now();
+    final todayIso =
+        '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final recent = await ref
+        .read(dailyLogRepositoryProvider)
+        .loadRecentLocalLogs(userId, days: 2);
+    return recent.any((l) => l.logDate == todayIso);
+  }
+
   Future<void> syncNow() async {
     try {
       final service = ref.read(notificationServiceProvider);
