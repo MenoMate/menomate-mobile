@@ -277,7 +277,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               // --- 0. Account: identity first, then account actions. ---
               // Name editing lives only in Profile now; this card links
               // there instead of duplicating the field.
-              _buildSectionHeader('PROFILE · Account', colorScheme),
+              _buildSectionHeader('ACCOUNT', colorScheme),
               if (offline) ...[
                 // Local-only user: status + privacy note + sign-in path.
                 // There is no account to sign out of and nothing is broken.
@@ -527,8 +527,8 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               ],
               const SizedBox(height: 20),
 
-              // --- 1. Health background & treatments ---
-              _buildSectionHeader('HEALTH · Background & treatments', colorScheme),
+              // --- 1. Health & Cycle ---
+              _buildSectionHeader('HEALTH & CYCLE', colorScheme),
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
@@ -549,7 +549,10 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                         ),
                         title: const Text(
                           'Health conditions',
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         subtitle: Text(
                           _conditionsSubtitle(conditionsAsync),
@@ -576,7 +579,10 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                         ),
                         title: const Text(
                           'Medications & treatments',
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                         subtitle: Text(
                           _medicationsSubtitle(medicationsAsync),
@@ -595,10 +601,9 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
 
-              // --- 2. Cycle & Period Preferences ---
-              _buildSectionHeader('PROFILE · Cycle baseline', colorScheme),
+              // --- 2. Cycle baseline ---
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -634,17 +639,31 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               ),
               const SizedBox(height: 20),
 
-              // --- 3. Appearance ---
-              _buildSectionHeader('APP · Appearance', colorScheme),
+              // --- 3. Preferences (Appearance & Units) ---
+              _buildSectionHeader('PREFERENCES', colorScheme),
               Container(
-                padding: const EdgeInsets.all(6),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: colorScheme.outline),
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 8),
+                      child: Text(
+                        'Appearance',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: [
                     Expanded(
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
@@ -739,56 +758,49 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                       ),
                     ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // --- 3b. App icon (launcher): the requested logo selection
-              // concerns the APPLICATION/LAUNCHER ICON — not the Home
-              // greeting logo beside "Hello, [name]", which stays fixed
-              // brand identity (standard circle). The choice below previews
-              // launcher variants; true OS launcher switching requires
-              // native config — see docs/launcher_icon.md. It never
-              // changes the Home header.
-
-
-              // --- 4. Units Preference ---
-              _buildSectionHeader('APP · Preferences', colorScheme),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: colorScheme.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: colorScheme.outline),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Measurement Units',
-                        style: TextStyle(fontWeight: FontWeight.w500),
-                      ),
                     ),
-                    DropdownButton<String>(
-                      value: _selectedUnits,
-                      underline: const SizedBox.shrink(),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'metric',
-                          child: Text('Metric (°C)'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'imperial',
-                          child: Text('Imperial (°F)'),
-                        ),
-                      ],
-                      onChanged: (val) {
-                        if (val != null) setState(() => _selectedUnits = val);
-                      },
+                    const Divider(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Measurement Units',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          DropdownButton<String>(
+                            value: _selectedUnits,
+                            underline: const SizedBox.shrink(),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'metric',
+                                child: Text(
+                                  'Metric (°C)',
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                              ),
+                              DropdownMenuItem(
+                                value: 'imperial',
+                                child: Text(
+                                  'Imperial (°F)',
+                                  style: TextStyle(fontSize: 14),
+                                ),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() => _selectedUnits = val);
+                              }
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -815,7 +827,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               const SizedBox(height: 28),
 
               // --- 5. Wearable Device Section ---
-              _buildSectionHeader('APP · MenoMate Wearable', colorScheme),
+              _buildSectionHeader('WEARABLE', colorScheme),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -874,10 +886,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               const SizedBox(height: 20),
 
               // --- 6. Privacy & Data ---
-              _buildSectionHeader(
-                'DATA & PRIVACY · Privacy & Data',
-                colorScheme,
-              ),
+              _buildSectionHeader('DATA & PRIVACY', colorScheme),
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -916,7 +925,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               const SizedBox(height: 20),
 
               // --- 7. Help & support ---
-              _buildSectionHeader('HELP · Help & support', colorScheme),
+              _buildSectionHeader('HELP & SUPPORT', colorScheme),
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(18),
@@ -1133,7 +1142,7 @@ class _NotificationsSettingsSection extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: Text(
-            'REMINDERS · Notifications',
+            'REMINDERS',
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w700,

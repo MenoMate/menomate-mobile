@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -60,79 +59,12 @@ class _NotificationSettingsScreenState
   Future<TimeOfDay?> _showWheelTimePicker({
     required TimeOfDay initialTime,
     required String title,
-  }) async {
-    DateTime selected = DateTime(
-      2026,
-      1,
-      1,
-      initialTime.hour,
-      initialTime.minute,
-    );
-    final scheme = Theme.of(context).colorScheme;
-    return showModalBottomSheet<TimeOfDay>(
+  }) {
+    return showTimePicker(
       context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    child: const Text('Cancel'),
-                  ),
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => Navigator.of(ctx).pop(
-                      TimeOfDay(
-                        hour: selected.hour,
-                        minute: selected.minute,
-                      ),
-                    ),
-                    child: Text(
-                      'Set',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: scheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(
-                height: 190,
-                child: CupertinoTheme(
-                  data: CupertinoThemeData(
-                    brightness: Theme.of(ctx).brightness,
-                    textTheme: CupertinoTextThemeData(
-                      dateTimePickerTextStyle: TextStyle(
-                        color: scheme.onSurface,
-                        fontSize: 20,
-                      ),
-                    ),
-                  ),
-                  child: CupertinoDatePicker(
-                    mode: CupertinoDatePickerMode.time,
-                    use24hFormat: false,
-                    initialDateTime: selected,
-                    onDateTimeChanged: (dt) => selected = dt,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      initialTime: initialTime,
+      helpText: title.toUpperCase(),
+      initialEntryMode: TimePickerEntryMode.dial,
     );
   }
 

@@ -180,6 +180,41 @@ class MenoMateTheme {
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: sakuraSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        dialBackgroundColor: sakuraSoftPink.withValues(alpha: 0.55),
+        dialHandColor: sakuraPrimaryDark,
+        dialTextColor: WidgetStateColor.resolveWith((states) =>
+            states.contains(WidgetState.selected) ? Colors.white : sakuraText),
+        hourMinuteColor: WidgetStateColor.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? sakuraSoftPink
+                : sakuraBg),
+        hourMinuteTextColor: WidgetStateColor.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? sakuraPrimaryDark
+                : sakuraText),
+        hourMinuteShape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        dayPeriodColor: WidgetStateColor.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? sakuraSoftPink
+                : Colors.transparent),
+        dayPeriodTextColor: WidgetStateColor.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? sakuraPrimaryDark
+                : sakuraSecondary),
+        dayPeriodBorderSide: const BorderSide(color: sakuraBorder),
+        dayPeriodShape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        entryModeIconColor: sakuraInteraction,
+        helpTextStyle: const TextStyle(
+          color: sakuraSecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 
@@ -261,6 +296,41 @@ class MenoMateTheme {
         style: TextButton.styleFrom(
           foregroundColor: starryInteraction,
           textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+      ),
+      timePickerTheme: TimePickerThemeData(
+        backgroundColor: starrySurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        dialBackgroundColor: starrySurface2,
+        dialHandColor: starryPrimary,
+        dialTextColor: WidgetStateColor.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? const Color(0xFF080D1F)
+                : starryText),
+        hourMinuteColor: WidgetStateColor.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? starryPrimary.withValues(alpha: 0.22)
+                : starrySurface2),
+        hourMinuteTextColor: WidgetStateColor.resolveWith((states) =>
+            states.contains(WidgetState.selected) ? starryPrimary : starryText),
+        hourMinuteShape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        dayPeriodColor: WidgetStateColor.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? starryPrimary.withValues(alpha: 0.22)
+                : Colors.transparent),
+        dayPeriodTextColor: WidgetStateColor.resolveWith((states) =>
+            states.contains(WidgetState.selected)
+                ? starryPrimary
+                : starrySecondary),
+        dayPeriodBorderSide: const BorderSide(color: starryBorder),
+        dayPeriodShape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        entryModeIconColor: starryInteraction,
+        helpTextStyle: const TextStyle(
+          color: starrySecondary,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
