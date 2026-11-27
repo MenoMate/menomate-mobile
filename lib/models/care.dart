@@ -22,6 +22,64 @@ class CareInteractionRequest {
   }
 }
 
+class CareInsight {
+  final String insightId;
+  final String insightType;
+  final String title;
+  final String explanation;
+  final String timePeriod;
+  final String confidence;
+  final String? caveat;
+
+  const CareInsight({
+    required this.insightId,
+    required this.insightType,
+    required this.title,
+    required this.explanation,
+    required this.timePeriod,
+    required this.confidence,
+    this.caveat,
+  });
+
+  factory CareInsight.fromJson(Map<String, dynamic> json) {
+    return CareInsight(
+      insightId: json['insight_id'] as String? ?? '',
+      insightType: json['insight_type'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      explanation: json['explanation'] as String? ?? '',
+      timePeriod: json['time_period'] as String? ?? '',
+      confidence: json['confidence'] as String? ?? 'low',
+      caveat: json['caveat'] as String?,
+    );
+  }
+}
+
+class CareMemoryItem {
+  final int id;
+  final String category;
+  final String key;
+  final String value;
+  final String source;
+
+  const CareMemoryItem({
+    required this.id,
+    required this.category,
+    required this.key,
+    required this.value,
+    required this.source,
+  });
+
+  factory CareMemoryItem.fromJson(Map<String, dynamic> json) {
+    return CareMemoryItem(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      category: json['category'] as String? ?? '',
+      key: json['key'] as String? ?? '',
+      value: json['value'] as String? ?? '',
+      source: json['source'] as String? ?? 'user_explicit',
+    );
+  }
+}
+
 class CareInteractionResponse {
   final String intent;
   final String responseText;
@@ -33,6 +91,7 @@ class CareInteractionResponse {
   final List<CareAction> actions;
   final String disclaimer;
   final String? therapyProfile;
+  final List<CareInsight> insights;
 
   const CareInteractionResponse({
     required this.intent,
@@ -42,6 +101,7 @@ class CareInteractionResponse {
     this.actions = const [],
     required this.disclaimer,
     this.therapyProfile,
+    this.insights = const [],
   });
 
   String get response => responseText;
@@ -52,6 +112,7 @@ class CareInteractionResponse {
   factory CareInteractionResponse.fromJson(Map<String, dynamic> json) {
     final tierRaw = json['tier'] as String?;
     final actionsRaw = json['actions'] as List<dynamic>?;
+    final insightsRaw = json['insights'] as List<dynamic>?;
     return CareInteractionResponse(
       intent: json['intent'] as String,
       responseText: (json['response_text'] ?? json['response']) as String? ?? '',
@@ -63,6 +124,10 @@ class CareInteractionResponse {
           const [],
       disclaimer: json['disclaimer'] as String? ?? '',
       therapyProfile: json['therapy_profile'] as String?,
+      insights: insightsRaw
+              ?.map((e) => CareInsight.fromJson(e as Map<String, dynamic>))
+              .toList() ??
+          const [],
     );
   }
 }

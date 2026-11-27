@@ -139,6 +139,7 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
             'tier': response.tier,
             'actions': response.actions,
             'therapyProfile': response.therapyProfile,
+            'insights': response.insights,
             'isAi': response.isAiGenerated,
             'disclaimer': response.disclaimer,
           });
@@ -169,6 +170,129 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
       _messages.clear();
       _isLoading = false;
     });
+  }
+
+  Future<void> _openCarePreferencesSheet() async {
+    final api = ref.read(apiServiceProvider);
+    List<CareMemoryItem> items = const [];
+    String? loadError;
+    try {
+      items = await api.fetchCareMemories();
+    } catch (_) {
+      loadError = 'Could not load saved preferences right now.';
+    }
+    if (!mounted) return;
+    final keyController = TextEditingController();
+    final valueController = TextEditingController();
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                20,
+                20,
+                20,
+                20 + MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Saved Care Preferences',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Preferences you save help Care tailor responses. You can remove any item anytime.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(ctx).colorScheme.secondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  if (loadError != null)
+                    Text(
+                      loadError,
+                      style: TextStyle(
+                        color: Theme.of(ctx).colorScheme.error,
+                        fontSize: 13,
+                      ),
+                    )
+                  else if (items.isEmpty)
+                    const Text(
+                      'No saved Care preferences yet.',
+                      style: TextStyle(fontSize: 13),
+                    )
+                  else
+                    for (final item in items)
+                      ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(item.value),
+                        subtitle: Text('${item.category} · ${item.key}'),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          onPressed: () async {
+                            await api.deleteCareMemory(item.id);
+                            setSheetState(() {
+                              items = items
+                                  .where((m) => m.id != item.id)
+                                  .toList();
+                            });
+                          },
+                        ),
+                      ),
+                  const Divider(height: 20),
+                  TextField(
+                    controller: keyController,
+                    decoration: const InputDecoration(
+                      labelText: 'Preference topic (e.g. tone)',
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: valueController,
+                    decoration: const InputDecoration(
+                      labelText: 'Preference (e.g. Keep answers brief)',
+                      isDense: true,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final k = keyController.text.trim();
+                      final v = valueController.text.trim();
+                      if (k.isEmpty || v.isEmpty) return;
+                      final created = await api.upsertCareMemory(
+                        category: 'care_preference',
+                        key: k,
+                        value: v,
+                      );
+                      keyController.clear();
+                      valueController.clear();
+                      setSheetState(() {
+                        items = [
+                          created,
+                          ...items.where((m) => m.id != created.id),
+                        ];
+                      });
+                    },
+                    child: const Text('Save Preference'),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+    keyController.dispose();
+    valueController.dispose();
   }
 
   /// Semantic action routing: the backend-chosen id decides, never the
@@ -262,6 +386,12 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
           ],
         ),
         actions: [
+          if (!ref.watch(isOfflineTrackingProvider))
+            IconButton(
+              tooltip: 'Care preferences',
+              icon: const Icon(Icons.tune_outlined),
+              onPressed: _isLoading ? null : _openCarePreferencesSheet,
+            ),
           IconButton(
             tooltip: 'Start new chat',
             icon: const Icon(Icons.add_comment_outlined),
@@ -455,12 +585,12 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
           const SizedBox(width: 8),
           IconButton.filled(
             icon: _isLoading
-                ? const SizedBox(
+                ? SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: Colors.white,
+                      color: colorScheme.onPrimary,
                     ),
                   )
                 : const Icon(Icons.send_rounded, size: 20),

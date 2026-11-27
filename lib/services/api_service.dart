@@ -693,4 +693,64 @@ class ApiService {
       throw ServerError('Aging context save failed: $e');
     }
   }
+
+  // --- Care Insights & Structured Memory ---
+
+  Future<List<CareInsight>> fetchCareInsights() async {
+    try {
+      final response = await _dio.get('/api/v1/care/insights');
+      final data = response.data;
+      if (data is Map<String, dynamic>) {
+        final raw = data['insights'] as List<dynamic>? ?? const [];
+        return raw
+            .map((e) => CareInsight.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return const [];
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  Future<List<CareMemoryItem>> fetchCareMemories() async {
+    try {
+      final response = await _dio.get('/api/v1/care/memories');
+      final raw = response.data as List<dynamic>? ?? const [];
+      return raw
+          .map((e) => CareMemoryItem.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  Future<CareMemoryItem> upsertCareMemory({
+    required String category,
+    required String key,
+    required String value,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/api/v1/care/memories',
+        data: {
+          'category': category,
+          'key': key,
+          'value': value,
+          'source': 'user_explicit',
+        },
+      );
+      return CareMemoryItem.fromJson(response.data as Map<String, dynamic>);
+    } on DioException catch (e) {
+      throw mapDioException(e);
+    }
+  }
+
+  Future<void> deleteCareMemory(int memoryId) async {
+    try {
+      await _dio.delete('/api/v1/care/memories/$memoryId');
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return;
+      throw mapDioException(e);
+    }
+  }
 }

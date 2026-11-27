@@ -36,6 +36,8 @@ class CareMessageBubble extends StatelessWidget {
     final List<CareAction> actions =
         (message['actions'] as List<CareAction>?) ?? const [];
     final String? therapyProfile = message['therapyProfile'] as String?;
+    final List<CareInsight> insights =
+        (message['insights'] as List<CareInsight>?) ?? const [];
     final String tier = message['tier'] as String? ?? 'info';
     // Limitation footer for every assistant message. Connectivity notices
     // carry no intent, so they get the disclaimer without a source label.
@@ -130,6 +132,11 @@ class CareMessageBubble extends StatelessWidget {
             if (therapyProfile != null && therapyProfile.isNotEmpty) ...[
               const SizedBox(height: 12),
               _buildTherapyBanner(context, therapyProfile),
+            ],
+
+            if (!isUser && insights.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _CareInsightsBlock(insights: insights),
             ],
 
             // Action Chips
@@ -400,6 +407,95 @@ class CareMessageBubble extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CareInsightsBlock extends StatefulWidget {
+  final List<CareInsight> insights;
+  const _CareInsightsBlock({required this.insights});
+
+  @override
+  State<_CareInsightsBlock> createState() => _CareInsightsBlockState();
+}
+
+class _CareInsightsBlockState extends State<_CareInsightsBlock> {
+  final Set<String> _dismissedIds = {};
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = widget.insights
+        .where((i) => !_dismissedIds.contains(i.insightId))
+        .toList();
+    if (visible.isEmpty) return const SizedBox.shrink();
+
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colorScheme.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Evidence from your logs',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: colorScheme.secondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final item in visible) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${item.title} (${item.confidence} · ${item.timePeriod})',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colorScheme.onSurface,
+                        ),
+                      ),
+                      if (item.caveat != null && item.caveat!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          item.caveat!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colorScheme.secondary,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                InkWell(
+                  onTap: () =>
+                      setState(() => _dismissedIds.add(item.insightId)),
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 6, top: 2),
+                    child: Icon(
+                      Icons.close,
+                      size: 14,
+                      color: colorScheme.secondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (item != visible.last) const SizedBox(height: 6),
+          ],
         ],
       ),
     );
