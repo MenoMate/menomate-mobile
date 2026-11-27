@@ -264,8 +264,8 @@ class HomeTab extends ConsumerWidget {
                         Builder(
                           builder: (context) {
                             final cycleLength =
-                                cycleData.averageCycleLength ??
-                                cycleData.predictedCycleLength;
+                                cycleData.predictedCycleLength ??
+                                cycleData.averageCycleLength;
                             final currentDay = cycleData.currentCycleDay;
                             if (currentDay == null) {
                               return Padding(
@@ -324,6 +324,8 @@ class HomeTab extends ConsumerWidget {
                                   phase: cycleData.phase,
                                   currentDay: currentDay,
                                   cycleLength: cycleLength,
+                                  periodLength:
+                                      cycleData.averagePeriodLength ?? 5,
                                   onPhaseInfoTap: () =>
                                       showPhaseInfoSheet(context),
                                 ),
@@ -374,6 +376,28 @@ class HomeTab extends ConsumerWidget {
                             ),
                           ),
                         ],
+                        if ((cycleState is PendingSync ||
+                                cycleState is ConflictState) &&
+                            cycleData.predictedNextPeriod != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Forecast may update after local period changes sync.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.secondary.withValues(
+                                alpha: 0.8,
+                              ),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        _CompactCycleStatsRow(
+                          avgCycleDays: cycleData.averageCycleLength,
+                          avgPeriodDays: cycleData.averagePeriodLength,
+                          recordedCycles:
+                              ref.watch(cycleListProvider).value?.dataOrNull?.length,
+                        ),
                         const SizedBox(height: 12),
 
                         // Period Start / End Toggle Button
@@ -465,6 +489,66 @@ class HomeTab extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _CompactCycleStatsRow extends StatelessWidget {
+  final int? avgCycleDays;
+  final int? avgPeriodDays;
+  final int? recordedCycles;
+
+  const _CompactCycleStatsRow({
+    required this.avgCycleDays,
+    required this.avgPeriodDays,
+    required this.recordedCycles,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _stat(
+          'Avg cycle',
+          avgCycleDays != null ? '${avgCycleDays}d' : '—',
+          colorScheme,
+        ),
+        _stat(
+          'Avg period',
+          avgPeriodDays != null ? '${avgPeriodDays}d' : '—',
+          colorScheme,
+        ),
+        _stat(
+          'Cycles',
+          recordedCycles != null ? '$recordedCycles' : '—',
+          colorScheme,
+        ),
+      ],
+    );
+  }
+
+  Widget _stat(String label, String value, ColorScheme colorScheme) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: colorScheme.onSurface,
+          ),
+        ),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: colorScheme.secondary,
+          ),
+        ),
+      ],
     );
   }
 }

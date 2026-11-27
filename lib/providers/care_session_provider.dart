@@ -51,10 +51,14 @@ CareInteractionRequest buildCareRequest({
   required String text,
   required String intent,
   required List<CareTurn> priorTurns,
+  bool consentGranted = false,
+  List<String>? allowedCategories,
 }) {
   return CareInteractionRequest(
     intent: intent,
     userMessage: text,
     recentTurns: List.unmodifiable(priorTurns),
+    consentGranted: consentGranted,
+    allowedCategories: allowedCategories,
   );
 }

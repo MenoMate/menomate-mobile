@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../models/care.dart';
+import '../../providers/care_consent_provider.dart';
 import '../../providers/care_session_provider.dart';
 import '../../providers/offline_mode_provider.dart';
 import '../../widgets/care_message_bubble.dart';
@@ -112,10 +113,15 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
     try {
       ref.read(careSessionProvider.notifier).addUserTurn(text, topic: topic);
       final api = ref.read(apiServiceProvider);
+      final consent = ref.read(careConsentProvider);
       final request = buildCareRequest(
         text: text,
         intent: topic,
         priorTurns: priorTurns,
+        consentGranted: consent.consentGranted,
+        allowedCategories: consent.consentGranted
+            ? consent.allowedCategories.toList()
+            : null,
       );
 
       final response = await api.postCareInteraction(request);
@@ -388,6 +394,16 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
         actions: [
           if (!ref.watch(isOfflineTrackingProvider))
             IconButton(
+              tooltip: 'Care privacy & context',
+              icon: Icon(
+                ref.watch(careConsentProvider).consentGranted
+                    ? Icons.verified_user_outlined
+                    : Icons.privacy_tip_outlined,
+              ),
+              onPressed: _isLoading ? null : _openConsentSheet,
+            ),
+          if (!ref.watch(isOfflineTrackingProvider))
+            IconButton(
               tooltip: 'Care preferences',
               icon: const Icon(Icons.tune_outlined),
               onPressed: _isLoading ? null : _openCarePreferencesSheet,
@@ -402,6 +418,17 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
       body: SafeArea(
         child: Column(
           children: [
+            if (!ref.watch(isOfflineTrackingProvider) &&
+                !ref.watch(careConsentProvider).consentGranted &&
+                !ref.watch(careConsentProvider).promptDismissed)
+              _CareConsentBanner(
+                onAllow: () =>
+                    ref.read(careConsentProvider.notifier).grantConsent(),
+                onDecline: () => ref
+                    .read(careConsentProvider.notifier)
+                    .dismissPromptWithoutConsent(),
+                onConfigure: _openConsentSheet,
+              ),
             // Conversation or Empty State
             Expanded(
               child: _messages.isEmpty
@@ -599,6 +626,165 @@ class _AssistantTabState extends ConsumerState<AssistantTab> {
                 : () {
                     _sendMessage(_textController.text);
                   },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openConsentSheet() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return Consumer(
+          builder: (context, ref, _) {
+            final consent = ref.watch(careConsentProvider);
+            final notifier = ref.read(careConsentProvider.notifier);
+            final scheme = Theme.of(context).colorScheme;
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Care Personalization & Privacy',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Choose whether MenoMate Care may use your personal records to personalize AI responses. You can turn this off anytime and still ask general questions.',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: scheme.secondary,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile.adaptive(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Share personal history with Care AI',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    value: consent.consentGranted,
+                    onChanged: (v) {
+                      if (v) {
+                        notifier.grantConsent();
+                      } else {
+                        notifier.revokeConsent();
+                      }
+                    },
+                  ),
+                  if (consent.consentGranted) ...[
+                    const Divider(),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Cycle history & predictions'),
+                      value: consent.allowedCategories.contains(
+                        CarePrivacyCategories.cycles,
+                      ),
+                      onChanged: (v) => notifier.toggleCategory(
+                        CarePrivacyCategories.cycles,
+                        v ?? false,
+                      ),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Daily symptom & pain logs'),
+                      value: consent.allowedCategories.contains(
+                        CarePrivacyCategories.dailyLogs,
+                      ),
+                      onChanged: (v) => notifier.toggleCategory(
+                        CarePrivacyCategories.dailyLogs,
+                        v ?? false,
+                      ),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Device session history'),
+                      value: consent.allowedCategories.contains(
+                        CarePrivacyCategories.deviceHistory,
+                      ),
+                      onChanged: (v) => notifier.toggleCategory(
+                        CarePrivacyCategories.deviceHistory,
+                        v ?? false,
+                      ),
+                    ),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Saved Care preferences'),
+                      value: consent.allowedCategories.contains(
+                        CarePrivacyCategories.memories,
+                      ),
+                      onChanged: (v) => notifier.toggleCategory(
+                        CarePrivacyCategories.memories,
+                        v ?? false,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _CareConsentBanner extends StatelessWidget {
+  final VoidCallback onAllow;
+  final VoidCallback onDecline;
+  final VoidCallback onConfigure;
+
+  const _CareConsentBanner({
+    required this.onAllow,
+    required this.onDecline,
+    required this.onConfigure,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Personalize MenoMate Care?',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Allow Care AI to reference your selected cycle, symptom, and session history. Generic guidance still works if you decline.',
+            style: TextStyle(fontSize: 12, color: scheme.secondary),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              FilledButton.tonal(
+                onPressed: onAllow,
+                child: const Text('Allow'),
+              ),
+              TextButton(
+                onPressed: onConfigure,
+                child: const Text('Choose categories'),
+              ),
+              TextButton(
+                onPressed: onDecline,
+                child: const Text('Not now'),
+              ),
+            ],
           ),
         ],
       ),

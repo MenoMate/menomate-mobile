@@ -6,11 +6,15 @@ class CareInteractionRequest {
   /// anywhere; the server forwards them to the provider as prompt
   /// context only.
   final List<CareTurn> recentTurns;
+  final bool consentGranted;
+  final List<String>? allowedCategories;
 
   CareInteractionRequest({
     required this.intent,
     this.userMessage,
     this.recentTurns = const [],
+    this.consentGranted = false,
+    this.allowedCategories,
   });
 
   Map<String, dynamic> toJson() {
@@ -18,6 +22,8 @@ class CareInteractionRequest {
       'intent': intent,
       if (userMessage != null) 'user_message': userMessage,
       'recent_turns': recentTurns.map((t) => t.toJson()).toList(),
+      'consent_granted': consentGranted,
+      if (allowedCategories != null) 'allowed_categories': allowedCategories,
     };
   }
 }

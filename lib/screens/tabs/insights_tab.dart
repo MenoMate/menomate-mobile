@@ -4,10 +4,27 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../content/insight_library.dart';
 import '../../core/format.dart';
 import '../../data/sync_policy.dart';
-import '../../models/daily_log.dart';
+import '../../models/care.dart';
+import '../../models/daily_log.dart' show kLoggableSymptoms;
 import '../../providers/cycle_provider.dart';
+import '../../providers/data_providers.dart';
+import '../../providers/offline_mode_provider.dart';
+import '../../services/api_service.dart';
 import '../../widgets/daily_insight_card.dart';
 import 'home_tab.dart' show showPhaseInfoSheet;
+
+final careServerInsightsProvider = FutureProvider<List<CareInsight>>((
+  ref,
+) async {
+  if (ref.watch(isOfflineTrackingProvider)) return const [];
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return const [];
+  try {
+    return await ref.watch(apiServiceProvider).fetchCareInsights();
+  } catch (_) {
+    return const [];
+  }
+});
 
 /// Insights: MenoMate-generated understanding, kept strictly separate
 /// from Health Context (information the *user* provides — conditions,
@@ -60,9 +77,14 @@ class InsightsTab extends ConsumerWidget {
               const SizedBox(height: 20),
               _buildSectionHeader('Understand your cycle', colorScheme),
               const _PhaseCard(),
+              const SizedBox(height: 12),
+              const _CycleEducationCard(),
               const SizedBox(height: 20),
-              _buildSectionHeader('Cycle trends', colorScheme),
+              _buildSectionHeader('My patterns', colorScheme),
               const _CycleTrendsCard(),
+              const SizedBox(height: 12),
+              const _MyPatternsDetailsCard(),
+              const _ServerCareInsightsCard(),
               const SizedBox(height: 20),
               _buildSectionHeader('Symptom patterns', colorScheme),
               const _SymptomPatternsCard(),
@@ -73,6 +95,8 @@ class InsightsTab extends ConsumerWidget {
                 caption: true,
               ),
               const _LearnCard(),
+              const SizedBox(height: 12),
+              const _CommonConcernsCard(),
               const SizedBox(height: 36),
             ],
           ),
@@ -267,7 +291,9 @@ class _CycleTrendsCard extends ConsumerWidget {
           }
           final sorted = cycles.toList()
             ..sort((a, b) => a.periodStart.compareTo(b.periodStart));
-          final lengths = [
+          final pattern = ref.watch(localPatternSummaryProvider).value;
+          final cycleLengths = pattern?.observedCycleLengths ?? const <int>[];
+          final periodLengths = [
             for (final c in sorted)
               if (c.periodLengthDays != null) c.periodLengthDays!,
           ].take(6).toList();
@@ -282,22 +308,32 @@ class _CycleTrendsCard extends ConsumerWidget {
                   color: colorScheme.onSurface,
                 ),
               ),
-              if (lengths.length >= 2) ...[
+              if (cycleLengths.length >= 2) ...[
                 const SizedBox(height: 12),
+                Text(
+                  'Observed cycle lengths (start-to-start)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
                 SizedBox(
-                  height: 96,
+                  height: 88,
                   width: double.infinity,
                   child: CustomPaint(
                     painter: _TrendBarsPainter(
-                      values: lengths,
-                      barColor: colorScheme.primary,
+                      values: cycleLengths,
+                      barColor: colorScheme.tertiary,
                       labelColor: colorScheme.secondary,
                     ),
                   ),
                 ),
+              ] else ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Recent period lengths, in days. Based on your logged periods.',
+                  'Log at least 3 period starts to chart start-to-start cycle lengths.',
                   style: TextStyle(
                     fontSize: 12,
                     color: colorScheme.secondary,
@@ -305,14 +341,26 @@ class _CycleTrendsCard extends ConsumerWidget {
                   ),
                 ),
               ],
-              if (cycles.length < 3) ...[
-                const SizedBox(height: 8),
+              if (periodLengths.length >= 2) ...[
+                const SizedBox(height: 12),
                 Text(
-                  'More history can help MenoMate understand your pattern.',
+                  'Recorded period durations (days)',
                   style: TextStyle(
                     fontSize: 12,
-                    color: colorScheme.secondary,
-                    height: 1.35,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  height: 88,
+                  width: double.infinity,
+                  child: CustomPaint(
+                    painter: _TrendBarsPainter(
+                      values: periodLengths,
+                      barColor: colorScheme.primary,
+                      labelColor: colorScheme.secondary,
+                    ),
                   ),
                 ),
               ],
@@ -578,4 +626,408 @@ String _symptomLabel(String id) {
   final words = id.replaceAll('_', ' ').trim();
   if (words.isEmpty) return id;
   return words[0].toUpperCase() + words.substring(1);
+}
+
+class _MyPatternsDetailsCard extends ConsumerWidget {
+  const _MyPatternsDetailsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final patternAsync = ref.watch(localPatternSummaryProvider);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: colorScheme.outline),
+      ),
+      child: patternAsync.when(
+        data: (p) {
+          if (p == null || p.loggedDays == 0) {
+            return Text(
+              'No daily logs yet. Missing days are never assumed symptom-free — log symptoms, pain, or mood to build your personal patterns.',
+              style: TextStyle(
+                fontSize: 13,
+                color: colorScheme.secondary,
+                height: 1.4,
+              ),
+            );
+          }
+
+          final pct = (p.coverageRatio * 100).round();
+          final recentPains = p.painSeries.length > 7
+              ? p.painSeries.sublist(p.painSeries.length - 7)
+              : p.painSeries;
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Logging consistency & coverage
+              Text(
+                'Observation coverage: ${p.loggedDays} of ${p.effectiveWindowDays} active days ($pct%)',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Pain logged on ${p.painLoggedDays} day(s) (${p.explicitZeroPainDays} explicitly rated 0). Unlogged days are excluded.',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.secondary,
+                  height: 1.35,
+                ),
+              ),
+
+              // Pain severity trend (when >= 2 pain logs exist)
+              if (recentPains.length >= 2) ...[
+                const SizedBox(height: 14),
+                Text(
+                  'Recent pain scores (0–10)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SizedBox(
+                  height: 76,
+                  width: double.infinity,
+                  child: CustomPaint(
+                    painter: _TrendBarsPainter(
+                      values: [for (final e in recentPains) e.pain],
+                      barColor: colorScheme.secondary,
+                      labelColor: colorScheme.secondary,
+                    ),
+                  ),
+                ),
+              ] else ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Log pain on at least 2 days to chart your pain trend.',
+                  style: TextStyle(fontSize: 12, color: colorScheme.secondary),
+                ),
+              ],
+
+              // Current vs previous cycle comparison
+              if (p.cycleComparison != null) ...[
+                const SizedBox(height: 14),
+                Text(
+                  'Same-day cycle comparison (through Day ${p.cycleComparison!.currentDay})',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  p.cycleComparison!.currentPainAvg != null &&
+                          p.cycleComparison!.previousPainAvg != null
+                      ? 'Current cycle avg pain: ${p.cycleComparison!.currentPainAvg}/10 (${p.cycleComparison!.currentLogCount} logs) vs previous cycle: ${p.cycleComparison!.previousPainAvg}/10 (${p.cycleComparison!.previousLogCount} logs).'
+                      : 'Need pain logs in both current and previous cycles through Day ${p.cycleComparison!.currentDay} to compare.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colorScheme.secondary,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+
+              // Symptom-by-cycle-day heatmap (when >= 2 symptoms logged with cycle days)
+              if (p.symptomByCycleBucket.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                Text(
+                  'Symptoms by cycle day window',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (final entry in p.symptomByCycleBucket.entries.take(4))
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '${_symptomLabel(entry.key)}: ${entry.value.entries.map((b) => '${b.key} (${b.value}x)').join(', ')}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colorScheme.secondary,
+                      ),
+                    ),
+                  ),
+              ],
+
+              // Mood distribution (when >= 3 mood logs exist)
+              if (p.moodCounts.values.fold<int>(0, (a, b) => a + b) >= 3) ...[
+                const SizedBox(height: 14),
+                Text(
+                  'Mood distribution',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final m in (p.moodCounts.entries.toList()
+                      ..sort((a, b) => b.value.compareTo(a.value))))
+                      Chip(
+                        visualDensity: VisualDensity.compact,
+                        label: Text(
+                          '${m.key} (${m.value})',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ],
+          );
+        },
+        loading: () => const Center(
+          child: Padding(
+            padding: EdgeInsets.all(12),
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+        error: (_, _) => Text(
+          'Could not compute local pattern summary.',
+          style: TextStyle(fontSize: 13, color: colorScheme.secondary),
+        ),
+      ),
+    );
+  }
+}
+
+class _CycleEducationCard extends StatelessWidget {
+  const _CycleEducationCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    const phases = [
+      (
+        'Basic cycle structure',
+        'Day 1 starts on the first day of bleeding and runs until the day before your next period.',
+      ),
+      (
+        'Menstrual phase',
+        'Shedding of the uterine lining; cramping, lower back ache, and fatigue are commonly logged here.',
+      ),
+      (
+        'Follicular phase',
+        'Follows menstruation as follicles mature; energy and mood often shift gradually.',
+      ),
+      (
+        'Ovulatory phase (estimate)',
+        'Mid-cycle transition estimated from cycle length — never a measured hormone event without lab or LH/BBT confirmation.',
+      ),
+      (
+        'Luteal phase',
+        'The span between estimated ovulation and the next period, when PMS-related symptoms may appear.',
+      ),
+      (
+        'Why timing varies',
+        'Stress, sleep, travel, illness, and natural cycle variability shift phase lengths from cycle to cycle.',
+      ),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.outline),
+      ),
+      child: Column(
+        children: [
+          for (final item in phases)
+            ExpansionTile(
+              title: Text(
+                item.$1,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              children: [
+                Text(
+                  item.$2,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: scheme.secondary,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommonConcernsCard extends StatelessWidget {
+  const _CommonConcernsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    const concerns = [
+      (
+        'Cramps & pelvic pain',
+        'Track pain intensity (0–10), timing relative to Day 1, and what brings relief. Seek medical evaluation if pain stops daily activities or worsens over time.',
+      ),
+      (
+        'PMS & mood shifts',
+        'Log mood, sleep, and bloating in the days before your period. Discuss persistent mood distress with a healthcare provider.',
+      ),
+      (
+        'Fatigue & low energy',
+        'Note fatigue severity alongside flow heaviness and sleep. Ongoing exhaustion or dizziness warrants clinical evaluation.',
+      ),
+      (
+        'Heavy bleeding',
+        'Track flow intensity and pad/tampon frequency. Soaking through protection hourly or passing large clots requires prompt medical care.',
+      ),
+      (
+        'Irregular periods',
+        'Log every period start and end accurately so cycle-length variation is visible to share with a clinician.',
+      ),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: scheme.outline),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Common concerns (what to track)',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: scheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+          for (final item in concerns)
+            ExpansionTile(
+              title: Text(
+                item.$1,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              children: [
+                Text(
+                  item.$2,
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: scheme.secondary,
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ServerCareInsightsCard extends ConsumerWidget {
+  const _ServerCareInsightsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(careServerInsightsProvider);
+    final insights = async.value;
+    if (insights == null || insights.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: scheme.outline),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.auto_awesome_outlined,
+                    size: 16, color: scheme.primary),
+                const SizedBox(width: 6),
+                Text(
+                  'Synced Care insights',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: scheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            for (final item in insights.take(3)) ...[
+              Text(
+                item.title,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: scheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                item.explanation,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.35,
+                  color: scheme.secondary,
+                ),
+              ),
+              if (item.caveat != null && item.caveat!.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  item.caveat!,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: scheme.secondary.withValues(alpha: 0.75),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 8),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 }

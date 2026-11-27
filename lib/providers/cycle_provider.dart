@@ -2,6 +2,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../content/local_insights_engine.dart';
 import '../data/app_database.dart' show OfflineAdoptionCounts;
 import '../data/sync_policy.dart';
 import '../models/cycle.dart';
@@ -59,6 +60,25 @@ final symptomFrequencyProvider = FutureProvider<Map<String, int>>((ref) async {
   final userId = ref.watch(currentUserIdProvider);
   if (userId == null) return const {};
   return ref.watch(dailyLogRepositoryProvider).symptomCounts(userId);
+});
+
+/// Offline-capable local pattern summary derived from Drift cycles & logs.
+final localPatternSummaryProvider = FutureProvider<LocalPatternSummary?>((
+  ref,
+) async {
+  final userId = ref.watch(currentUserIdProvider);
+  if (userId == null) return null;
+  final cyclesState = await ref.watch(cycleListProvider.future);
+  final cycles = cyclesState.dataOrNull ?? const <CycleResponse>[];
+  final logs = await ref
+      .watch(dailyLogRepositoryProvider)
+      .loadRecentLocalLogs(userId, days: 90);
+  return computeLocalPatterns(
+    cycles: cycles,
+    logs: logs,
+    today: DateTime.now(),
+    windowDays: 90,
+  );
 });
 
 /// Offline-created tracking rows waiting for an explicit, consented move

@@ -169,6 +169,7 @@ class PredictionCache extends Table {
   IntColumn get daysUntilNextPeriod => integer().nullable()();
   TextColumn get predictionStatus => text().nullable()();
   TextColumn get predictionConfidence => text().nullable()();
+  IntColumn get predictedCycleLength => integer().nullable()();
   RealColumn get averageCycleLength => real().nullable()();
   RealColumn get averagePeriodLength => real().nullable()();
   DateTimeColumn get fetchedAt => dateTime().withDefault(currentDateAndTime)();
@@ -293,7 +294,7 @@ class AppDatabase extends _$AppDatabase {
   static AppDatabase memory() => AppDatabase(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -336,6 +337,14 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(localFertilityObservations);
         await m.createTable(localPregnancyContext);
         await m.createTable(localAgingContext);
+      }
+      // v5 -> v6: persist server-computed predictedCycleLength in PredictionCache
+      // so the Home cycle ring uses the same basis as predictedNextPeriod offline.
+      if (from < 6) {
+        await m.addColumn(
+          predictionCache,
+          predictionCache.predictedCycleLength,
+        );
       }
     },
   );

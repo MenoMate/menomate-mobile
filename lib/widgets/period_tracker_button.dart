@@ -6,6 +6,7 @@ import '../data/app_database.dart';
 import '../data/sync_policy.dart';
 import '../providers/cycle_provider.dart';
 import '../providers/data_providers.dart';
+import '../providers/notification_provider.dart';
 import '../providers/offline_mode_provider.dart';
 
 class PeriodTrackerButton extends ConsumerStatefulWidget {
@@ -63,6 +64,11 @@ class _PeriodTrackerButtonState extends ConsumerState<PeriodTrackerButton> {
         localOnly: offline,
       );
 
+      if (result is! Unavailable) {
+        await ref
+            .read(notificationPrefsProvider.notifier)
+            .cancelPeriodRemindersOnPeriodStart();
+      }
       refreshAllAppData(ref);
 
       if (mounted) {

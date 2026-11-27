@@ -2206,6 +2206,16 @@ class $PredictionCacheTable extends PredictionCache
         type: DriftSqlType.string,
         requiredDuringInsert: false,
       );
+  static const VerificationMeta _predictedCycleLengthMeta =
+      const VerificationMeta('predictedCycleLength');
+  @override
+  late final GeneratedColumn<int> predictedCycleLength = GeneratedColumn<int>(
+    'predicted_cycle_length',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _averageCycleLengthMeta =
       const VerificationMeta('averageCycleLength');
   @override
@@ -2248,6 +2258,7 @@ class $PredictionCacheTable extends PredictionCache
     daysUntilNextPeriod,
     predictionStatus,
     predictionConfidence,
+    predictedCycleLength,
     averageCycleLength,
     averagePeriodLength,
     fetchedAt,
@@ -2314,6 +2325,15 @@ class $PredictionCacheTable extends PredictionCache
         ),
       );
     }
+    if (data.containsKey('predicted_cycle_length')) {
+      context.handle(
+        _predictedCycleLengthMeta,
+        predictedCycleLength.isAcceptableOrUnknown(
+          data['predicted_cycle_length']!,
+          _predictedCycleLengthMeta,
+        ),
+      );
+    }
     if (data.containsKey('average_cycle_length')) {
       context.handle(
         _averageCycleLengthMeta,
@@ -2371,6 +2391,10 @@ class $PredictionCacheTable extends PredictionCache
         DriftSqlType.string,
         data['${effectivePrefix}prediction_confidence'],
       ),
+      predictedCycleLength: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}predicted_cycle_length'],
+      ),
       averageCycleLength: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}average_cycle_length'],
@@ -2400,6 +2424,7 @@ class PredictionCacheData extends DataClass
   final int? daysUntilNextPeriod;
   final String? predictionStatus;
   final String? predictionConfidence;
+  final int? predictedCycleLength;
   final double? averageCycleLength;
   final double? averagePeriodLength;
   final DateTime fetchedAt;
@@ -2410,6 +2435,7 @@ class PredictionCacheData extends DataClass
     this.daysUntilNextPeriod,
     this.predictionStatus,
     this.predictionConfidence,
+    this.predictedCycleLength,
     this.averageCycleLength,
     this.averagePeriodLength,
     required this.fetchedAt,
@@ -2432,6 +2458,9 @@ class PredictionCacheData extends DataClass
     }
     if (!nullToAbsent || predictionConfidence != null) {
       map['prediction_confidence'] = Variable<String>(predictionConfidence);
+    }
+    if (!nullToAbsent || predictedCycleLength != null) {
+      map['predicted_cycle_length'] = Variable<int>(predictedCycleLength);
     }
     if (!nullToAbsent || averageCycleLength != null) {
       map['average_cycle_length'] = Variable<double>(averageCycleLength);
@@ -2461,6 +2490,9 @@ class PredictionCacheData extends DataClass
       predictionConfidence: predictionConfidence == null && nullToAbsent
           ? const Value.absent()
           : Value(predictionConfidence),
+      predictedCycleLength: predictedCycleLength == null && nullToAbsent
+          ? const Value.absent()
+          : Value(predictedCycleLength),
       averageCycleLength: averageCycleLength == null && nullToAbsent
           ? const Value.absent()
           : Value(averageCycleLength),
@@ -2489,6 +2521,9 @@ class PredictionCacheData extends DataClass
       predictionConfidence: serializer.fromJson<String?>(
         json['predictionConfidence'],
       ),
+      predictedCycleLength: serializer.fromJson<int?>(
+        json['predictedCycleLength'],
+      ),
       averageCycleLength: serializer.fromJson<double?>(
         json['averageCycleLength'],
       ),
@@ -2508,6 +2543,7 @@ class PredictionCacheData extends DataClass
       'daysUntilNextPeriod': serializer.toJson<int?>(daysUntilNextPeriod),
       'predictionStatus': serializer.toJson<String?>(predictionStatus),
       'predictionConfidence': serializer.toJson<String?>(predictionConfidence),
+      'predictedCycleLength': serializer.toJson<int?>(predictedCycleLength),
       'averageCycleLength': serializer.toJson<double?>(averageCycleLength),
       'averagePeriodLength': serializer.toJson<double?>(averagePeriodLength),
       'fetchedAt': serializer.toJson<DateTime>(fetchedAt),
@@ -2521,6 +2557,7 @@ class PredictionCacheData extends DataClass
     Value<int?> daysUntilNextPeriod = const Value.absent(),
     Value<String?> predictionStatus = const Value.absent(),
     Value<String?> predictionConfidence = const Value.absent(),
+    Value<int?> predictedCycleLength = const Value.absent(),
     Value<double?> averageCycleLength = const Value.absent(),
     Value<double?> averagePeriodLength = const Value.absent(),
     DateTime? fetchedAt,
@@ -2539,6 +2576,9 @@ class PredictionCacheData extends DataClass
     predictionConfidence: predictionConfidence.present
         ? predictionConfidence.value
         : this.predictionConfidence,
+    predictedCycleLength: predictedCycleLength.present
+        ? predictedCycleLength.value
+        : this.predictedCycleLength,
     averageCycleLength: averageCycleLength.present
         ? averageCycleLength.value
         : this.averageCycleLength,
@@ -2563,6 +2603,9 @@ class PredictionCacheData extends DataClass
       predictionConfidence: data.predictionConfidence.present
           ? data.predictionConfidence.value
           : this.predictionConfidence,
+      predictedCycleLength: data.predictedCycleLength.present
+          ? data.predictedCycleLength.value
+          : this.predictedCycleLength,
       averageCycleLength: data.averageCycleLength.present
           ? data.averageCycleLength.value
           : this.averageCycleLength,
@@ -2582,6 +2625,7 @@ class PredictionCacheData extends DataClass
           ..write('daysUntilNextPeriod: $daysUntilNextPeriod, ')
           ..write('predictionStatus: $predictionStatus, ')
           ..write('predictionConfidence: $predictionConfidence, ')
+          ..write('predictedCycleLength: $predictedCycleLength, ')
           ..write('averageCycleLength: $averageCycleLength, ')
           ..write('averagePeriodLength: $averagePeriodLength, ')
           ..write('fetchedAt: $fetchedAt')
@@ -2597,6 +2641,7 @@ class PredictionCacheData extends DataClass
     daysUntilNextPeriod,
     predictionStatus,
     predictionConfidence,
+    predictedCycleLength,
     averageCycleLength,
     averagePeriodLength,
     fetchedAt,
@@ -2611,6 +2656,7 @@ class PredictionCacheData extends DataClass
           other.daysUntilNextPeriod == this.daysUntilNextPeriod &&
           other.predictionStatus == this.predictionStatus &&
           other.predictionConfidence == this.predictionConfidence &&
+          other.predictedCycleLength == this.predictedCycleLength &&
           other.averageCycleLength == this.averageCycleLength &&
           other.averagePeriodLength == this.averagePeriodLength &&
           other.fetchedAt == this.fetchedAt);
@@ -2623,6 +2669,7 @@ class PredictionCacheCompanion extends UpdateCompanion<PredictionCacheData> {
   final Value<int?> daysUntilNextPeriod;
   final Value<String?> predictionStatus;
   final Value<String?> predictionConfidence;
+  final Value<int?> predictedCycleLength;
   final Value<double?> averageCycleLength;
   final Value<double?> averagePeriodLength;
   final Value<DateTime> fetchedAt;
@@ -2634,6 +2681,7 @@ class PredictionCacheCompanion extends UpdateCompanion<PredictionCacheData> {
     this.daysUntilNextPeriod = const Value.absent(),
     this.predictionStatus = const Value.absent(),
     this.predictionConfidence = const Value.absent(),
+    this.predictedCycleLength = const Value.absent(),
     this.averageCycleLength = const Value.absent(),
     this.averagePeriodLength = const Value.absent(),
     this.fetchedAt = const Value.absent(),
@@ -2646,6 +2694,7 @@ class PredictionCacheCompanion extends UpdateCompanion<PredictionCacheData> {
     this.daysUntilNextPeriod = const Value.absent(),
     this.predictionStatus = const Value.absent(),
     this.predictionConfidence = const Value.absent(),
+    this.predictedCycleLength = const Value.absent(),
     this.averageCycleLength = const Value.absent(),
     this.averagePeriodLength = const Value.absent(),
     this.fetchedAt = const Value.absent(),
@@ -2658,6 +2707,7 @@ class PredictionCacheCompanion extends UpdateCompanion<PredictionCacheData> {
     Expression<int>? daysUntilNextPeriod,
     Expression<String>? predictionStatus,
     Expression<String>? predictionConfidence,
+    Expression<int>? predictedCycleLength,
     Expression<double>? averageCycleLength,
     Expression<double>? averagePeriodLength,
     Expression<DateTime>? fetchedAt,
@@ -2673,6 +2723,8 @@ class PredictionCacheCompanion extends UpdateCompanion<PredictionCacheData> {
       if (predictionStatus != null) 'prediction_status': predictionStatus,
       if (predictionConfidence != null)
         'prediction_confidence': predictionConfidence,
+      if (predictedCycleLength != null)
+        'predicted_cycle_length': predictedCycleLength,
       if (averageCycleLength != null)
         'average_cycle_length': averageCycleLength,
       if (averagePeriodLength != null)
@@ -2689,6 +2741,7 @@ class PredictionCacheCompanion extends UpdateCompanion<PredictionCacheData> {
     Value<int?>? daysUntilNextPeriod,
     Value<String?>? predictionStatus,
     Value<String?>? predictionConfidence,
+    Value<int?>? predictedCycleLength,
     Value<double?>? averageCycleLength,
     Value<double?>? averagePeriodLength,
     Value<DateTime>? fetchedAt,
@@ -2701,6 +2754,7 @@ class PredictionCacheCompanion extends UpdateCompanion<PredictionCacheData> {
       daysUntilNextPeriod: daysUntilNextPeriod ?? this.daysUntilNextPeriod,
       predictionStatus: predictionStatus ?? this.predictionStatus,
       predictionConfidence: predictionConfidence ?? this.predictionConfidence,
+      predictedCycleLength: predictedCycleLength ?? this.predictedCycleLength,
       averageCycleLength: averageCycleLength ?? this.averageCycleLength,
       averagePeriodLength: averagePeriodLength ?? this.averagePeriodLength,
       fetchedAt: fetchedAt ?? this.fetchedAt,
@@ -2733,6 +2787,9 @@ class PredictionCacheCompanion extends UpdateCompanion<PredictionCacheData> {
         predictionConfidence.value,
       );
     }
+    if (predictedCycleLength.present) {
+      map['predicted_cycle_length'] = Variable<int>(predictedCycleLength.value);
+    }
     if (averageCycleLength.present) {
       map['average_cycle_length'] = Variable<double>(averageCycleLength.value);
     }
@@ -2759,6 +2816,7 @@ class PredictionCacheCompanion extends UpdateCompanion<PredictionCacheData> {
           ..write('daysUntilNextPeriod: $daysUntilNextPeriod, ')
           ..write('predictionStatus: $predictionStatus, ')
           ..write('predictionConfidence: $predictionConfidence, ')
+          ..write('predictedCycleLength: $predictedCycleLength, ')
           ..write('averageCycleLength: $averageCycleLength, ')
           ..write('averagePeriodLength: $averagePeriodLength, ')
           ..write('fetchedAt: $fetchedAt, ')
@@ -7907,6 +7965,7 @@ typedef $$PredictionCacheTableCreateCompanionBuilder =
       Value<int?> daysUntilNextPeriod,
       Value<String?> predictionStatus,
       Value<String?> predictionConfidence,
+      Value<int?> predictedCycleLength,
       Value<double?> averageCycleLength,
       Value<double?> averagePeriodLength,
       Value<DateTime> fetchedAt,
@@ -7920,6 +7979,7 @@ typedef $$PredictionCacheTableUpdateCompanionBuilder =
       Value<int?> daysUntilNextPeriod,
       Value<String?> predictionStatus,
       Value<String?> predictionConfidence,
+      Value<int?> predictedCycleLength,
       Value<double?> averageCycleLength,
       Value<double?> averagePeriodLength,
       Value<DateTime> fetchedAt,
@@ -7962,6 +8022,11 @@ class $$PredictionCacheTableFilterComposer
 
   ColumnFilters<String> get predictionConfidence => $composableBuilder(
     column: $table.predictionConfidence,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get predictedCycleLength => $composableBuilder(
+    column: $table.predictedCycleLength,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -8020,6 +8085,11 @@ class $$PredictionCacheTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get predictedCycleLength => $composableBuilder(
+    column: $table.predictedCycleLength,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get averageCycleLength => $composableBuilder(
     column: $table.averageCycleLength,
     builder: (column) => ColumnOrderings(column),
@@ -8068,6 +8138,11 @@ class $$PredictionCacheTableAnnotationComposer
 
   GeneratedColumn<String> get predictionConfidence => $composableBuilder(
     column: $table.predictionConfidence,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get predictedCycleLength => $composableBuilder(
+    column: $table.predictedCycleLength,
     builder: (column) => column,
   );
 
@@ -8128,6 +8203,7 @@ class $$PredictionCacheTableTableManager
                 Value<int?> daysUntilNextPeriod = const Value.absent(),
                 Value<String?> predictionStatus = const Value.absent(),
                 Value<String?> predictionConfidence = const Value.absent(),
+                Value<int?> predictedCycleLength = const Value.absent(),
                 Value<double?> averageCycleLength = const Value.absent(),
                 Value<double?> averagePeriodLength = const Value.absent(),
                 Value<DateTime> fetchedAt = const Value.absent(),
@@ -8139,6 +8215,7 @@ class $$PredictionCacheTableTableManager
                 daysUntilNextPeriod: daysUntilNextPeriod,
                 predictionStatus: predictionStatus,
                 predictionConfidence: predictionConfidence,
+                predictedCycleLength: predictedCycleLength,
                 averageCycleLength: averageCycleLength,
                 averagePeriodLength: averagePeriodLength,
                 fetchedAt: fetchedAt,
@@ -8152,6 +8229,7 @@ class $$PredictionCacheTableTableManager
                 Value<int?> daysUntilNextPeriod = const Value.absent(),
                 Value<String?> predictionStatus = const Value.absent(),
                 Value<String?> predictionConfidence = const Value.absent(),
+                Value<int?> predictedCycleLength = const Value.absent(),
                 Value<double?> averageCycleLength = const Value.absent(),
                 Value<double?> averagePeriodLength = const Value.absent(),
                 Value<DateTime> fetchedAt = const Value.absent(),
@@ -8163,6 +8241,7 @@ class $$PredictionCacheTableTableManager
                 daysUntilNextPeriod: daysUntilNextPeriod,
                 predictionStatus: predictionStatus,
                 predictionConfidence: predictionConfidence,
+                predictedCycleLength: predictedCycleLength,
                 averageCycleLength: averageCycleLength,
                 averagePeriodLength: averagePeriodLength,
                 fetchedAt: fetchedAt,

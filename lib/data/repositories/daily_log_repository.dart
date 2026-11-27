@@ -27,6 +27,44 @@ class DailyLogRepository {
     )..where((t) => t.userId.equals(userId) & t.logDate.equals(isoDate))).get();
   }
 
+  /// Reads all local daily logs within [days] back from today (inclusive),
+  /// assembled with their symptom children. Pure local Drift read for
+  /// offline-first Insights & pattern charts.
+  Future<List<DailyLogResponse>> loadRecentLocalLogs(
+    String userId, {
+    int days = 90,
+  }) async {
+    final now = DateTime.now();
+    final cutoff = toIsoDate(
+      DateTime(now.year, now.month, now.day - (days - 1)),
+    );
+    final rows =
+        await (db.select(db.localDailyLogs)
+              ..where(
+                (t) =>
+                    t.userId.equals(userId) &
+                    t.logDate.isBiggerOrEqualValue(cutoff),
+              )
+              ..orderBy([(t) => OrderingTerm.asc(t.logDate)]))
+            .get();
+    if (rows.isEmpty) return const [];
+    final symptoms =
+        await (db.select(db.localSymptoms)
+              ..where(
+                (t) =>
+                    t.userId.equals(userId) &
+                    t.logDate.isBiggerOrEqualValue(cutoff),
+              ))
+            .get();
+    final byDate = <String, List<LocalSymptom>>{};
+    for (final s in symptoms) {
+      byDate.putIfAbsent(s.logDate, () => []).add(s);
+    }
+    return [
+      for (final r in rows) _assemble(r, byDate[r.logDate] ?? const []),
+    ];
+  }
+
   DailyLogResponse _assemble(LocalDailyLog row, List<LocalSymptom> symptoms) {
     return DailyLogResponse(
       id: row.id,

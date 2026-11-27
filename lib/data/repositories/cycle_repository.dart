@@ -114,6 +114,25 @@ class CycleRepository {
     // Display-only date arithmetic: Day N from the locally stored start.
     // Never used for prediction, phase, confidence, or predicted dates.
     final cycleDay = isoDayDifference(active.periodStart, today) + 1;
+    // Offline countdown: derive from cached predictedNextPeriod relative to
+    // today so it never freezes on a stale fixed daysUntilNextPeriod.
+    int? daysUntil = cache?.daysUntilNextPeriod;
+    String? predStatus = cache?.predictionStatus;
+    final cachedPredIso = cache?.predictedNextPeriod;
+    if (cachedPredIso != null) {
+      final diff = isoDayDifference(today, cachedPredIso);
+      if (diff > 0) {
+        daysUntil = diff;
+        predStatus = 'upcoming';
+      } else if (diff == 0) {
+        daysUntil = 0;
+        predStatus = 'today';
+      } else {
+        daysUntil = 0;
+        predStatus = 'awaiting_next_start';
+      }
+    }
+
     return CurrentCycleResponse(
       hasData: true,
       currentCycleDay: cycleDay,
@@ -125,12 +144,12 @@ class CycleRepository {
       latestPeriodEnd: active.periodEnd == null
           ? null
           : parseIsoDate(active.periodEnd!),
-      predictedCycleLength: null,
-      predictedNextPeriod: cache?.predictedNextPeriod == null
+      predictedCycleLength: cache?.predictedCycleLength,
+      predictedNextPeriod: cachedPredIso == null
           ? null
-          : parseIsoDate(cache!.predictedNextPeriod!),
-      daysUntilNextPeriod: cache?.daysUntilNextPeriod,
-      predictionStatus: cache?.predictionStatus,
+          : parseIsoDate(cachedPredIso),
+      daysUntilNextPeriod: daysUntil,
+      predictionStatus: predStatus,
       predictionConfidence: cache?.predictionConfidence ?? 'None',
       predictionSource: null,
       averageCycleLength: cache?.averageCycleLength?.round(),
@@ -273,6 +292,7 @@ class CycleRepository {
             daysUntilNextPeriod: Value(current.daysUntilNextPeriod),
             predictionStatus: Value(current.predictionStatus),
             predictionConfidence: Value(current.predictionConfidence),
+            predictedCycleLength: Value(current.predictedCycleLength),
             averageCycleLength: Value(current.averageCycleLength?.toDouble()),
             averagePeriodLength: Value(current.averagePeriodLength?.toDouble()),
             fetchedAt: Value(DateTime.now()),

@@ -9,6 +9,7 @@ import 'core/theme.dart';
 import 'data/app_database.dart';
 import 'providers/cycle_provider.dart';
 import 'providers/data_providers.dart';
+import 'providers/notification_provider.dart';
 import 'providers/offline_mode_provider.dart';
 import 'providers/theme_provider.dart';
 
@@ -178,6 +179,8 @@ class MenoMateApp extends ConsumerWidget {
     ref.watch(connectivitySyncProvider);
     // Clears a stale offline flag once a real session exists.
     ref.watch(offlineFlagJanitorProvider);
+    // Initializes local notification tap handling and syncs schedules.
+    ref.watch(notificationPrefsProvider);
 
     return MaterialApp.router(
       title: 'MenoMate',
