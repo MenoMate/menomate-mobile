@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest.dart' as tz_data;
+import 'package:timezone/data/latest_all.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../core/device_timezone.dart';
@@ -336,22 +336,41 @@ class NotificationService {
   NotificationService({NotificationScheduler? scheduler})
       : _scheduler = scheduler ?? FlutterLocalNotificationsScheduler();
 
+  static const Map<String, String> _legacyTzAliases = {
+    'Asia/Calcutta': 'Asia/Kolkata',
+    'Asia/Rangoon': 'Asia/Yangon',
+    'Asia/Katmandu': 'Asia/Kathmandu',
+    'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+  };
+
   Future<void> ensureTimezoneInitialized([String? overrideTzName]) async {
     if (!_tzInitialized) {
       tz_data.initializeTimeZones();
       _tzInitialized = true;
     }
-    final tzName = overrideTzName ?? await deviceTimeZoneId();
+    final rawName = overrideTzName ?? await deviceTimeZoneId();
+    final tzName = rawName != null ? (_legacyTzAliases[rawName] ?? rawName) : null;
     if (tzName != null && tzName.isNotEmpty) {
       try {
         tz.setLocalLocation(tz.getLocation(tzName));
         return;
       } catch (_) {
-        // Unknown timezone name — fall back to UTC safely.
+        // Fall through to offset-matched location below.
+      }
+    }
+    // Never silently fall back to UTC when the device has a non-zero offset:
+    // match a database location with the same current UTC offset.
+    final localOffsetMs = DateTime.now().timeZoneOffset.inMilliseconds;
+    for (final loc in tz.timeZoneDatabase.locations.values) {
+      if (loc.currentTimeZone.offset == localOffsetMs) {
+        tz.setLocalLocation(loc);
+        return;
       }
     }
     tz.setLocalLocation(tz.UTC);
   }
+
+  String get currentTimezoneName => _tzInitialized ? tz.local.name : 'unknown';
 
   Future<void> initialize({
     required void Function(String? payload) onTap,

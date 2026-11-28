@@ -378,7 +378,7 @@ class _NotificationSettingsScreenState
                           ),
                         ),
                       Text(
-                        'Device alarm status: ${dailyPending ? 'Scheduled' : 'Pending'} · Exact timing: ${_canExactAlarm ? 'Allowed' : 'Restricted by OS'}',
+                        'Device alarm status: ${dailyPending ? 'Scheduled' : 'Pending'} · Exact timing: ${_canExactAlarm ? 'Allowed' : 'Restricted by OS'} · TZ: ${ref.read(notificationServiceProvider).currentTimezoneName}',
                         style: TextStyle(
                           fontSize: 11,
                           color: colorScheme.secondary,

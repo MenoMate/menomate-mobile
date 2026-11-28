@@ -454,6 +454,10 @@ void main() {
           hasLoggedToday: true,
         );
         expect(skippedToTomorrow, DateTime(2026, 6, 16, 2, 19));
+
+        // 6. Legacy Android timezone alias ('Asia/Calcutta') resolves to 'Asia/Kolkata'
+        await service.ensureTimezoneInitialized('Asia/Calcutta');
+        expect(service.currentTimezoneName, 'Asia/Kolkata');
       },
     );
   });
