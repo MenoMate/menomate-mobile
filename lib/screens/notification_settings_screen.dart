@@ -19,6 +19,7 @@ class _NotificationSettingsScreenState
     extends ConsumerState<NotificationSettingsScreen> {
   bool _hasLoggedToday = false;
   bool _canExactAlarm = true;
+  List<int> _pendingIds = const [];
   Timer? _clockTimer;
 
   @override
@@ -27,7 +28,7 @@ class _NotificationSettingsScreenState
     Future.microtask(_refreshState);
     // Keep "Next reminder" accurate when the current minute rolls over.
     _clockTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (mounted) setState(() {});
+      if (mounted) _refreshState();
     });
   }
 
@@ -39,13 +40,15 @@ class _NotificationSettingsScreenState
 
   Future<void> _refreshState() async {
     final notifier = ref.read(notificationPrefsProvider.notifier);
+    final service = ref.read(notificationServiceProvider);
     final logged = await notifier.hasLoggedToday();
-    final exact =
-        await ref.read(notificationServiceProvider).canScheduleExactAlarms();
+    final exact = await service.canScheduleExactAlarms();
+    final pending = await service.pendingNotificationIds();
     if (mounted) {
       setState(() {
         _hasLoggedToday = logged;
         _canExactAlarm = exact;
+        _pendingIds = pending;
       });
     }
   }
@@ -56,15 +59,184 @@ class _NotificationSettingsScreenState
     return '$h12:${minute.toString().padLeft(2, '0')} $period';
   }
 
-  Future<TimeOfDay?> _showWheelTimePicker({
+  Future<TimeOfDay?> _showDigitalSliderTimePicker({
     required TimeOfDay initialTime,
     required String title,
   }) {
-    return showTimePicker(
+    int hour12 = initialTime.hour % 12 == 0 ? 12 : initialTime.hour % 12;
+    int minute = initialTime.minute;
+    bool isPm = initialTime.hour >= 12;
+
+    return showDialog<TimeOfDay>(
       context: context,
-      initialTime: initialTime,
-      helpText: title.toUpperCase(),
-      initialEntryMode: TimePickerEntryMode.dial,
+      builder: (ctx) {
+        final scheme = Theme.of(ctx).colorScheme;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return Dialog(
+              backgroundColor: scheme.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(28),
+                side: BorderSide(color: scheme.outline),
+              ),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 20, 22, 16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        title,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Digital Material You pill readout + AM/PM toggle
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _DigitalUnitBox(
+                            text: hour12.toString().padLeft(2, '0'),
+                            scheme: scheme,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: Text(
+                              ':',
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                          ),
+                          _DigitalUnitBox(
+                            text: minute.toString().padLeft(2, '0'),
+                            scheme: scheme,
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            children: [
+                              _AmPmPill(
+                                label: 'AM',
+                                selected: !isPm,
+                                scheme: scheme,
+                                onTap: () => setDialogState(() => isPm = false),
+                              ),
+                              const SizedBox(height: 6),
+                              _AmPmPill(
+                                label: 'PM',
+                                selected: isPm,
+                                scheme: scheme,
+                                onTap: () => setDialogState(() => isPm = true),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      // Hour slider
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 48,
+                            child: Text(
+                              'Hour',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: scheme.secondary,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Slider(
+                              value: hour12.toDouble(),
+                              min: 1,
+                              max: 12,
+                              divisions: 11,
+                              onChanged: (v) =>
+                                  setDialogState(() => hour12 = v.round()),
+                            ),
+                          ),
+                        ],
+                      ),
+                      // Minute slider + fine steppers
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 48,
+                            child: Text(
+                              'Min',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: scheme.secondary,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.remove, size: 18),
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => setDialogState(() {
+                              minute = (minute - 1 + 60) % 60;
+                            }),
+                          ),
+                          Expanded(
+                            child: Slider(
+                              value: minute.toDouble(),
+                              min: 0,
+                              max: 59,
+                              divisions: 59,
+                              onChanged: (v) =>
+                                  setDialogState(() => minute = v.round()),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.add, size: 18),
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => setDialogState(() {
+                              minute = (minute + 1) % 60;
+                            }),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.of(ctx).pop(),
+                            child: const Text('Cancel'),
+                          ),
+                          const SizedBox(width: 8),
+                          FilledButton(
+                            onPressed: () {
+                              final hour24 = isPm
+                                  ? (hour12 == 12 ? 12 : hour12 + 12)
+                                  : (hour12 == 12 ? 0 : hour12);
+                              Navigator.of(ctx).pop(
+                                TimeOfDay(hour: hour24, minute: minute),
+                              );
+                            },
+                            child: const Text('Set'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -89,6 +261,9 @@ class _NotificationSettingsScreenState
         nextFire.year == now.year &&
         nextFire.month == now.month &&
         nextFire.day == now.day;
+
+    final dailyPending =
+        _pendingIds.contains(NotificationService.dailyCheckInId);
 
     return Scaffold(
       appBar: AppBar(
@@ -138,7 +313,7 @@ class _NotificationSettingsScreenState
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          'Exact alarm access is off in Android settings. Reminders may be delayed by a few minutes.',
+                          'Exact alarm access is off in Android settings. Reminders may be delayed by several minutes.',
                           style: TextStyle(
                             fontSize: 12,
                             color: colorScheme.onSurface,
@@ -202,9 +377,17 @@ class _NotificationSettingsScreenState
                             ),
                           ),
                         ),
+                      Text(
+                        'Device alarm status: ${dailyPending ? 'Scheduled' : 'Pending'} · Exact timing: ${_canExactAlarm ? 'Allowed' : 'Restricted by OS'}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colorScheme.secondary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
                       TextButton.icon(
                         onPressed: () async {
-                          final picked = await _showWheelTimePicker(
+                          final picked = await _showDigitalSliderTimePicker(
                             initialTime: TimeOfDay(
                               hour: prefs.dailyHour,
                               minute: prefs.dailyMinute,
@@ -322,7 +505,7 @@ class _NotificationSettingsScreenState
                       ),
                       TextButton.icon(
                         onPressed: () async {
-                          final picked = await _showWheelTimePicker(
+                          final picked = await _showDigitalSliderTimePicker(
                             initialTime: TimeOfDay(
                               hour: prefs.periodHour,
                               minute: prefs.periodMinute,
@@ -334,6 +517,7 @@ class _NotificationSettingsScreenState
                               picked.hour,
                               picked.minute,
                             );
+                            await _refreshState();
                           }
                         },
                         icon: const Icon(Icons.schedule, size: 18),
@@ -362,7 +546,7 @@ class _NotificationSettingsScreenState
               ),
               const SizedBox(height: 12),
               Text(
-                'Reminders are scheduled locally on your device. Battery-saving modes on Android or iOS may slightly delay delivery.',
+                'Reminders are scheduled locally on your device. Battery-saving modes on Android or iOS may delay delivery if exact alarm access is restricted.',
                 style: TextStyle(
                   fontSize: 12,
                   color: colorScheme.secondary.withValues(alpha: 0.85),
@@ -370,6 +554,76 @@ class _NotificationSettingsScreenState
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DigitalUnitBox extends StatelessWidget {
+  final String text;
+  final ColorScheme scheme;
+
+  const _DigitalUnitBox({required this.text, required this.scheme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 72,
+      height: 64,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: scheme.onPrimaryContainer,
+        ),
+      ),
+    );
+  }
+}
+
+class _AmPmPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final ColorScheme scheme;
+  final VoidCallback onTap;
+
+  const _AmPmPill({
+    required this.label,
+    required this.selected,
+    required this.scheme,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: 48,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? scheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? scheme.primary : scheme.outline,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: selected ? scheme.onPrimary : scheme.secondary,
           ),
         ),
       ),

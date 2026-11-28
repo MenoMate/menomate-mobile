@@ -63,6 +63,10 @@ class _FakeNotificationScheduler implements NotificationScheduler {
   Future<bool> requestExactAlarmsPermission() async => true;
 
   @override
+  Future<List<int>> pendingNotificationIds() async =>
+      scheduled.map((e) => e.id).toList();
+
+  @override
   Future<void> scheduleDaily({
     required int id,
     required String title,

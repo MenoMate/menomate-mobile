@@ -60,6 +60,32 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
     _lastAppliedProfileKey = key;
   }
 
+  Future<void> _saveUnits(String units) async {
+    setState(() => _selectedUnits = units);
+    final userId = ref.read(currentUserIdProvider);
+    if (userId == null) return;
+    try {
+      await ref.read(profileRepositoryProvider).saveProfile(
+            userId,
+            {'units': units},
+            localOnly: ref.read(isOfflineTrackingProvider),
+          );
+      refreshAllAppData(ref);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Units updated to ${units == 'imperial' ? 'Imperial (°F)' : 'Metric (°C)'}.',
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (_) {
+      // Keep local dropdown value; next sync or save will retry.
+    }
+  }
+
   Future<void> _saveProfile() async {
     final cycleStr = _cycleLengthController.text.trim();
     final periodStr = _periodLengthController.text.trim();
@@ -446,84 +472,6 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: colorScheme.outline),
-                  ),
-                  // Own Material so the ListTile ink splash paints visibly
-                  // instead of hiding behind the decorated container.
-                  child: Material(
-                    color: colorScheme.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    child: ListTile(
-                      leading: const Icon(
-                        Icons.logout,
-                        color: Colors.redAccent,
-                      ),
-                      title: const Text(
-                        'Sign Out',
-                        style: TextStyle(
-                          color: Colors.redAccent,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      trailing: const Icon(
-                        Icons.chevron_right,
-                        color: Colors.redAccent,
-                      ),
-                      onTap: () async {
-                        // Guard against silently discarding offline work: if any
-                        // local row is still pending sync (or needs review),
-                        // confirm explicitly. "Stay signed in" is the safe path;
-                        // the existing wipe still runs on explicit confirmation.
-                        bool unsynced = false;
-                        try {
-                          unsynced = await ref
-                              .read(appDatabaseProvider)
-                              .hasUnsyncedData(
-                                userId: ref.read(authUserIdProvider),
-                              );
-                        } catch (_) {
-                          unsynced = false;
-                        }
-                        if (!context.mounted) return;
-                        if (unsynced) {
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              title: const Text(
-                                'Unsynced changes on this device',
-                              ),
-                              content: const Text(
-                                'Some of your recent changes have not synced '
-                                'yet. Logging out now may discard them. '
-                                'Reconnect and let the app sync first, or stay '
-                                'signed in.',
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(false),
-                                  child: const Text('Stay signed in'),
-                                ),
-                                TextButton(
-                                  onPressed: () =>
-                                      Navigator.of(context).pop(true),
-                                  child: const Text('Log out anyway'),
-                                ),
-                              ],
-                            ),
-                          );
-                          if (confirm != true) return;
-                        }
-                        // Wipes local rows + cached prediction so the next user
-                        // on this device never sees this account's data.
-                        await signOutAndClearLocalData(ref);
-                      },
-                    ),
-                  ),
-                ),
               ],
               const SizedBox(height: 20),
 
@@ -632,6 +580,24 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                         hintText: 'e.g. 5',
                         helperText: 'Leave blank if you\u2019re not sure.',
                         prefixIcon: Icon(Icons.water_drop_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 44,
+                      child: ElevatedButton(
+                        onPressed: _isSaving ? null : _saveProfile,
+                        child: _isSaving
+                            ? SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: colorScheme.onPrimary,
+                                ),
+                              )
+                            : const Text('Save Cycle Baseline'),
                       ),
                     ),
                   ],
@@ -794,9 +760,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                               ),
                             ],
                             onChanged: (val) {
-                              if (val != null) {
-                                setState(() => _selectedUnits = val);
-                              }
+                              if (val != null) _saveUnits(val);
                             },
                           ),
                         ],
@@ -805,26 +769,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-
-              // Save Preferences Button
-              SizedBox(
-                height: 48,
-                child: ElevatedButton(
-                  onPressed: _isSaving ? null : _saveProfile,
-                  child: _isSaving
-                      ? SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colorScheme.onPrimary,
-                          ),
-                        )
-                      : const Text('Save Profile Preferences'),
-                ),
-              ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 20),
 
               // --- 5. Wearable Device Section ---
               _buildSectionHeader('WEARABLE', colorScheme),
@@ -970,7 +915,7 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
               const SizedBox(height: 20),
 
               // --- 8. About MenoMate ---
-              _buildSectionHeader('HELP · About MenoMate', colorScheme),
+              _buildSectionHeader('ABOUT', colorScheme),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -994,6 +939,80 @@ class _SettingsTabState extends ConsumerState<SettingsTab> {
                   ],
                 ),
               ),
+              if (!offline) ...[
+                const SizedBox(height: 20),
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: colorScheme.outline),
+                  ),
+                  child: Material(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.logout,
+                        color: Colors.redAccent,
+                      ),
+                      title: const Text(
+                        'Sign Out',
+                        style: TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right,
+                        color: Colors.redAccent,
+                      ),
+                      onTap: () async {
+                        bool unsynced = false;
+                        try {
+                          unsynced = await ref
+                              .read(appDatabaseProvider)
+                              .hasUnsyncedData(
+                                userId: ref.read(authUserIdProvider),
+                              );
+                        } catch (_) {
+                          unsynced = false;
+                        }
+                        if (!context.mounted) return;
+                        if (unsynced) {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text(
+                                'Unsynced changes on this device',
+                              ),
+                              content: const Text(
+                                'Some of your recent changes have not synced '
+                                'yet. Logging out now may discard them. '
+                                'Reconnect and let the app sync first, or stay '
+                                'signed in.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(false),
+                                  child: const Text('Stay signed in'),
+                                ),
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(true),
+                                  child: const Text('Log out anyway'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm != true) return;
+                        }
+                        await signOutAndClearLocalData(ref);
+                      },
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 36),
             ],
           ),
@@ -1140,14 +1159,14 @@ class _NotificationsSettingsSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
             'REMINDERS',
             style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.1,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
               color: colorScheme.secondary,
+              letterSpacing: 0.5,
             ),
           ),
         ),

@@ -449,6 +449,7 @@ class _SymptomPatternsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final frequenciesAsync = ref.watch(symptomFrequencyProvider);
+    final pattern = ref.watch(localPatternSummaryProvider).value;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -471,35 +472,101 @@ class _SymptomPatternsCard extends ConsumerWidget {
           }
           final ranked = frequencies.entries.toList()
             ..sort((a, b) => b.value.compareTo(a.value));
+          final topCount = ranked.first.value;
+          final statsById = {
+            if (pattern != null)
+              for (final s in pattern.symptomStats) s.symptom: s,
+          };
+
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final entry in ranked.take(5))
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _symptomLabel(entry.key),
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: colorScheme.onSurface,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        entry.value == 1
-                            ? 'Logged once'
-                            : 'Logged ${entry.value} times',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colorScheme.secondary,
-                        ),
-                      ),
-                    ],
-                  ),
+              Text(
+                'Most frequently logged symptoms',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
                 ),
+              ),
+              const SizedBox(height: 12),
+              for (final entry in ranked.take(5)) ...[
+                Builder(
+                  builder: (context) {
+                    final stat = statsById[entry.key];
+                    final buckets = pattern?.symptomByCycleBucket[entry.key];
+                    String? topWindow;
+                    if (buckets != null && buckets.isNotEmpty) {
+                      final sortedB = buckets.entries.toList()
+                        ..sort((a, b) => b.value.compareTo(a.value));
+                      topWindow = sortedB.first.key;
+                    }
+                    final sevText = stat?.avgSeverity != null
+                        ? ' · avg ${stat!.avgSeverity!.toStringAsFixed(1)}/5'
+                        : '';
+                    final windowText =
+                        topWindow != null ? ' · most often $topWindow' : '';
+                    final ratio =
+                        topCount > 0 ? (entry.value / topCount).clamp(0.1, 1.0) : 0.0;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _symptomLabel(entry.key),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.onSurface,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                entry.value == 1
+                                    ? '1 day'
+                                    : '${entry.value} days',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: colorScheme.primary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: ratio,
+                              minHeight: 6,
+                              backgroundColor:
+                                  colorScheme.primary.withValues(alpha: 0.12),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                colorScheme.primary,
+                              ),
+                            ),
+                          ),
+                          if (sevText.isNotEmpty || windowText.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Logged ${entry.value}x$sevText$windowText',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: colorScheme.secondary,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
             ],
           );
         },
@@ -974,23 +1041,68 @@ class _MyPatternsDetailsCard extends ConsumerWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Logging consistency & coverage
-              Text(
-                'Observation coverage: ${p.loggedDays} of ${p.effectiveWindowDays} active days ($pct%)',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Pain logged on ${p.painLoggedDays} day(s) (${p.explicitZeroPainDays} explicitly rated 0). Unlogged days are excluded.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colorScheme.secondary,
-                  height: 1.35,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '$pct%',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          Text(
+                            '${p.loggedDays}/${p.effectiveWindowDays} active days',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.secondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: colorScheme.tertiary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${p.painLoggedDays}',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                          Text(
+                            'Pain days (${p.explicitZeroPainDays} at 0)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colorScheme.secondary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
 
               // Pain severity trend (when >= 2 pain logs exist)

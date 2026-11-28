@@ -72,6 +72,7 @@ abstract class NotificationScheduler {
   Future<bool> requestPermission();
   Future<bool> canScheduleExactAlarms();
   Future<bool> requestExactAlarmsPermission();
+  Future<List<int>> pendingNotificationIds();
   Future<void> scheduleDaily({
     required int id,
     required String title,
@@ -175,6 +176,16 @@ class FlutterLocalNotificationsScheduler implements NotificationScheduler {
       return await androidImpl.requestExactAlarmsPermission() ?? true;
     } catch (_) {
       return false;
+    }
+  }
+
+  @override
+  Future<List<int>> pendingNotificationIds() async {
+    try {
+      final pending = await _plugin.pendingNotificationRequests();
+      return pending.map((e) => e.id).toList();
+    } catch (_) {
+      return const [];
     }
   }
 
@@ -359,6 +370,9 @@ class NotificationService {
 
   Future<bool> requestExactAlarmsPermission() =>
       _scheduler.requestExactAlarmsPermission();
+
+  Future<List<int>> pendingNotificationIds() =>
+      _scheduler.pendingNotificationIds();
 
   Future<void> cancelDailyReminder() => _scheduler.cancel(dailyCheckInId);
 
